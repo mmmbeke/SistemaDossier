@@ -54,6 +54,6 @@ Actualmente en desarrollo, con:
 
 ## 👨‍💻 Autor
 
-Proyecto desarrollado como parte de un trabajo académico universitario.
+Proyecto desarrollado como parte de un trabajo académico de la Universidad Tecnológica Metropolitana del Estado De Chile. 
 
 ---
