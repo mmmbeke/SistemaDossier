@@ -1,0 +1,54 @@
+URL: https://www.sec.gov/Archives/edgar/data/1418121/000119312526204023/aple-20260331.htm
+
+Aquí tienes un resumen financiero del envío 10-Q de Apple Hospitality REIT, Inc., basado en el fragmento proporcionado:
+
+**Metadatos del Documento:**
+*   **Empresa:** Apple Hospitality REIT, Inc.
+*   **Formulario:** 10-Q
+*   **Fecha de Creación:** 2026-05-04
+*   **Período Fiscal del Documento:** Primer trimestre (Q1) finalizado el 31 de marzo de 2026
+*   **CIK:** 0001418121
+*   **Archivo:** aple-20260331.htm
+
+**Contexto del Documento:**
+Este es un informe trimestral no auditado (Formulario 10-Q) de Apple Hospitality REIT, Inc., un fideicomiso de inversión inmobiliaria (REIT) autoasesorado que invierte principalmente en el sector hotelero de EE. UU. El informe cubre el primer trimestre finalizado el 31 de marzo de 2026. La compañía es una "large accelerated filer" y cumple con los requisitos de presentación electrónica.
+
+**Puntos Clave para Inversores o Cumplimiento:**
+
+1.  **Resultados de Operaciones (Trimestrales, 31 de marzo de 2026 vs. 2025):**
+    *   **Ingresos:** Aumentaron a 337.741 millones de USD en 2026 desde 327.702 millones de USD en 2025, impulsados por un incremento en los ingresos por habitaciones, alimentos y bebidas, y otros ingresos.
+    *   **Gastos:** Los gastos operativos totales del hotel aumentaron a 206.937 millones de USD en 2026 desde 199.870 millones de USD en 2025. Los gastos generales y administrativos, y la depreciación y amortización también aumentaron.
+    *   **Ganancia por venta de bienes raíces:** En 2026 no hubo ganancias por venta de bienes raíces, a diferencia de los 3.557 millones de USD en 2025.
+    *   **Ingresos Operativos:** Disminuyeron a 48.013 millones de USD en 2026 desde 50.859 millones de USD en 2025.
+    *   **Gastos por Intereses Netos:** Aumentaron ligeramente a (20.072) millones de USD en 2026 desde (19.397) millones de USD en 2025.
+    *   **Ingresos Netos:** Disminuyeron a 27.699 millones de USD en 2026 desde 31.221 millones de USD en 2025.
+    *   **Ganancia Integral:** Aumentó a 30.530 millones de USD en 2026 desde 24.187 millones de USD en 2025, debido a una mejora significativa en la "other comprehensive income (loss)" (ganancia de 2.831 millones de USD en 2026 vs. pérdida de 7.034 millones de USD en 2025).
+    *   **Ganancias Básicas y Diluidas por Acción:** Disminuyeron a 0,12 USD en 2026 desde 0,13 USD en 2025.
+
+2.  **Posición Financiera (Balance General, 31 de marzo de 2026 vs. 31 de diciembre de 2025):**
+    *   **Activos Totales:** Disminuyeron ligeramente a 4.894.225 millones de USD en 2026 desde 4.902.178 millones de USD en 2025.
+    *   **Inversión en Bienes Raíces (neta):** Disminuyó a 4.757.452 millones de USD en 2026 desde 4.787.864 millones de USD en 2025.
+    *   **Activos Mantenidos para la Venta:** 8.346 millones de USD en 2026 (ninguno en 2025), lo que indica un hotel clasificado para la venta al cierre del trimestre.
+    *   **Efectivo y Equivalentes de Efectivo:** Disminuyeron a 7.837 millones de USD en 2026 desde 8.515 millones de USD en 2025.
+    *   **Efectivo Restringido:** Disminuyó notablemente a 12.944 millones de USD en 2026 desde 30.903 millones de USD en 2025.
+    *   **Cuentas por Cobrar de Terceros Administradores (neta):** Aumentó a 64.622 millones de USD en 2026 desde 32.952 millones de USD en 2025.
+    *   **Deuda (neta):** Aumentó a 1.565.680 millones de USD en 2026 desde 1.538.584 millones de USD en 2025.
+    *   **Capital de los Accionistas Total:** Disminuyó a 3.126.510 millones de USD en 2026 desde 3.148.595 millones de USD en 2025.
+
+3.  **Flujos de Efectivo (Trimestrales, 31 de marzo de 2026 vs. 2025):**
+    *   **Actividades Operativas:** Se mantuvieron relativamente estables, con 48.857 millones de USD en 2026 vs. 49.139 millones de USD en 2025.
+    *   **Actividades de Inversión:** Se utilizó significativamente más efectivo, con un uso neto de (35.775) millones de USD en 2026 vs. (7.076) millones de USD en 2025, principalmente por mayores mejoras de capital y la ausencia de ventas de propiedades en el trimestre actual que generaran efectivo.
+    *   **Actividades de Financiamiento:** Se utilizó menos efectivo, con un uso neto de (31.719) millones de USD en 2026 vs. (36.028) millones de USD en 2025, debido a menos recompra de acciones y menores distribuciones.
+    *   **Cambio Neto en Efectivo y Equivalentes de Efectivo (incluyendo efectivo restringido):** Disminución de (18.637) millones de USD en 2026, en contraste con un aumento de 6.035 millones de USD en 2025.
+
+4.  **Notas a los Estados Financieros:**
+    *   **Operaciones:** La empresa opera como un REIT con un único segmento reportable, poseyendo 217 hoteles (29.583 habitaciones) en 37 estados y D.C. Todos los hoteles se alquilan a una subsidiaria REIT imponible.
+    *   **Adquisiciones y Disposiciones:** No hubo adquisiciones o disposiciones de hoteles en el primer trimestre de 2026. Un hotel fue clasificado como "mantenido para la venta" a 31 de marzo de 2026 y se vendió en abril de 2026. En 2025, la compañía adquirió dos hoteles y vendió siete, parte de estas ventas se utilizaron para intercambios 1031 con aplazamiento de impuestos.
+    *   **Normativa Contable:** La empresa adoptó la ASU 2023-09 (impuestos sobre la renta) retrospectivamente en su 10-K de 2025, sin impacto en los estados financieros, solo en las revelaciones. Está evaluando la ASU 2024-03 (desglose de gastos del estado de resultados), que será efectiva para períodos anuales a partir del 15 de diciembre de 2026.
+
+**Riesgos o Eventos Destacados:**
+*   La clasificación de un hotel como "activos mantenidos para la venta" en el balance general de marzo de 2026 y su posterior venta en abril de 2026 es un evento post-cierre relevante que afectará la composición futura de los activos.
+*   La disminución del efectivo, aunque el flujo de caja operativo se mantuvo estable, se debe principalmente a un aumento en los gastos de capital y la ausencia de ganancias significativas por venta de activos en el trimestre, a diferencia del año anterior.
+
+**Conclusión Breve:**
+Apple Hospitality REIT, Inc. experimentó un aumento en los ingresos durante el primer trimestre de 2026, pero sus ingresos operativos y netos disminuyeron en comparación con el año anterior, en parte debido a la ausencia de ganancias por venta de bienes raíces y mayores gastos por intereses. La compañía mantuvo un nivel similar de efectivo de las operaciones, pero la inversión en mejoras de capital resultó en una disminución neta del efectivo y equivalentes. La empresa sigue siendo un actor importante en el sector hotelero de EE. UU. con una cartera diversificada, y está monitoreando los nuevos estándares contables.

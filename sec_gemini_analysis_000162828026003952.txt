@@ -1,0 +1,48 @@
+URL: https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm
+
+Aquí tiene un resumen del envío 10-K de Tesla, Inc. para el año fiscal que finalizó el 31 de diciembre de 2025, presentado ante la SEC el 29 de enero de 2026.
+
+**Metadatos:**
+*   **Empresa:** Tesla, Inc.
+*   **Formulario:** 10-K (Informe Anual)
+*   **Fecha de finalización del período del documento:** 31 de diciembre de 2025
+*   **Fecha de presentación:** 29 de enero de 2026
+*   **CIK:** 0001318605
+*   **Número de Acceso:** 0001628280-26-003952
+*   **Archivo:** tsla-20251231.htm
+
+---
+
+**Resumen Financiero y de Negocio de Tesla, Inc. (10-K de 2025)**
+
+**Contexto del Documento:**
+Este es el informe anual (Formulario 10-K) de Tesla, Inc. para el año fiscal que concluyó el 31 de diciembre de 2025. El documento proporciona una visión integral de las operaciones de la empresa, su posición financiera, resultados de operaciones y flujos de efectivo, junto con discusiones sobre riesgos significativos, políticas contables y gobernanza. Tesla se centra en llevar la inteligencia artificial (IA) al mundo real a través de vehículos eléctricos de alto rendimiento, sistemas de generación y almacenamiento de energía, y el desarrollo de robots de IA (incluido Optimus), Full Self-Driving (FSD) (Supervisado) y el servicio Robotaxi.
+
+**Puntos Clave para Inversores y Cumplimiento:**
+
+*   **Enfoque Estratégico:** Tesla está evolucionando hacia un modelo de negocio impulsado por IA y software, con el lanzamiento de su servicio Robotaxi en junio de 2025 y planes para producir el Cybercab. Continúa invirtiendo fuertemente en IA, infraestructura informática y líneas de producción de baterías y vehículos.
+*   **Resultados Financieros de 2025:**
+    *   **Ingresos Totales:** $94.83 mil millones, lo que representa una disminución del 3% ($2.86 mil millones) en comparación con 2024.
+    *   **Ganancia Neta Atribuible a Accionistas Comunes:** $3.79 mil millones, una disminución sustancial de $3.30 mil millones respecto a 2024.
+    *   **Caja y Equivalentes e Inversiones:** Aumentaron $7.50 mil millones, alcanzando los $44.06 mil millones a finales de 2025, lo que demuestra una sólida posición de liquidez.
+    *   **Flujos de Efectivo Operativos:** Disminuyeron ligeramente a $14.75 mil millones ($176 millones menos que en 2024).
+    *   **Gastos de Capital (CapEx):** Disminuyeron a $8.53 mil millones ($2.82 mil millones menos que en 2024), pero se proyecta que superen los $20 mil millones en 2026, impulsados por iniciativas de IA.
+    *   **Márgenes Brutos:** El margen bruto total se mantuvo relativamente estable (18.0% en 2025 vs. 17.9% en 2024), mientras que el margen bruto del segmento automotriz disminuyó (18.4% a 17.8%).
+    *   **Gastos de I+D:** Aumentaron significativamente en un 41% ($1.87 mil millones), reflejando la inversión en IA y nuevas tecnologías.
+    *   **Tasa Impositiva Efectiva:** Aumentó del 20% en 2024 al 27% en 2025, influenciada por la OBBBA.
+
+*   **Cambios Contables Importantes:** Tesla adoptó la ASU 2023-08 (nueva norma de criptoactivos) y la ASU 2023-09 (mejoras en las revelaciones de impuestos sobre la renta) con efecto a partir del 1 de enero de 2024 y 1 de enero de 2025, respectivamente.
+
+**Riesgos y Eventos Destacados:**
+
+*   **Impacto de la OBBBA:** La "One Big Beautiful Bill Act" (OBBBA), promulgada el 4 de julio de 2025, *ha tenido un impacto negativo considerable*. Ha recortado créditos fiscales al consumidor para vehículos eléctricos y energía residencial, impuesto requisitos de elegibilidad más estrictos, acelerado las fases de eliminación de incentivos y finalizado algunas disposiciones. Esto ha afectado los ingresos por créditos regulatorios automotrices y la rentabilidad. La necesidad de una trazabilidad rigurosa de las materias primas para cumplir con la OBBBA también es un riesgo para la elegibilidad de créditos fiscales futuros.
+*   **Dependencia del CEO:** Se mantiene una alta dependencia de Elon Musk, y el informe detalla los litigios relacionados con su paquete de compensación de 2018.
+*   **Litigios:**
+    *   **Compensación de CEO (2018):** La Corte Suprema de Delaware *revirtió la orden de rescisión* anterior, *reinstalando el paquete de compensación de 2018 de Elon Musk* y reduciendo la adjudicación de honorarios de abogados a $1 el 19 de diciembre de 2025.
+    *   **Compensación de Directores:** Aunque Tesla implementó un acuerdo de conciliación en mayo de 2025 que implicó la cancelación de opciones y una recepción neta de $110 millones, la empresa está *apelando la adjudicación de $176 millones en honorarios de abogados*.
+    *   **Demanda por Responsabilidad de Productos:** Un jurado en Florida otorgó $129 millones en daños compensatorios y $200 millones en daños punitivos en un juicio relacionado con la tecnología Autopilot en un accidente fatal de 2019. Tesla fue declarada 33% culpable y ha registrado una provisión inmaterial, apelando la decisión.
+    *   **Demandas Colectivas de Accionistas:** Continúan las demandas colectivas relacionadas con supuestos defectos y tergiversaciones de las tecnologías Autopilot y FSD, así como sobre declaraciones en relación con estas.
+*   **Inversión en xAI (evento posterior):** En enero de 2026, Tesla acordó invertir aproximadamente $2 mil millones en acciones preferentes de Serie E de xAI, una empresa afiliada a Elon Musk.
+
+**Conclusión Breve:**
+Tesla, Inc. está impulsando una ambiciosa estrategia centrada en la IA, que incluye la expansión de sus capacidades de conducción autónoma y robótica. A pesar de una disminución en ingresos y ganancias netas en 2025, impulsada en parte por el entorno regulatorio cambiante y las políticas comerciales (como la OBBBA), la empresa mantiene una sólida posición de caja y planes de inversión sustanciales para el futuro. La resolución favorable del litigio sobre el paquete de compensación de 2018 de Elon Musk es un punto positivo, aunque persisten otros litigios y la incertidumbre regulatoria sigue siendo un factor de riesgo importante. El éxito a largo plazo dependerá de la ejecución efectiva de sus estrategias de IA y la capacidad de sortear el complejo panorama regulatorio y competitivo.
