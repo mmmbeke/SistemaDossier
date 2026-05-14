@@ -1,5 +1,14 @@
-import requests
+import os
+import sys
 import time
+from pathlib import Path
+
+import requests
+from dotenv import load_dotenv
+
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
 USER_AGENT = "CarlosApp/1.0 (fduran@utem.cl)"
 MIN_INTERVAL_SECONDS = 0.1
@@ -16,6 +25,18 @@ def fetch_json(url):
     response.raise_for_status()
     time.sleep(MIN_INTERVAL_SECONDS)
     return response.json()
+
+
+def fetch_bytes(url):
+    """Descarga binaria (p. ej. HTML del filing) respetando el User-Agent de la SEC."""
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept-Encoding": "gzip, deflate",
+    }
+    response = requests.get(url, headers=headers, timeout=120)
+    response.raise_for_status()
+    time.sleep(MIN_INTERVAL_SECONDS)
+    return response.content
 
 
 def load_company_index():
@@ -108,8 +129,65 @@ def find_main_document(index_data, symbol_hint=None):
     return None
 
 
+def maybe_analyze_with_gemini(
+    *,
+    document_url: str,
+    document_name: str,
+    company_name: str,
+    form: str,
+    filing_date: str,
+    accession: str,
+    cik: str,
+) -> None:
+    """
+    Si existe GEMINI_API_KEY (o GOOGLE_API_KEY) en .env, descarga el documento y lo envía a Gemini.
+    Desactivar: GEMINI_SKIP_ANALYSIS=1
+    """
+    load_dotenv(_ROOT / ".env")
+    if (os.getenv("GEMINI_SKIP_ANALYSIS") or "").strip() in ("1", "true", "yes"):
+        print("\n(Gemini: omitido por GEMINI_SKIP_ANALYSIS.)")
+        return
+    key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
+    if not key:
+        print(
+            "\n(Gemini: no hay GEMINI_API_KEY; obtén una clave en Google AI Studio y "
+            "añádela al .env para analizar el formulario automáticamente.)"
+        )
+        return
+
+    from gemini_analyze import analyze_document_bytes
+
+    print("\nDescargando documento para análisis con Gemini…")
+    try:
+        data = fetch_bytes(document_url)
+        prompt = (
+            "Eres un analista financiero. Resume en español este envío de la SEC. "
+            "Incluye: contexto del documento, puntos clave para inversores o cumplimiento, "
+            "riesgos o eventos destacados si los hay, y una conclusión breve. "
+            f"Metadatos: empresa={company_name}, formulario={form}, fecha={filing_date}, "
+            f"accession={accession}, CIK={cik}, archivo={document_name}."
+        )
+        print("Enviando a Gemini (puede tardar en documentos largos)…")
+        analysis = analyze_document_bytes(data, document_name, prompt)
+        print("\n=== Análisis Gemini ===\n")
+        print(analysis)
+
+        safe = "".join(c if c.isalnum() else "_" for c in accession.replace("-", ""))[:40]
+        out_path = _ROOT / f"sec_gemini_analysis_{safe}.txt"
+        out_path.write_text(
+            f"URL: {document_url}\n\n{analysis}",
+            encoding="utf-8",
+        )
+        print(f"\n(Análisis guardado en: {out_path})")
+    except ImportError as e:
+        print(f"\n(Gemini: instala dependencias: pip install -r requirements.txt) {e}")
+    except Exception as e:
+        print(f"\n(Gemini: error al analizar — {e})")
+
+
 def main():
     try:
+        load_dotenv(_ROOT / ".env")
         print("=== CONSULTA SEC EDGAR ===")
 
         query = input(
@@ -200,6 +278,15 @@ def main():
             print(f"Archivo: {document_name}")
             print("URL directa al HTML principal:")
             print(final_url)
+            maybe_analyze_with_gemini(
+                document_url=final_url,
+                document_name=document_name,
+                company_name=company_name,
+                form=first["form"],
+                filing_date=first["date"],
+                accession=first["accession"],
+                cik=cik,
+            )
         else:
             print(
                 "(No se pudo detectar el HTML principal del filing más reciente; "

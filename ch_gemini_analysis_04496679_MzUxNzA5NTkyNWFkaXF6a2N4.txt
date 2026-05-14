@@ -1,0 +1,30 @@
+document_metadata: https://document-api.company-information.service.gov.uk/document/bkSh1KFu32qA4jttoBH6hlMrzypQTZFA-Ackdz7QXPY
+
+Aquí tienes un resumen del documento presentado por UNION LTD:
+
+**Tipo de Hecho o Trámite:**
+Presentación de Cuentas Anuales No Auditadas (Accounts-with-accounts-type-micro-entity) ante Companies House.
+
+**Datos Clave:**
+
+*   **Empresa:** UNION LTD
+*   **Número de Registro:** 04496679
+*   **Período Contable:** Para el año fiscal finalizado el 31 de julio de 2025.
+*   **Resultados Financieros (comparación 2025 vs 2024):**
+    *   **Activos Netos:** Aumentaron significativamente de £386,090 en 2024 a £630,259 en 2025.
+    *   **Activos Fijos:** Se incrementaron de £246,174 a £256,637.
+    *   **Activos Corrientes:** Experimentaron un fuerte aumento de £287,080 a £509,875.
+    *   **Pasivos Corrientes (a pagar en menos de un año):** Disminuyeron ligeramente de £137,194 a £134,259.
+    *   **Pasivos a Largo Plazo (a pagar en más de un año):** Fueron eliminados por completo, pasando de £9,167 en 2024 a £0 en 2025.
+*   **Estatus de la Empresa:** La compañía califica como microentidad y, por lo tanto, está exenta de auditoría según la sección 477 de la Companies Act 2006.
+*   **Empleados:** El número promedio de empleados se mantuvo estable en 2 personas.
+*   **Préstamos a Directores:** Se registra un saldo total de £123,874 en préstamos a directores (£61,937 para el Sr. S J Morton y £61,937 para la Sra. J Whiley-Morton), los cuales no están garantizados, son pagaderos a demanda y devengan intereses a tipo de mercado. Estos préstamos no tuvieron movimientos (ni avances ni reembolsos) durante el año fiscal.
+
+**Fechas Relevantes:**
+
+*   **Cierre del ejercicio fiscal:** 31 de julio de 2025.
+*   **Fecha de aprobación de los estados financieros por los directores:** 11 de abril de 2026.
+*   **Fecha de presentación a Companies House:** 20 de abril de 2026.
+
+**Conclusión Breve:**
+UNION LTD ha demostrado un sólido desempeño financiero en el año fiscal 2025, con un notable incremento en sus activos netos y una mejora en su estructura de pasivos al eliminar la deuda a largo plazo. La empresa mantiene su estatus de microentidad, exenta de auditoría, y continúa operando con una plantilla reducida de dos empleados.
