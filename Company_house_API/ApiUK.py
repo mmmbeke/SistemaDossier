@@ -1,13 +1,21 @@
 """
 CLI Companies House (Reino Unido): búsqueda por nombre, perfil completo e historial de filings.
 Requiere COMPANIES_HOUSE_API_KEY en .env (misma variable que main.py).
+Opcional: GEMINI_API_KEY para analizar el primer documento descargable del historial.
 """
+from __future__ import annotations
+
 import json
 import os
+import sys
 from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
 
 SEARCH_URL = "https://api.company-information.service.gov.uk/search/companies"
@@ -20,7 +28,8 @@ MAX_ITEMS_FILINGS = 100
 
 
 def load_api_key() -> tuple[str, str]:
-    load_dotenv()
+    load_dotenv(_ROOT / ".env")
+    load_dotenv(Path(__file__).resolve().parent / ".env")
     key = os.getenv("COMPANIES_HOUSE_API_KEY")
     if not key or not str(key).strip():
         raise SystemExit(
@@ -88,6 +97,164 @@ def get_filing_history(company_number: str, auth: tuple[str, str]) -> dict:
     )
 
 
+MIME_TO_EXT = {
+    "application/pdf": ".pdf",
+    "application/xhtml+xml": ".html",
+    "text/html": ".html",
+    "application/json": ".json",
+    "application/xml": ".xml",
+    "text/xml": ".xml",
+}
+
+DEFAULT_ACCEPT_ORDER: list[tuple[str, str]] = [
+    ("application/pdf", ".pdf"),
+    ("application/xhtml+xml", ".html"),
+    ("text/html", ".html"),
+    ("application/json", ".json"),
+    ("application/xml", ".xml"),
+]
+
+
+def _mime_sort_key(mime: str) -> int:
+    m = mime.split(";")[0].strip().lower()
+    if "pdf" in m:
+        return 0
+    if "xhtml" in m or m == "text/html":
+        return 1
+    if "json" in m:
+        return 2
+    if "xml" in m:
+        return 3
+    return 9
+
+
+def _accept_order_from_metadata(meta: dict | None) -> list[tuple[str, str]]:
+    if not meta:
+        return list(DEFAULT_ACCEPT_ORDER)
+    resources = meta.get("resources") or {}
+    keys = [k.split(";")[0].strip() for k in resources if k]
+    keys_sorted = sorted(set(keys), key=_mime_sort_key)
+    order: list[tuple[str, str]] = []
+    for mime in keys_sorted:
+        ext = MIME_TO_EXT.get(mime.lower(), ".bin")
+        order.append((mime, ext))
+    for mime, ext in DEFAULT_ACCEPT_ORDER:
+        if mime not in [x[0] for x in order]:
+            order.append((mime, ext))
+    return order
+
+
+def ch_fetch_metadata_dict(metadata_url: str, auth: tuple[str, str]) -> dict | None:
+    try:
+        return ch_get(metadata_url, auth)
+    except requests.HTTPError:
+        return None
+
+
+def ch_download_filing_document(metadata_url: str, auth: tuple[str, str]) -> tuple[bytes, str]:
+    """
+    Descarga el contenido del documento (Document API) probando Accept según metadatos.
+    """
+    base = metadata_url.rstrip("/")
+    content_url = f"{base}/content"
+    meta = ch_fetch_metadata_dict(metadata_url, auth)
+    attempts = _accept_order_from_metadata(meta)
+    last: tuple[int, str] | None = None
+    for accept, ext in attempts:
+        response = requests.get(
+            content_url,
+            auth=auth,
+            headers={"Accept": accept},
+            timeout=120,
+            allow_redirects=True,
+        )
+        if response.status_code == 200 and response.content:
+            return response.content, ext
+        last = (response.status_code, (response.text or "")[:300])
+    raise RuntimeError(
+        f"No se pudo descargar el documento desde {content_url}. "
+        f"Último intento HTTP {last[0]}: {last[1]!r}"
+        if last
+        else "Sin respuesta."
+    )
+
+
+def maybe_analyze_ch_filing_with_gemini(
+    profile: dict,
+    filing_history: dict,
+    auth: tuple[str, str],
+    company_number: str,
+) -> None:
+    """
+    Si hay GEMINI_API_KEY en el .env de la raíz del proyecto, descarga el primer filing
+    con document_metadata y lo analiza con Gemini.
+    Desactivar: GEMINI_SKIP_ANALYSIS=1
+    """
+    load_dotenv(_ROOT / ".env")
+    if (os.getenv("GEMINI_SKIP_ANALYSIS") or "").strip() in ("1", "true", "yes"):
+        print("\n(Gemini: omitido por GEMINI_SKIP_ANALYSIS.)")
+        return
+    if not (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip():
+        print(
+            "\n(Gemini: no hay GEMINI_API_KEY; añádela al .env del proyecto para analizar "
+            "documentos de Companies House automáticamente.)"
+        )
+        return
+
+    items = filing_history.get("items") or []
+    chosen: tuple[dict, str] | None = None
+    for item in items:
+        meta_url = (item.get("links") or {}).get("document_metadata")
+        if meta_url:
+            chosen = (item, str(meta_url))
+            break
+
+    if not chosen:
+        print(
+            "\n(Gemini: ningún ítem del historial reciente incluye document_metadata "
+            "(p. ej. solo presentaciones en papel); no hay archivo que descargar.)"
+        )
+        return
+
+    item, meta_url = chosen
+    from gemini_analyze import analyze_document_bytes
+
+    company_name = profile.get("company_name", "N/A")
+    print("\nDescargando documento desde Companies House (Document API) para Gemini…")
+    try:
+        data, ext = ch_download_filing_document(meta_url, auth)
+        date = item.get("date", "")
+        ftype = item.get("type", "")
+        category = item.get("category", "")
+        desc = item.get("description", "")
+        tx = item.get("transaction_id", "doc")[:24]
+        safe_cn = "".join(c if c.isalnum() else "_" for c in company_number)[:16]
+        filename = f"ch_{safe_cn}_{date}_{ftype}{ext}"
+
+        prompt = (
+            "Eres un analista corporativo (Reino Unido). Resume en español este documento "
+            "presentado en Companies House. Incluye: tipo de hecho o trámite, datos clave "
+            "que aparezcan, fechas relevantes y una conclusión breve. "
+            f"Empresa: {company_name} ({company_number}). "
+            f"Presentación: fecha={date}, tipo={ftype}, categoría={category}, descripción={desc}."
+        )
+        print("Enviando a Gemini (puede tardar si el PDF/HTML es grande)…")
+        analysis = analyze_document_bytes(data, filename, prompt)
+        print("\n=== Análisis Gemini (Companies House) ===\n")
+        print(analysis)
+
+        out_path = _ROOT / f"ch_gemini_analysis_{safe_cn}_{tx}.txt"
+        out_path.write_text(
+            f"document_metadata: {meta_url}\n\n{analysis}",
+            encoding="utf-8",
+        )
+        print(f"\n(Análisis guardado en: {out_path.resolve()})")
+    except ImportError as e:
+        print(f"\n(Gemini: instala dependencias: pip install -r requirements.txt) {e}")
+    except Exception as e:
+        print(f"\n(Gemini: error al analizar — {e})")
+
+
 def save_json_file(data: dict, filename: str) -> Path:
     output_path = Path(filename)
     output_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -139,25 +306,11 @@ def print_profile_summary(profile: dict) -> None:
         print(f"\nFicha en Companies House: {web}")
 
 
-def print_filing_history_summary(fh: dict, company_number: str) -> None:
-    items = fh.get("items") or []
-    print(f"\nÚltimas {min(15, len(items))} presentaciones (filing history):\n")
+def print_filing_history_summary(_: dict, company_number: str) -> None:
     base_web = (
         f"https://find-and-update.company-information.service.gov.uk/company/{company_number}/filing-history"
     )
-    print(f"Historial en web: {base_web}\n")
-
-    for item in items[:15]:
-        date = item.get("date", "")
-        desc = item.get("description", "")
-        ftype = item.get("type", "")
-        category = item.get("category", "")
-        meta = (item.get("links") or {}).get("document_metadata")
-        print(f"  Fecha: {date} | Tipo: {ftype} | Categoría: {category}")
-        print(f"  Descripción: {desc}")
-        if meta:
-            print(f"  Metadatos / documento (API): {meta}")
-        print()
+    print(f"\nHistorial en web: {base_web}")
 
 
 def main() -> None:
@@ -232,6 +385,9 @@ def main() -> None:
         print(f"Archivo guardado en: {output_file.resolve()}")
         print_profile_summary(profile)
         print_filing_history_summary(filing_history, company_number)
+        maybe_analyze_ch_filing_with_gemini(
+            profile, filing_history, auth, company_number
+        )
 
     except requests.HTTPError as e:
         detail = ""
