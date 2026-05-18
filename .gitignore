@@ -1,6 +1,8 @@
 # Credenciales y entorno local
+
 .env
 .env.*
 !.env.example
 __pycache__/
 *.pyc
+
