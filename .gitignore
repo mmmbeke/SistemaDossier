@@ -4,3 +4,13 @@
 !.env.example
 __pycache__/
 *.pyc
+.venv/
+venv/
+
+# Salidas generadas (JSON, análisis Gemini)
+data/*
+!data/.gitkeep
+
+# Legacy: archivos en raíz antes de data/
+company_uk_*.json
+*_gemini_analysis_*.txt

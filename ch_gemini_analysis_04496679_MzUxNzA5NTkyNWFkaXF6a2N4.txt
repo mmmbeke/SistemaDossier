@@ -1,30 +1,25 @@
 document_metadata: https://document-api.company-information.service.gov.uk/document/bkSh1KFu32qA4jttoBH6hlMrzypQTZFA-Ackdz7QXPY
 
-Aquí tienes un resumen del documento presentado por UNION LTD:
+Aquí tienes el resumen del documento para UNION LTD:
 
 **Tipo de Hecho o Trámite:**
-Presentación de Cuentas Anuales No Auditadas (Accounts-with-accounts-type-micro-entity) ante Companies House.
+Cuentas Anuales de Microentidad No Auditadas (Unaudited Micro-entity Financial Statements).
 
 **Datos Clave:**
 
-*   **Empresa:** UNION LTD
-*   **Número de Registro:** 04496679
-*   **Período Contable:** Para el año fiscal finalizado el 31 de julio de 2025.
-*   **Resultados Financieros (comparación 2025 vs 2024):**
-    *   **Activos Netos:** Aumentaron significativamente de £386,090 en 2024 a £630,259 en 2025.
-    *   **Activos Fijos:** Se incrementaron de £246,174 a £256,637.
-    *   **Activos Corrientes:** Experimentaron un fuerte aumento de £287,080 a £509,875.
-    *   **Pasivos Corrientes (a pagar en menos de un año):** Disminuyeron ligeramente de £137,194 a £134,259.
-    *   **Pasivos a Largo Plazo (a pagar en más de un año):** Fueron eliminados por completo, pasando de £9,167 en 2024 a £0 en 2025.
-*   **Estatus de la Empresa:** La compañía califica como microentidad y, por lo tanto, está exenta de auditoría según la sección 477 de la Companies Act 2006.
-*   **Empleados:** El número promedio de empleados se mantuvo estable en 2 personas.
-*   **Préstamos a Directores:** Se registra un saldo total de £123,874 en préstamos a directores (£61,937 para el Sr. S J Morton y £61,937 para la Sra. J Whiley-Morton), los cuales no están garantizados, son pagaderos a demanda y devengan intereses a tipo de mercado. Estos préstamos no tuvieron movimientos (ni avances ni reembolsos) durante el año fiscal.
+*   **Periodo Cubierto:** Ejercicio finalizado el 31 de julio de 2025.
+*   **Activos Netos:** La empresa mostró un crecimiento significativo, con activos netos que aumentaron de £386,090 en 2024 a **£630,259 en 2025**.
+*   **Activos Corrientes Netos:** Este aumento se debe principalmente a un fuerte crecimiento en los activos corrientes netos, que pasaron de £151,066 en 2024 a **£375,616 en 2025**.
+*   **Activos Fijos:** También se observó un ligero incremento en los activos fijos, de £246,174 en 2024 a **£256,637 en 2025**.
+*   **Préstamos a Directores:** Se mantienen préstamos a los directores Mr S J Morton y Mrs J Whiley-Morton por un total de **£61,937 cada uno** al 31 de julio de 2025, sin cambios respecto al inicio del ejercicio. Estos préstamos no están garantizados y son pagaderos a la vista, con intereses a tipo de mercado.
+*   **Empleados:** La empresa mantuvo un promedio de 2 empleados (incluidos los directores) durante ambos ejercicios (2025 y 2024).
+*   **Exención de Auditoría:** UNION LTD está exenta de auditoría bajo la sección 477 de la Ley de Sociedades de 2006, al ser una microentidad.
 
 **Fechas Relevantes:**
 
-*   **Cierre del ejercicio fiscal:** 31 de julio de 2025.
-*   **Fecha de aprobación de los estados financieros por los directores:** 11 de abril de 2026.
-*   **Fecha de presentación a Companies House:** 20 de abril de 2026.
+*   **Fecha de Cierre del Ejercicio Fiscal:** 31 de julio de 2025.
+*   **Fecha de Firma de las Cuentas por los Directores:** 11 de abril de 2026.
+*   **Fecha de Presentación en Companies House:** 20 de abril de 2026.
 
 **Conclusión Breve:**
-UNION LTD ha demostrado un sólido desempeño financiero en el año fiscal 2025, con un notable incremento en sus activos netos y una mejora en su estructura de pasivos al eliminar la deuda a largo plazo. La empresa mantiene su estatus de microentidad, exenta de auditoría, y continúa operando con una plantilla reducida de dos empleados.
+UNION LTD ha demostrado un **sólido crecimiento financiero** durante el ejercicio 2025, con un aumento sustancial en sus activos netos impulsado por los activos corrientes. La empresa opera como una microentidad, lo que le permite la exención de auditoría, manteniendo una estructura operativa pequeña con dos empleados.
