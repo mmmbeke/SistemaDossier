@@ -9,25 +9,30 @@ load_dotenv()
 # Asegúrate de tener OPENAI_API_KEY en tu .env
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def generar_dossier_ejecutivo(tema_reunion: str, participantes: str):
+def generar_dossier_ejecutivo(
+    tema_reunion: str,
+    participantes: str,
+    descripcion: str = "",
+):
     """
-    Función maestra que redacta el dossier. 
+    Función maestra que redacta el dossier.
     En el futuro, aquí conectaremos la lógica de Sec_Edgar_Api.
     """
-    
-    # El "System Prompt" define la personalidad de tu IA
     instrucciones = (
         "Eres un asistente de inteligencia de negocios experto. "
         "Tu objetivo es preparar a un ejecutivo para una reunión, "
         "entregando contexto relevante de forma breve y profesional."
     )
-    
-    # El "User Prompt" es lo que le pedimos específicamente
+
+    bloque_descripcion = (
+        f"\n    DESCRIPCIÓN / CONTEXTO: {descripcion}" if descripcion.strip() else ""
+    )
+
     cuerpo_pedido = f"""
     Prepara un dossier para la siguiente reunión:
     TEMA: {tema_reunion}
-    PARTICIPANTES: {participantes}
-    
+    PARTICIPANTES: {participantes}{bloque_descripcion}
+
     Por favor, entrega:
     1. Un resumen del objetivo.
     2. Contexto sugerido para cada participante.

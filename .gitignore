@@ -1,5 +1,6 @@
 # Credenciales y entorno local
 
+.venv/
 .env
 .env.*
 !.env.example
