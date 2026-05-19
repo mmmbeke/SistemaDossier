@@ -1,21 +1,25 @@
 import os
+import sys
+from pathlib import Path
 from typing import Optional
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+
+import msal
+from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import RedirectResponse
-from dotenv import load_dotenv
-import msal
 
 from calendar_service import listar_reuniones, obtener_reunion_por_id
+from dossier.config import PROJECT_ROOT, load_env
 from orchestrator import generar_dossier_ejecutivo
 
-# Cargamos las variables del archivo .env
-load_dotenv()
+load_env()
 
 app = FastAPI(
     title="Project Dossier API",
     description="Backend para la generación automática de informes de reuniones",
-    version="0.1.0"
+    version="0.2.0",
 )
 
 # Configuración de Microsoft desde el .env
@@ -27,12 +31,17 @@ REDIRECT_URI = os.getenv("MICROSOFT_REDIRECT_URI")
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 SCOPES = ["Calendars.Read"]
 
+
 def get_msal_app():
     return msal.ConfidentialClientApplication(
         CLIENT_ID,
         authority=AUTHORITY,
-        client_credential=CLIENT_SECRET
+        client_credential=CLIENT_SECRET,
     )
+
+
+def _status(name: str) -> str:
+    return "Configurada ✅" if os.getenv(name) else "Faltante ❌"
 
 
 def _resolver_access_token(
@@ -52,65 +61,67 @@ def _resolver_access_token(
         ),
     )
 
+
 @app.get("/")
 def read_root():
-    # Mantenemos tus checks de seguridad y agregamos Microsoft
-    openai_status = "Configurada ✅" if os.getenv("OPENAI_API_KEY") else "Faltante ❌"
-    google_status = "Configurada ✅" if os.getenv("GOOGLE_CLIENT_ID") else "Faltante ❌"
-    microsoft_status = "Configurada ✅" if os.getenv("MICROSOFT_CLIENT_ID") else "Faltante ❌"
-    
     return {
         "message": "Bienvenido a la API de Project Dossier",
         "status": "Online",
+        "project_root": str(PROJECT_ROOT),
         "config_check": {
-            "openai": openai_status,
-            "google": google_status,
-            "microsoft": microsoft_status
-        }
+            "companies_house": _status("COMPANIES_HOUSE_API_KEY"),
+            "gemini": _status("GEMINI_API_KEY"),
+            "openai": _status("OPENAI_API_KEY"),
+            "google_oauth": _status("GOOGLE_CLIENT_ID"),
+            "microsoft": _status("MICROSOFT_CLIENT_ID"),
+        },
     }
+
 
 # --- RUTAS DE AUTENTICACIÓN MICROSOFT OUTLOOK ---
 
 @app.get("/login-microsoft", tags=["Autenticación Microsoft"])
 def login_microsoft():
-    """Redirige al usuario a la página de inicio de sesión de Microsoft"""
+    """Redirige al usuario a la página de inicio de sesión de Microsoft."""
     if not CLIENT_ID or not CLIENT_SECRET:
-        raise HTTPException(status_code=500, detail="Faltan las credenciales de Microsoft en el archivo .env")
-    
+        raise HTTPException(
+            status_code=500,
+            detail="Faltan las credenciales de Microsoft en el archivo .env",
+        )
+
     msal_app = get_msal_app()
     auth_url = msal_app.get_authorization_request_url(SCOPES, redirect_uri=REDIRECT_URI)
     return RedirectResponse(auth_url)
 
+
 @app.get("/callback", tags=["Autenticación Microsoft"])
 def callback(code: str = None, error: str = None):
-    """Recibe el código de autorización de Microsoft y lo cambia por un Token"""
+    """Recibe el código de autorización de Microsoft y lo cambia por un token."""
     if error:
         raise HTTPException(status_code=400, detail=f"Error de Microsoft: {error}")
     if not code:
         raise HTTPException(status_code=400, detail="No se recibió el código de autorización.")
-    
+
     msal_app = get_msal_app()
     result = msal_app.acquire_token_by_authorization_code(
         code,
         scopes=SCOPES,
-        redirect_uri=REDIRECT_URI
+        redirect_uri=REDIRECT_URI,
     )
-    
+
     if "access_token" in result:
-        # Aquí obtienes el token con el que después llamarán a Graph API para leer el calendario
-        token_de_acceso = result["access_token"]
-        
         return {
             "mensaje": "Autenticación exitosa con Microsoft",
             "usuario": result.get("id_token_claims", {}).get("name"),
             "correo": result.get("id_token_claims", {}).get("preferred_username"),
-            "access_token": token_de_acceso
+            "access_token": result["access_token"],
         }
-    else:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"No se pudo obtener el token: {result.get('error_description')}"
-        )
+
+    raise HTTPException(
+        status_code=400,
+        detail=f"No se pudo obtener el token: {result.get('error_description')}",
+    )
+
 
 # --- CALENDARIO + DOSSIER (Microsoft Graph → IA) ---
 
@@ -125,9 +136,7 @@ def api_listar_eventos_calendario(
     access_token: Optional[str] = Query(None, description="Token de /callback"),
     authorization: Optional[str] = Header(None),
 ):
-    """
-    Lista reuniones del calendario de Outlook usando el access_token de Microsoft.
-    """
+    """Lista reuniones del calendario de Outlook usando el access_token de Microsoft."""
     token = _resolver_access_token(authorization, access_token)
     try:
         reuniones = listar_reuniones(
@@ -158,9 +167,7 @@ def api_generar_dossiers_desde_calendario(
     access_token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
 ):
-    """
-    Lee el calendario con Graph API y genera dossiers con IA para cada reunión (o una por id).
-    """
+    """Lee el calendario con Graph API y genera dossiers con IA para cada reunión (o una por id)."""
     token = _resolver_access_token(authorization, access_token)
 
     try:
@@ -203,14 +210,11 @@ def api_generar_dossiers_desde_calendario(
     }
 
 
-# --- ENDPOINTS ORIGINALES DE TU PROYECTO ---
+# --- DOSSIER MANUAL ---
 
 @app.get("/generar-dossier")
 def api_generar_dossier(tema: str, participantes: str, descripcion: str = ""):
-    """
-    Ruta que conecta con el orquestador para crear el informe con IA.
-    """
-    # Usamos la función exacta que tienes importada arriba
+    """Genera un dossier con IA a partir de tema y participantes."""
     informe = generar_dossier_ejecutivo(tema, participantes, descripcion)
 
     return {
@@ -220,6 +224,7 @@ def api_generar_dossier(tema: str, participantes: str, descripcion: str = ""):
         "dossier_generado": informe,
     }
 
+
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": "0.2.0"}
