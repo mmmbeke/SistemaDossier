@@ -17,10 +17,16 @@ from dossier_cli_format import (
     print_archivos_generados,
     print_banner,
     print_documento_principal,
+    print_documento_principal_aviso,
     print_filing_entry,
+    print_gemini_descarga_inicio,
+    print_gemini_enviando,
+    print_listado_presentaciones_intro,
     print_section_title,
+    print_status_api,
+    print_varias_coincidencias_intro,
 )
-from dossier_limits import MAX_RECENT_FILINGS_CLI
+from dossier_limits import MAX_RECENT_FILINGS_CLI, data_json_path
 
 USER_AGENT = "CarlosApp/1.0 (fduran@utem.cl)"
 MIN_INTERVAL_SECONDS = 0.1
@@ -99,8 +105,8 @@ def pick_company(matches):
         )
         return c
 
-    print(f"\nSe encontraron {len(matches)} coincidencias (máx. 30 mostradas):")
     shown = matches[:30]
+    print_varias_coincidencias_intro(len(matches), len(shown))
     for i, c in enumerate(shown, start=1):
         print(f"  {i}. [{c['ticker']}] {c['title']}  (CIK {c['cik_str']})")
 
@@ -255,7 +261,7 @@ def maybe_analyze_with_gemini(
 
     from gemini_analyze import analyze_document_bytes
 
-    print("\nDescargando documento para análisis con Gemini…")
+    print_gemini_descarga_inicio()
     try:
         data = fetch_bytes(document_url)
         prompt = (
@@ -265,7 +271,7 @@ def maybe_analyze_with_gemini(
             f"Metadatos: empresa={company_name}, formulario={form}, fecha={filing_date}, "
             f"accession={accession}, CIK={cik}, archivo={document_name}."
         )
-        print("Enviando a Gemini (puede tardar en documentos largos)…")
+        print_gemini_enviando()
         analysis = analyze_document_bytes(data, document_name, prompt)
         print_analisis_gemini_header()
         print(analysis)
@@ -307,7 +313,7 @@ def main():
         company = pick_company(matches)
         cik = str(company["cik_str"]).zfill(10)
 
-        print(f"\nObteniendo envíos (submissions) para CIK {cik}...")
+        print_status_api(f"Obteniendo datos — submissions SEC (CIK {cik}).")
 
         submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
         data = fetch_json(submissions_url)
@@ -325,17 +331,19 @@ def main():
             return
 
         print_section_title("Resumen")
+        print(f"Término buscado:    {query}")
         print(f"Empresa:            {company_name}")
         print(f"CIK:                {cik}")
         print(
-            "Presentaciones:     "
-            f"primeros {len(recent_filings)} ítems de filings.recent (orden de la API)."
+            "Listado API:        "
+            f"primeros {len(recent_filings)} de submissions.recent (orden de la API)."
         )
 
         print_section_title("Presentaciones recientes")
-        print(
-            f"Últimos {len(recent_filings)} envíos listados "
-            f"(máx. {MAX_RECENT_FILINGS_CLI} mostrados, orden tal cual submissions).\n"
+        print_listado_presentaciones_intro(
+            len(recent_filings),
+            max_mostrar=MAX_RECENT_FILINGS_CLI,
+            origen_listado="orden según submissions.recent",
         )
 
         for i, item in enumerate(recent_filings, start=1):
@@ -393,7 +401,10 @@ def main():
 
         accession_clean = primary_filing["accession"].replace("-", "")
         form_safe = str(primary_filing["form"]).replace("/", "-").replace(" ", "_")
-        json_path = _ROOT / f"sec_edgar_cik{int(cik)}_{primary_filing['date']}_{form_safe}_{accession_clean}.json"
+        json_path = data_json_path(
+            _ROOT,
+            f"sec_edgar_cik{int(cik)}_{primary_filing['date']}_{form_safe}_{accession_clean}.json",
+        )
         bundle = {
             "meta": {
                 "source": "sec_edgar",
@@ -439,15 +450,15 @@ def main():
             if gemini_path is not None:
                 archivos.append(("Análisis Gemini", gemini_path))
         else:
-            print(
-                "\n(No se pudo detectar documento principal en los primeros envíos del "
-                "listado; revisa los enlaces de «Presentaciones recientes».)"
+            print_documento_principal_aviso(
+                "No hay documento principal detectable en los envíos revisados; "
+                "revisa los enlaces de «Presentaciones recientes»."
             )
 
         print_archivos_generados(archivos)
 
     except Exception as e:
-        print("Error:", e)
+        print(f"\nError: {e}")
 
 
 if __name__ == "__main__":

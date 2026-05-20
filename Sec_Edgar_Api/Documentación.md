@@ -49,3 +49,7 @@ manejo de errores HTTP
 Cantidad de filas listadas en consola: MAX_RECENT_FILINGS_CLI (10).
 Análisis Gemini: si no defines GEMINI_MAX_UPLOAD_BYTES en .env, gemini_analyze recorta
 archivos grandes con DEFAULT_GEMINI_MAX_UPLOAD_BYTES para evitar fallos por tokens.
+
+
+9. Archivos JSON de la consulta
+El bundle de la consulta se guarda en la carpeta ``data/`` del proyecto (p. ej. ``data/sec_edgar_....json``).
