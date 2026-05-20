@@ -16,7 +16,7 @@ Backend **FastAPI**, consultas **Companies House** y **SEC EDGAR**, análisis co
 | **`scripts/`** | Entradas `companies_house.py`, `sec_edgar.py` |
 | **`data/`** | JSON y textos generados |
 | **`docs/`** | Guías (`estructura.md`, `postgresql.md`, `sec_edgar.md`) |
-| **`Frontend/`** | UI estática |
+| **`frontend-react/`** | Dashboard Next.js (npm; ver su `README.md`) |
 
 Detalle: [docs/estructura.md](docs/estructura.md).
 
