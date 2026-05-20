@@ -1,29 +1,24 @@
 # Sistema Dossier
 
-Consultas a registros corporativos (Reino Unido y EE. UU.) y análisis opcional de documentos con **Google Gemini**.
+Backend **FastAPI**, consultas **Companies House** y **SEC EDGAR**, análisis con **Gemini**, calendario **Microsoft Graph** y conexión opcional a **PostgreSQL**.
 
-## Estructura del proyecto
+## Estructura (resumen)
 
-```
-SistemaDossier/
-├── main.py                 # API FastAPI (uvicorn main:app)
-├── requirements.txt
-├── .env                    # Claves (no se sube a git; ver .env.example)
-├── src/
-│   └── dossier/
-│       ├── config.py       # Rutas, .env, carpeta data/
-│       ├── gemini/         # Análisis con Gemini
-│       ├── companies_house/  # CLI UK
-│       └── sec_edgar/      # CLI USA (SEC)
-├── scripts/
-│   ├── companies_house.py
-│   └── sec_edgar.py
-├── data/                   # JSON y análisis generados
-└── docs/
-    └── sec_edgar.md
-```
+| Ubicación | Contenido |
+|-----------|-----------|
+| **`main.py`** | Arranque del servidor (`uvicorn`) |
+| **`src/dossier/api/app.py`** | Rutas HTTP (FastAPI) |
+| **`src/dossier/services/`** | Calendario Graph + dossiers OpenAI |
+| **`src/dossier/db/`** | PostgreSQL |
+| **`src/dossier/gemini/`** | Análisis de archivos con Gemini |
+| **`src/dossier/companies_house/`** | CLI Reino Unido |
+| **`src/dossier/sec_edgar/`** | CLI Estados Unidos |
+| **`scripts/`** | Entradas `companies_house.py`, `sec_edgar.py` |
+| **`data/`** | JSON y textos generados |
+| **`docs/`** | Guías (`estructura.md`, `postgresql.md`, `sec_edgar.md`) |
+| **`Frontend/`** | UI estática |
 
-Las carpetas `Company_house_API/` y `Sec_Edgar_Api/` conservan scripts de **compatibilidad** que redirigen al código en `src/dossier/`.
+Detalle: [docs/estructura.md](docs/estructura.md).
 
 ## Configuración
 
@@ -33,37 +28,36 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
-# Edita .env con tus claves
 ```
 
-## Uso (CLI)
+## Arranque de la API
 
-**Companies House (UK):**
+```powershell
+python main.py
+```
+
+O:
+
+```powershell
+$env:PYTHONPATH="src"
+uvicorn dossier.api.app:app --reload
+```
+
+## CLIs (registros UK / USA)
 
 ```powershell
 python scripts/companies_house.py
-```
-
-**SEC EDGAR (USA):**
-
-```powershell
 python scripts/sec_edgar.py
 ```
 
-**API web:**
-
-```powershell
-uvicorn main:app --reload
-```
-
-Los resultados (JSON y textos de Gemini) se guardan en **`data/`**.
-
-## Variables de entorno
+## Variables de entorno (`.env`)
 
 | Variable | Uso |
 |----------|-----|
-| `COMPANIES_HOUSE_API_KEY` | API Companies House (Basic Auth) |
-| `GEMINI_API_KEY` | Análisis automático de documentos |
-| `GEMINI_MODEL` | Modelo (por defecto `gemini-2.5-flash`) |
-| `GEMINI_MAX_UPLOAD_BYTES` | Recorta HTML/PDF grandes antes de enviar a Gemini |
-| `GEMINI_SKIP_ANALYSIS` | `1` para desactivar análisis Gemini |
+| `COMPANIES_HOUSE_API_KEY` | API Companies House |
+| `GEMINI_API_KEY` | Análisis Gemini en CLIs |
+| `OPENAI_API_KEY` | Dossiers en `/generar-dossier` y calendario |
+| `MICROSOFT_*` | Login Outlook / Graph |
+| `DATABASE_URL` o `POSTGRES_*` | Base de datos (opcional) |
+
+Más: [.env.example](.env.example) y [docs/postgresql.md](docs/postgresql.md).

@@ -1,13 +1,33 @@
+"""Generación de dossiers con OpenAI (lazy client)."""
+
+from __future__ import annotations
+
 import os
+
 from openai import OpenAI
-from dotenv import load_dotenv
 
-# Cargamos las llaves desde el .env
-load_dotenv()
+_client: OpenAI | None = None
 
-# Inicializamos el cliente de OpenAI
-# Asegúrate de tener OPENAI_API_KEY en tu .env
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def _get_openai_client() -> OpenAI:
+    """Cliente singleton; solo exige clave cuando se va a llamar a la API."""
+    global _client
+    if _client is not None:
+        return _client
+
+    from dossier.config import load_env
+
+    load_env()
+
+    key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not key:
+        raise ValueError(
+            "Falta OPENAI_API_KEY en el .env (raíz del proyecto). "
+            "Añádela para generar dossiers con OpenAI."
+        )
+    _client = OpenAI(api_key=key)
+    return _client
+
 
 def generar_dossier_ejecutivo(
     tema_reunion: str,
@@ -16,8 +36,13 @@ def generar_dossier_ejecutivo(
 ):
     """
     Función maestra que redacta el dossier.
-    En el futuro, aquí conectaremos la lógica de Sec_Edgar_Api.
+    En el futuro, aquí conectaremos la lógica de SEC / Companies House.
     """
+    try:
+        client = _get_openai_client()
+    except ValueError as e:
+        return str(e)
+
     instrucciones = (
         "Eres un asistente de inteligencia de negocios experto. "
         "Tu objetivo es preparar a un ejecutivo para una reunión, "
@@ -41,12 +66,12 @@ def generar_dossier_ejecutivo(
 
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo", # Puedes usar "gpt-4o" si tienes créditos
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": instrucciones},
-                {"role": "user", "content": cuerpo_pedido}
+                {"role": "user", "content": cuerpo_pedido},
             ],
-            temperature=0.7 # Un toque de creatividad, pero profesional
+            temperature=0.7,
         )
         return response.choices[0].message.content
     except Exception as e:
