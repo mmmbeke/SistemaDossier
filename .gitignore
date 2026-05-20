@@ -14,3 +14,11 @@ data/*
 # Legacy: archivos en raíz antes de data/
 company_uk_*.json
 *_gemini_analysis_*.txt
+
+# Frontend Next.js (frontend-react/)
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
