@@ -1,6 +1,9 @@
 """
 Análisis de documentos (HTML, PDF, etc.) con Google Gemini (SDK google-genai).
 Requiere GEMINI_API_KEY (Google AI Studio). Opcional: GEMINI_MODEL (p. ej. gemini-2.0-flash-lite).
+
+Recorte de tamaño: GEMINI_MAX_UPLOAD_BYTES en .env (entero; 0 = sin recorte). Si no está
+definido, se usa dossier_limits.DEFAULT_GEMINI_MAX_UPLOAD_BYTES para archivos que lo superen.
 """
 from __future__ import annotations
 
@@ -11,6 +14,8 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+from dossier_limits import DEFAULT_GEMINI_MAX_UPLOAD_BYTES
 
 # 1.5-flash ya no está disponible en muchas cuentas/API v1beta (404).
 # Ajusta GEMINI_MODEL si necesitas otro (p. ej. gemini-2.0-flash-lite para menos carga).
@@ -72,23 +77,35 @@ def _retry_after_seconds(exc: BaseException) -> float:
 
 def _maybe_truncate_document(data: bytes, filename: str) -> tuple[bytes, str]:
     """
-    Opcional: GEMINI_MAX_UPLOAD_BYTES (entero) recorta el inicio del archivo para evitar
-    timeouts en HTML enormes (p. ej. 10-K). El prompt debe asumir vista parcial.
+    Recorte del inicio del archivo antes de subirlo a Gemini.
+
+    - GEMINI_MAX_UPLOAD_BYTES en .env: entero > 0 = tope explícito; 0 = sin recorte.
+    - Si no está definido o no es un entero válido: se usa DEFAULT_GEMINI_MAX_UPLOAD_BYTES
+      solo si el archivo supera ese tamaño (documentos pequeños se envían enteros).
     """
     raw = (os.getenv("GEMINI_MAX_UPLOAD_BYTES") or "").strip()
-    if not raw.isdigit():
-        return data, ""
-    limit = int(raw)
-    if limit <= 0 or len(data) <= limit:
+    if raw.isdigit():
+        limit = int(raw)
+        if limit <= 0:
+            return data, ""
+    else:
+        limit = DEFAULT_GEMINI_MAX_UPLOAD_BYTES
+
+    if len(data) <= limit:
         return data, ""
 
     cut = data[:limit]
     while cut and (cut[-1] & 0b1100_0000) == 0b1000_0000:
         cut = cut[:-1]
 
+    src = (
+        f"GEMINI_MAX_UPLOAD_BYTES={limit}"
+        if raw.isdigit()
+        else f"tope por defecto ({limit} bytes; define GEMINI_MAX_UPLOAD_BYTES en .env para fijar otro)"
+    )
     note = (
         f"\n\n[Nota del sistema: el archivo «{filename}» solo se envió truncado a "
-        f"los primeros ~{len(cut) // 1024} KiB por GEMINI_MAX_UPLOAD_BYTES={limit}. "
+        f"los primeros ~{len(cut) // 1024} KiB ({src}). "
         "Resume y analiza solo el fragmento visible.]"
     )
     return cut, note
@@ -101,12 +118,14 @@ def _is_input_token_limit_error(exc: BaseException) -> bool:
 
 def _token_limit_user_message() -> str:
     return (
-        "Gemini rechazó la petición: el documento supera el máximo de tokens de entrada "
-        "del modelo (en tu error: 1.048.576). Un 10-K en HTML suele disparar ese límite.\n\n"
-        "En el .env define, por ejemplo:\n"
-        "  GEMINI_MAX_UPLOAD_BYTES=1000000\n"
-        "y vuelve a ejecutar: solo se enviará el inicio del archivo (resumen parcial del "
-        "informe). Si aún falla, prueba un valor menor (p. ej. 600000)."
+        "Gemini rechazó la petición: el fragmento enviado aún supera el máximo de tokens "
+        "de entrada del modelo.\n\n"
+        f"Sin GEMINI_MAX_UPLOAD_BYTES en el .env, los archivos grandes se recortan por "
+        f"defecto a ~{DEFAULT_GEMINI_MAX_UPLOAD_BYTES // 1024} KiB.\n"
+        "Prueba un valor menor en .env, por ejemplo:\n"
+        "  GEMINI_MAX_UPLOAD_BYTES=600000\n"
+        "Solo si sabes lo que haces y el documento es pequeño, puedes subir el tope o "
+        "usar GEMINI_MAX_UPLOAD_BYTES=0 para intentar enviar el archivo completo."
     )
 
 

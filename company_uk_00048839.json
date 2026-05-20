@@ -1,0 +1,2496 @@
+{
+  "profile": {
+    "accounts": {
+      "accounting_reference_date": {
+        "day": "31",
+        "month": "12"
+      },
+      "last_accounts": {
+        "made_up_to": "2024-12-31",
+        "period_end_on": "2024-12-31",
+        "period_start_on": "2024-01-01",
+        "type": "group"
+      },
+      "next_accounts": {
+        "due_on": "2026-06-30",
+        "overdue": false,
+        "period_end_on": "2025-12-31",
+        "period_start_on": "2025-01-01"
+      },
+      "next_due": "2026-06-30",
+      "next_made_up_to": "2025-12-31",
+      "overdue": false
+    },
+    "can_file": true,
+    "company_name": "BARCLAYS PLC",
+    "company_number": "00048839",
+    "company_status": "active",
+    "confirmation_statement": {
+      "last_made_up_to": "2025-11-01",
+      "next_due": "2026-11-15",
+      "next_made_up_to": "2026-11-01",
+      "overdue": false
+    },
+    "date_of_creation": "1896-07-20",
+    "etag": "52935360d763c140468904cc9de016ff7f5145e5",
+    "has_been_liquidated": false,
+    "has_charges": false,
+    "has_insolvency_history": false,
+    "jurisdiction": "england-wales",
+    "last_full_members_list_date": "2012-08-31",
+    "links": {
+      "self": "/company/00048839",
+      "filing_history": "/company/00048839/filing-history",
+      "officers": "/company/00048839/officers",
+      "exemptions": "/company/00048839/exemptions"
+    },
+    "previous_company_names": [
+      {
+        "ceased_on": "1985-01-01",
+        "effective_from": "1982-02-15",
+        "name": "BARCLAYS BANK PLC"
+      },
+      {
+        "ceased_on": "1982-02-15",
+        "effective_from": "1916-02-17",
+        "name": "BARCLAYS BANK LIMITED"
+      },
+      {
+        "ceased_on": "1916-02-17",
+        "effective_from": "1896-07-20",
+        "name": "BARCLAY & COMPANY LIMITED"
+      }
+    ],
+    "registered_office_address": {
+      "address_line_1": "1 Churchill Place",
+      "locality": "London",
+      "postal_code": "E14 5HP"
+    },
+    "registered_office_is_in_dispute": false,
+    "sic_codes": [
+      "64191"
+    ],
+    "type": "plc",
+    "undeliverable_registered_office_address": false,
+    "has_super_secure_pscs": false
+  },
+  "filing_history": {
+    "filing_history_status": "filing-history-available",
+    "items": [
+      {
+        "transaction_id": "MzUxOTM0OTQ0MmFkaXF6a2N4",
+        "barcode": "AF108ES0",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-04-15",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,427,200,878"
+            }
+          ]
+        },
+        "action_date": "2026-04-15",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQ0MmFkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQ0M2FkaXF6a2N4",
+        "barcode": "AF108ESG",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-04-17",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,423,865,033"
+            }
+          ]
+        },
+        "action_date": "2026-04-17",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQ0M2FkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQzNmFkaXF6a2N4",
+        "barcode": "AF108ERS",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-04-08",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,430,076,098"
+            }
+          ]
+        },
+        "action_date": "2026-04-08",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQzNmFkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQzMmFkaXF6a2N4",
+        "barcode": "AF108EQO",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-03-24",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,439,701,617"
+            }
+          ]
+        },
+        "action_date": "2026-03-24",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQzMmFkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQzOWFkaXF6a2N4",
+        "barcode": "AF108ESO",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-04-20",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,422,205,676"
+            }
+          ]
+        },
+        "action_date": "2026-04-20",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQzOWFkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQzOGFkaXF6a2N4",
+        "barcode": "AF108ES8",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-04-16",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,425,531,151"
+            }
+          ]
+        },
+        "action_date": "2026-04-16",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQzOGFkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQ0NGFkaXF6a2N4",
+        "barcode": "AF108ESW",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-04-21",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,420,928,219"
+            }
+          ]
+        },
+        "action_date": "2026-04-21",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQ0NGFkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQ0MGFkaXF6a2N4",
+        "barcode": "AF108ER4",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-04-01",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,432,781,731"
+            }
+          ]
+        },
+        "action_date": "2026-04-01",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQ0MGFkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQzMWFkaXF6a2N4",
+        "barcode": "AF108EQ8",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-03-20",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,441,775,954"
+            }
+          ]
+        },
+        "action_date": "2026-03-20",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQzMWFkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQzNGFkaXF6a2N4",
+        "barcode": "AF108EQ0",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-03-19",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,442,664,501"
+            }
+          ]
+        },
+        "action_date": "2026-03-19",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQzNGFkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQ0MWFkaXF6a2N4",
+        "barcode": "AF108ERK",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-04-07",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,430,614,166"
+            }
+          ]
+        },
+        "action_date": "2026-04-07",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQ0MWFkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQzM2FkaXF6a2N4",
+        "barcode": "AF108ERC",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-04-02",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,431,399,778"
+            }
+          ]
+        },
+        "action_date": "2026-04-02",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQzM2FkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQzMGFkaXF6a2N4",
+        "barcode": "AF108EPS",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-03-18",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,443,604,643"
+            }
+          ]
+        },
+        "action_date": "2026-03-18",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQzMGFkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUxOTM0OTQzN2FkaXF6a2N4",
+        "barcode": "AF108EQG",
+        "type": "SH06",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-03-23",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,440,967,531"
+            }
+          ]
+        },
+        "action_date": "2026-03-23",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxOTM0OTQzN2FkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUyMDA2MjExMGFkaXF6a2N4",
+        "barcode": "AF14PHLP",
+        "type": "SH01",
+        "date": "2026-05-20",
+        "category": "capital",
+        "description": "capital-allotment-shares",
+        "description_values": {
+          "date": "2026-04-30",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,409,913,564"
+            }
+          ]
+        },
+        "action_date": "2026-04-30",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUyMDA2MjExMGFkaXF6a2N4"
+        }
+      },
+      {
+        "transaction_id": "MzUyMDQ3Mjk4NWFkaXF6a2N4",
+        "barcode": "XF1N0N3E",
+        "type": "TM01",
+        "date": "2026-05-08",
+        "category": "officers",
+        "subcategory": "termination",
+        "description": "termination-director-company-with-name-termination-date",
+        "description_values": {
+          "officer_name": "Mary Elizabeth Francis",
+          "termination_date": "2026-05-06"
+        },
+        "pages": 1,
+        "action_date": "2026-05-06",
+        "links": {
+          "self": "/company/00048839/filing-history/MzUyMDQ3Mjk4NWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/2H6QPzCTJTFhRnQeG9Q5TSrc9xJSi1_-e5IdkQyRaW4"
+        }
+      },
+      {
+        "transaction_id": "MzUxNjAwNTE4MmFkaXF6a2N4",
+        "barcode": "AEZPJ6UP",
+        "type": "SH01",
+        "date": "2026-04-29",
+        "category": "capital",
+        "description": "capital-allotment-shares",
+        "description_values": {
+          "date": "2026-03-26",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,435,412,990.25"
+            }
+          ]
+        },
+        "pages": 8,
+        "action_date": "2026-03-26",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxNjAwNTE4MmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/xrxR1X10ADvTcGyl3aakDUlXrPB6WIuDNOyGD4U8LFI"
+        }
+      },
+      {
+        "transaction_id": "MzUxNjAxMjE0OGFkaXF6a2N4",
+        "barcode": "AEZS1WS0",
+        "type": "SH03",
+        "date": "2026-04-27",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate duty has been paid on this repurchase.",
+            "date": "2026-04-27",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate duty has been paid on this repurchase."
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxNjAxMjE0OGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/Thm-Y-0h_RGeBMIHlHBjtZzCTk_84Eq9w-v_nkRzErQ"
+        }
+      },
+      {
+        "transaction_id": "MzUxMzYzNTEzMWFkaXF6a2N4",
+        "barcode": "AEYSP2RC",
+        "type": "SH06",
+        "date": "2026-04-14",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-02-27",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,450,176,634"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-02-27",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMzYzNTEzMWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/jXjgmOeF8OF_J-4faxjYcLKA7WbucI4fuCMp4v-GrYE"
+        }
+      },
+      {
+        "transaction_id": "MzUxMzYzNTExOGFkaXF6a2N4",
+        "barcode": "AEYSOR3M",
+        "type": "SH06",
+        "date": "2026-04-14",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-02-16",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,453,992,617"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-02-16",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMzYzNTExOGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/GhvinrLAteuQE4QlyZfb3aO-z15aEizJkpvx7F_HRtA"
+        }
+      },
+      {
+        "transaction_id": "MzUxMzYzNTEyN2FkaXF6a2N4",
+        "barcode": "AEYSOR4I",
+        "type": "SH06",
+        "date": "2026-04-14",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-03-12",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,447,926,681"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-03-12",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMzYzNTEyN2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/A3NVHST9FwSC9RFOQfVdHqeabGwKvQRnLw4JhNb_Vgg"
+        }
+      },
+      {
+        "transaction_id": "MzUxMzYzNTEyNWFkaXF6a2N4",
+        "barcode": "AEYSOR3E",
+        "type": "SH06",
+        "date": "2026-04-14",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-02-25",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,452,229,613"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-02-25",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMzYzNTEyNWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/y2-_qtApq7gtf2ko1kq3hfG7pG25x0Wdr-PqxXZ8sAE"
+        }
+      },
+      {
+        "transaction_id": "MzUxMzYzNTEyMGFkaXF6a2N4",
+        "barcode": "AEYSOR4A",
+        "type": "SH06",
+        "date": "2026-04-14",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-03-13",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,447,063,229"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-03-13",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMzYzNTEyMGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/3QRXGPnczaMZdyvlG5rbLL1NbjbbO64JN1kgb2pDiPE"
+        }
+      },
+      {
+        "transaction_id": "MzUxMzYzNTEyNmFkaXF6a2N4",
+        "barcode": "AEYSP2QW",
+        "type": "SH06",
+        "date": "2026-04-14",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-03-02",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,449,401,944"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-03-02",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMzYzNTEyNmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/puZdXbo5JbWokULjPq3GQ066Hcm2uy5cCZNAwWmerNw"
+        }
+      },
+      {
+        "transaction_id": "MzUxMzYzNTEyMWFkaXF6a2N4",
+        "barcode": "AEYSOR42",
+        "type": "SH06",
+        "date": "2026-04-14",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-03-16",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,446,144,873"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-03-16",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMzYzNTEyMWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/fcc5uPfQPqScg70lSoqTOnajCH8aw1THrX92kmxbjug"
+        }
+      },
+      {
+        "transaction_id": "MzUxMzYzNTEyM2FkaXF6a2N4",
+        "barcode": "AEYSOR4Q",
+        "type": "SH06",
+        "date": "2026-04-14",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-02-17",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,453,648,368"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-02-17",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMzYzNTEyM2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/Njp0SwYSxBHc36PAWAzth4liSD54kAFQZFxdD8vaLpc"
+        }
+      },
+      {
+        "transaction_id": "MzUxMzYzNTEyMmFkaXF6a2N4",
+        "barcode": "AEYSOR3U",
+        "type": "SH06",
+        "date": "2026-04-14",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-03-17",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,444,875,983"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-03-17",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMzYzNTEyMmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/nlYgsQdvtOlpq0L1iCQKgYTlbUhRGL_I0Yg26sivfXY"
+        }
+      },
+      {
+        "transaction_id": "MzUxMzYzNTExOWFkaXF6a2N4",
+        "barcode": "AEYSOR36",
+        "type": "SH06",
+        "date": "2026-04-14",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-02-13",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,454,603,053"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-02-13",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMzYzNTExOWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/9nC7LvDj2WVGn-PO5XusbbrhsShMl5afJpO1l6Vpdmw"
+        }
+      },
+      {
+        "transaction_id": "MzUxMzYzNTEyNGFkaXF6a2N4",
+        "barcode": "AEYSP2QO",
+        "type": "SH06",
+        "date": "2026-04-14",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-03-26",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,451,182,783"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-03-26",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMzYzNTEyNGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/rYDxLYmgHmt1Dk1Ko5CUEsx4IfhZBJCLM6SJfl-fWqo"
+        }
+      },
+      {
+        "transaction_id": "MzUxMzYzNTEyOGFkaXF6a2N4",
+        "barcode": "AEYSP2R4",
+        "type": "SH06",
+        "date": "2026-04-14",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-03-03",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,448,690,707"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-03-03",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMzYzNTEyOGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/H9RCrpxQDa-wEOsHZ_ifn55Wqsi4e8P5OnjHJsw-7JI"
+        }
+      },
+      {
+        "transaction_id": "MzUxNTIyNzE5M2FkaXF6a2N4",
+        "barcode": "AEZHVZFK",
+        "type": "SH03",
+        "date": "2026-04-14",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate duty has been paid on this repurchase",
+            "date": "2026-04-14",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate duty has been paid on this repurchase"
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxNTIyNzE5M2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/QVBBA036oQYHo-yF40HxJhr8sNt0Kp6h991E3UCy8A8"
+        }
+      },
+      {
+        "transaction_id": "MzUxNTIyNzE5NGFkaXF6a2N4",
+        "barcode": "AEZHVZE3",
+        "type": "SH03",
+        "date": "2026-04-14",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate duty has been paid on this repurchase",
+            "date": "2026-04-14",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate duty has been paid on this repurchase"
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxNTIyNzE5NGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/CsPckW_AiNxbP4ZbdyzIHBM9vq54VwIXfICB87Qw7ow"
+        }
+      },
+      {
+        "transaction_id": "MzUxNTE0NTk4M2FkaXF6a2N4",
+        "barcode": "REXOPMZT",
+        "type": "SH06",
+        "date": "2026-04-09",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Replacement This document replaces the SH06 originally registered on 19/01/2026 as the original contained an error.",
+            "date": "2026-04-09",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Replacement This document replaces the SH06 originally registered on 19/01/2026 as the original contained an error."
+            }
+          }
+        ],
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-23",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,467,952,631"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-23",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxNTE0NTk4M2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/6-a0G8Kl4TTWMsUriab7W5IumPQIRoiDSRiEcyjb8H0"
+        }
+      },
+      {
+        "transaction_id": "MzUxMTY3OTUxNGFkaXF6a2N4",
+        "barcode": "AEY3FLJT",
+        "type": "SH03",
+        "date": "2026-03-30",
+        "category": "capital",
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMTY3OTUxNGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/QioL9TaAdWvr0k2cjzK9yhkCadbE34wMsGEpfdVXrFk"
+        }
+      },
+      {
+        "transaction_id": "MzUxMTY4NTY2NWFkaXF6a2N4",
+        "barcode": "AEY3FLCO",
+        "type": "SH01",
+        "date": "2026-03-26",
+        "category": "capital",
+        "description": "capital-allotment-shares",
+        "description_values": {
+          "date": "2026-03-12",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,446,084,180.75"
+            }
+          ]
+        },
+        "pages": 8,
+        "action_date": "2026-03-12",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMTY4NTY2NWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/_6eq-5ZH7wb-55ky8Stb1Ps1LoAhw8Hyap866grs62Y"
+        }
+      },
+      {
+        "transaction_id": "MzUxMDU1MzM4M2FkaXF6a2N4",
+        "barcode": "AEXQT9K3",
+        "type": "SH03",
+        "date": "2026-03-23",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate duty has been paid on this repurchase.",
+            "date": "2026-03-23",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate duty has been paid on this repurchase."
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUxMDU1MzM4M2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/kdXPQugy0ertOY2UfH51-ssTSkSsqBCoH7Ew_zbQt1Y"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTg3MDEyMmFkaXF6a2N4",
+        "barcode": "AEXLP680",
+        "type": "SH06",
+        "date": "2026-03-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-29",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,456,043,835"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-29",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTg3MDEyMmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/SQulH5Q7UMj23WjbJ1y5Ku39L2Swg8DMENcBp14xEK4"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTg3MDEyNmFkaXF6a2N4",
+        "barcode": "AEXLP67C",
+        "type": "SH06",
+        "date": "2026-03-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-02-03",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,454,350,195"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-02-03",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTg3MDEyNmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/E7FlCgaZBg-mCNcz3CPNJYj-REDOH5mXB2JVLYJY3HQ"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTg3MDExOWFkaXF6a2N4",
+        "barcode": "AEXLP6AH",
+        "type": "SH03",
+        "date": "2026-03-20",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC - CONFIRMATION RECIEVED THAT APPRORIATE DUTY THAT HAS BEEN PAID ON THIS TRANSACTION.",
+            "date": "2026-03-20",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc - confirmation recieved that approriate duty that has been paid on this transaction."
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTg3MDExOWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/BGXLE8vacl7ENW5PghLK_oI6kGX8q0xcOM_FgFTS9fc"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTg3MDEyNWFkaXF6a2N4",
+        "barcode": "AEXLP63K",
+        "type": "SH03",
+        "date": "2026-03-20",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC - CONFIRMATION RECIEVED THAT APPRORIATE DUTY THAT HAS BEEN PAID ON THIS TRANSACTION.",
+            "date": "2026-03-20",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc - confirmation recieved that approriate duty that has been paid on this transaction."
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTg3MDEyNWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/G06vSL1dBB5Dwhg78ERw_7GKnkTN8Y4NZ6U72qCdKYM"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTg3MDEyNGFkaXF6a2N4",
+        "barcode": "AEXLP67K",
+        "type": "SH06",
+        "date": "2026-03-19",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-02-02",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,454,506,792"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-02-02",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTg3MDEyNGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/9rF0GBI-LNR0qN1MyrPqdGOIhSr2uzdeBIeroPBtSnQ"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTg3MDEyMGFkaXF6a2N4",
+        "barcode": "AEXLP65S",
+        "type": "SH06",
+        "date": "2026-03-19",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-02-24",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,450,411,905"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-02-24",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTg3MDEyMGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/lUeEfCuV2nUGvbqsL3GIDHuYoAm6agFcAqa4BYocXZw"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTg3MDExOGFkaXF6a2N4",
+        "barcode": "AEXLP69T",
+        "type": "SH06",
+        "date": "2026-03-19",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-02-20",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,452,006,184"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-02-20",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTg3MDExOGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/h7fvebtiQ7GKQxLZb5RRhiSdO3EMARpe74SDk43t_ug"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTg3MDExN2FkaXF6a2N4",
+        "barcode": "AEXLP6A1",
+        "type": "SH06",
+        "date": "2026-03-19",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-02-19",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,452,488,976"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-02-19",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTg3MDExN2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/9OzICtuTf8UAbv6rOWCDGEoxQO2NrbbdccHYDKNNp9M"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTg3MDEyMWFkaXF6a2N4",
+        "barcode": "AEXLP65K",
+        "type": "SH06",
+        "date": "2026-03-19",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-28",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,456,823,719"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-28",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTg3MDEyMWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/Hm4GTYphkYwSGC9YiMzvCUCD7S2pS4rqb5OKKQgfnkg"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTg3MDExNmFkaXF6a2N4",
+        "barcode": "AEXLP6A9",
+        "type": "SH06",
+        "date": "2026-03-19",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-02-18",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,453,014,889"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-02-18",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTg3MDExNmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/yPzM30AkRVYP9DUu2yqb31PzdBLVmJbz2KnJT_jbCK0"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTg3MDEyM2FkaXF6a2N4",
+        "barcode": "AEXLP67S",
+        "type": "SH06",
+        "date": "2026-03-19",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-30",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,455,274,340"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-30",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTg3MDEyM2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/G5rOtsVXPpcqMorjR5t_x6g3DlGroWskpby9r8PU420"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTU5NzA2NWFkaXF6a2N4",
+        "barcode": "AEXBH90H",
+        "type": "SH01",
+        "date": "2026-03-17",
+        "category": "capital",
+        "description": "capital-allotment-shares",
+        "description_values": {
+          "date": "2026-02-26",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,449,315,282.75"
+            }
+          ]
+        },
+        "pages": 8,
+        "action_date": "2026-02-26",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTU5NzA2NWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/t6-G9dePaBlTOIzKSI8OpE0zjeeriA41F_y4cYCl5yA"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTU5NzA2N2FkaXF6a2N4",
+        "barcode": "AEXBH90P",
+        "type": "SH01",
+        "date": "2026-03-17",
+        "category": "capital",
+        "description": "capital-allotment-shares",
+        "description_values": {
+          "date": "2026-02-12",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,453,628,136.75"
+            }
+          ]
+        },
+        "pages": 8,
+        "action_date": "2026-02-12",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTU5NzA2N2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/IcMPRVMVlooqx6kqgJApAu5jowvHKyZhVIF9AaEpH5k"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTU5NzA2NmFkaXF6a2N4",
+        "barcode": "AEXBH90X",
+        "type": "SH01",
+        "date": "2026-03-17",
+        "category": "capital",
+        "description": "capital-allotment-shares",
+        "description_values": {
+          "date": "2026-01-29",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,454,287,186.5"
+            }
+          ]
+        },
+        "pages": 8,
+        "action_date": "2026-01-29",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTU5NzA2NmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/P3CPmyCP9cbKY6mM-H-UZvvDhxaNM7JCrQJZTN-o6PI"
+        }
+      },
+      {
+        "transaction_id": "MzUwOTU5NzA2OGFkaXF6a2N4",
+        "barcode": "AEXBH93S",
+        "type": "SH01",
+        "date": "2026-03-17",
+        "category": "capital",
+        "description": "capital-allotment-shares",
+        "description_values": {
+          "date": "2025-12-31",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,466,192,114.25"
+            }
+          ]
+        },
+        "pages": 8,
+        "action_date": "2025-12-31",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwOTU5NzA2OGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/fUBKd04BZYZkVela6PaVPizY1pMCUPsIAnZwc6egcBA"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjI5OGFkaXF6a2N4",
+        "barcode": "AEVWUU6Y",
+        "type": "SH03",
+        "date": "2026-02-24",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate Stamp Duty has been paid for this transaction.",
+            "date": "2026-02-24",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate Stamp Duty has been paid for this transaction."
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjI5OGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/H0QqwjNip2ktI5BQ2ITNSjZec0AQ2sYCOZbha-wwv1c"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjMxOWFkaXF6a2N4",
+        "barcode": "AEVWUU5E",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-31",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,466,665,433"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-31",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjMxOWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/uYnf-KpxIvX1mLRGCxRb4cs8u_gNlcvrfo-323w4D00"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjMwNmFkaXF6a2N4",
+        "barcode": "AEVWUU8I",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-06",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,465,912,349"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-06",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjMwNmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/SuPN1AVVMwrlwxf56fF7QVqLVAA352dP7Ioy2t4A60U"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjMwMGFkaXF6a2N4",
+        "barcode": "AEVWUU5U",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-09",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,474,128,098"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-09",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjMwMGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/MMuQIYgUoxMfZG7gLZF_RZWcggTTJ9azhczIlohzy3g"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjMwNWFkaXF6a2N4",
+        "barcode": "AEVWUU8Q",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-02",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,466,208,699"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-02",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjMwNWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/2Min0gVS21uVlLFdikauUn5SdTvS_B4a03YAxXX0Yeg"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjMwMWFkaXF6a2N4",
+        "barcode": "AEVWUU6I",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-04",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,475,620,131"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-04",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjMwMWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/kkZIW4X-WyhkSXYmDtxaNNE_6HlF6xcIfsy84hmDPGY"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjMwOWFkaXF6a2N4",
+        "barcode": "AEVWUU7E",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-26",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "345,858,010"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-26",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjMwOWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/EZztJoOkj6Knbx2bLWlJdPFWUHOTv4Jt8pSbn43v9CA"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjMwOGFkaXF6a2N4",
+        "barcode": "AEVWUU8A",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-22",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,459,097,010"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-22",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjMwOGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/TmzZQK-QpDn6svUjdUcFerQXCYVDawyzY4Wqwf-V_Xg"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjMxMWFkaXF6a2N4",
+        "barcode": "AEVWUU82",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-24",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,458,584,024"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-24",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjMxMWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/8_wmgb5OALVG_ukqB5tBCN3j2srdAOYUK5PCb0Z7KQk"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjMwM2FkaXF6a2N4",
+        "barcode": "AEVWUU6A",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-05",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,475,023,303"
+            }
+          ]
+        },
+        "pages": 10,
+        "action_date": "2025-12-05",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjMwM2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/M-FlTvOC6BFyuCFOVG0Qt9mwA595P9LBT8nbJ8qoxd8"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjMyMGFkaXF6a2N4",
+        "barcode": "AEVWUU7M",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-27",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,457,330,684"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-27",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjMyMGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/Y4X9rds8me0rhL2sqW5PnrJ5f9Ce6ozFveSmQKG4aUk"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjMwN2FkaXF6a2N4",
+        "barcode": "AEVWUU7U",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-21",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,459,674,803"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-21",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjMwN2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/l-aXKoxeEN8o6L6mYPzZFGGT2kSKUQscT5oprlOqf1Q"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjI5OWFkaXF6a2N4",
+        "barcode": "AEVWUU6Q",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-03",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,476,266,162"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-03",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjI5OWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/T_siHrr-4x8NiEGOA5qeuL5S3DCCTXqiqZmm2Ule5sQ"
+        }
+      },
+      {
+        "transaction_id": "MzUwNDk1Mzg0MmFkaXF6a2N4",
+        "barcode": "AEVRSO70",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-20",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,460,108,442"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-20",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNDk1Mzg0MmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/BguSi8NxeAwGLfmZSgimLx49xc12nQkK_NYxIMBOmTk"
+        }
+      },
+      {
+        "transaction_id": "MzUwNDk1Mzg0NWFkaXF6a2N4",
+        "barcode": "AEVRSO6G",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-16",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,460,994,171"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-16",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNDk1Mzg0NWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/z49pkakjlVKXT6c1xiQctyFrbQy9RazutqIQKBiJLio"
+        }
+      },
+      {
+        "transaction_id": "MzUwNDk1Mzg0NGFkaXF6a2N4",
+        "barcode": "AEVRSO60",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-14",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,462,613,372"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-14",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNDk1Mzg0NGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/jX64mkDPo_7BeatZGvKoygJ_SrLPLHXsf93hTLpXpNY"
+        }
+      },
+      {
+        "transaction_id": "MzUwNDk1Mzg0M2FkaXF6a2N4",
+        "barcode": "AEVRSO68",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-15",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,461,764,170"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-15",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNDk1Mzg0M2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/TrNlnr-qT4fRrN8Rn1DLpGSYCpX_93tQwJmOli1xMAU"
+        }
+      },
+      {
+        "transaction_id": "MzUwNDk1Mzg0MWFkaXF6a2N4",
+        "barcode": "AEVRSO6O",
+        "type": "SH06",
+        "date": "2026-02-23",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-19",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,460,527,953"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-19",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNDk1Mzg0MWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/GywfM61H7z6VuEt5feyMiWld9vZ34IdcsAg_XvZqejk"
+        }
+      },
+      {
+        "transaction_id": "MzUwNDk1Mzg0MGFkaXF6a2N4",
+        "barcode": "AEVRSO7C",
+        "type": "SH03",
+        "date": "2026-02-23",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate Stamp Duty has been paid for this transaction.",
+            "date": "2026-02-23",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate Stamp Duty has been paid for this transaction."
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNDk1Mzg0MGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/1hlP7HMC1c-DCHQf1MQmR2jJG5UT9kU4-mMRVftBIjI"
+        }
+      },
+      {
+        "transaction_id": "MzUwNTU5NjMwNGFkaXF6a2N4",
+        "barcode": "AEVWUU5M",
+        "type": "SH03",
+        "date": "2026-02-23",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate Stamp Duty has been paid for this transaction.",
+            "date": "2026-02-23",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate Stamp Duty has been paid for this transaction."
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNTU5NjMwNGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/_eP_WOdAlPZ6eTQl2RuZW6PC-LEZqawo69De_qGCj2k"
+        }
+      },
+      {
+        "transaction_id": "MzUwNDk1MzgzOWFkaXF6a2N4",
+        "barcode": "AEVRSO74",
+        "type": "SH03",
+        "date": "2026-02-23",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate Stamp Duty has been paid for this transaction.",
+            "date": "2026-02-23",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate Stamp Duty has been paid for this transaction."
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNDk1MzgzOWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/mLKJSSkY1eIca-6BIah5Q1eqPNIDlydnZs2E0viL810"
+        }
+      },
+      {
+        "transaction_id": "MzUwNDQ0MTA1M2FkaXF6a2N4",
+        "barcode": "AEVF40EW",
+        "type": "SH01",
+        "date": "2026-02-12",
+        "category": "capital",
+        "description": "capital-allotment-shares",
+        "description_values": {
+          "date": "2026-01-15",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,460,361,388"
+            }
+          ]
+        },
+        "pages": 8,
+        "action_date": "2026-01-15",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwNDQ0MTA1M2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/zX8fk_oJqCRi8D2rHRKJSxqd290aJwuwCIf27M3mVBw"
+        }
+      },
+      {
+        "transaction_id": "MzUwMjkwMDI0NmFkaXF6a2N4",
+        "barcode": "AEV50763",
+        "type": "SH01",
+        "date": "2026-02-12",
+        "category": "capital",
+        "description": "capital-allotment-shares",
+        "description_values": {
+          "date": "2025-12-02",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,475,487,400"
+            }
+          ]
+        },
+        "pages": 8,
+        "action_date": "2025-12-02",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwMjkwMDI0NmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/iv3Bl6sFNxRQIObYkHdYkWIMp7mbNu5VADamGcHHpCM"
+        }
+      },
+      {
+        "transaction_id": "MzQ5ODExNDM4M2FkaXF6a2N4",
+        "barcode": "AET8D9O1",
+        "type": "SH01",
+        "date": "2026-01-21",
+        "category": "capital",
+        "description": "capital-allotment-shares",
+        "description_values": {
+          "date": "2025-12-19",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,467,895,838.75"
+            }
+          ]
+        },
+        "pages": 8,
+        "action_date": "2025-12-19",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5ODExNDM4M2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/DSqEqide20aWatqCarevoXTjKFDDsT-J6nby-Id9WqI"
+        }
+      },
+      {
+        "transaction_id": "MzUwMDEzMTYxOWFkaXF6a2N4",
+        "barcode": "AETV7AWY",
+        "type": "SH06",
+        "date": "2026-01-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-09",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,464,244,880"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-09",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwMDEzMTYxOWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/1Mo16X4HFZLtT1SxcJ99hMT4HWr2601mr9h75gEnHpY"
+        }
+      },
+      {
+        "transaction_id": "MzUwMDEzMTYxOGFkaXF6a2N4",
+        "barcode": "AETV7AWT",
+        "type": "SH06",
+        "date": "2026-01-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-12",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,463,768,463"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-12",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwMDEzMTYxOGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/20Ijpljfbk5DEY4Xjyu7sfwH8-RpsyYBZwtRjbi-wRg"
+        }
+      },
+      {
+        "transaction_id": "MzUwMDEzMTYxN2FkaXF6a2N4",
+        "barcode": "AETV7AX6",
+        "type": "SH06",
+        "date": "2026-01-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-08",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,464,669,441"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-08",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwMDEzMTYxN2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/1ii3vxeiCm30wQHeR-jmJErfKyf_Dq_j7hhe6JcCxQk"
+        }
+      },
+      {
+        "transaction_id": "MzUwMDEzMTYxNmFkaXF6a2N4",
+        "barcode": "AETV7AXE",
+        "type": "SH06",
+        "date": "2026-01-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-07",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,465,069,659"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-07",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwMDEzMTYxNmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/knARuM6mDxMyftQG0EDLbTtBDwSo2k18OU2MxxW7uGQ"
+        }
+      },
+      {
+        "transaction_id": "MzUwMDEzMTYyMGFkaXF6a2N4",
+        "barcode": "AETV7AWH",
+        "type": "SH06",
+        "date": "2026-01-20",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2026-01-13",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,463,204,308"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2026-01-13",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwMDEzMTYyMGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/rnqdwoV6T1D-DDvT0X9rvmrF26SBiM_nA6pND3zU10U"
+        }
+      },
+      {
+        "transaction_id": "MzQ5OTU3ODI2OGFkaXF6a2N4",
+        "barcode": "AETQ298Y",
+        "type": "SH03",
+        "date": "2026-01-20",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate duty has been paid on this repurchase",
+            "date": "2026-01-20",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate duty has been paid on this repurchase"
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5OTU3ODI2OGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/mTofzdeWZfsu-lvbGeTe3KktPnVqUPkyTVcQLkDBak8"
+        }
+      },
+      {
+        "transaction_id": "MzQ5OTU3ODI2N2FkaXF6a2N4",
+        "barcode": "AETQ298U",
+        "type": "SH03",
+        "date": "2026-01-20",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate duty has been paid on this repurchase",
+            "date": "2026-01-20",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate duty has been paid on this repurchase"
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5OTU3ODI2N2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/iJqxLva42TfZGQ6eo8jscUIsE9GFNkQvqPipR54ttnI"
+        }
+      },
+      {
+        "transaction_id": "MzUwMDEzMTYyMWFkaXF6a2N4",
+        "barcode": "AETV7AUH",
+        "type": "SH03",
+        "date": "2026-01-20",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate duty has been paid on this repurchase",
+            "date": "2026-01-20",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate duty has been paid on this repurchase"
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzUwMDEzMTYyMWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/eouPzET6V63HvvRgtxF5U3T50PSr7wN7K5RkAhg5jc8"
+        }
+      },
+      {
+        "transaction_id": "MzQ5OTY5NDMwOWFkaXF6a2N4",
+        "barcode": "AETQ297M",
+        "type": "SH06",
+        "date": "2026-01-19",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-17",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,470,160,209"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-17",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5OTY5NDMwOWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/r3_XyS9V4VxS5njHjJ4p75NgbpYKICpScDj0X43NaD8"
+        }
+      },
+      {
+        "transaction_id": "MzQ5OTY5NDMwOGFkaXF6a2N4",
+        "barcode": "AETQ298A",
+        "type": "SH06",
+        "date": "2026-01-19",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-22",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,468,453,720"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-22",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5OTY5NDMwOGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/dWMe5PH7Ct7j8WJa11zUqhJ9C8et2FpGpoUd9Baepe8"
+        }
+      },
+      {
+        "transaction_id": "MzQ5OTY5NDMwN2FkaXF6a2N4",
+        "barcode": "AETQ2982",
+        "type": "SH06",
+        "date": "2026-01-19",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-19",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,469,080,916"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-19",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5OTY5NDMwN2FkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/Y43MA6MumV59Qr9TOk1fep_KeqIAJ5nlo6x2NHPnVO8"
+        }
+      },
+      {
+        "transaction_id": "MzQ5OTY5NDMxMWFkaXF6a2N4",
+        "barcode": "AETQ298I",
+        "type": "SH06",
+        "date": "2026-01-19",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Replaced A replacement SH06 was registered on 09/04/2026 as the original contained an error.",
+            "date": "2026-04-09",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Replaced a replacement SH06 was registered on 09/04/2026 as the original contained an error."
+            }
+          }
+        ],
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-22",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,467,952,631"
+            }
+          ]
+        },
+        "pages": 7,
+        "action_date": "2025-12-22",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5OTY5NDMxMWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/IPjgNNpHTr0oSNzGNpg2mCVctcGC151zuXx4tiwbLLg"
+        }
+      },
+      {
+        "transaction_id": "MzQ5OTY5NDMwNmFkaXF6a2N4",
+        "barcode": "AETQ297U",
+        "type": "SH06",
+        "date": "2026-01-19",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-18",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,469,657,419"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-18",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5OTY5NDMwNmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/xnBBW5TjP6DICNwdM9P1A4dRznZ1D5Lc91-hLXN8dIU"
+        }
+      },
+      {
+        "transaction_id": "MzQ5ODI2NjU3MGFkaXF6a2N4",
+        "barcode": "AET8DMGZ",
+        "type": "SH03",
+        "date": "2026-01-09",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate duty has been paid on this repurchase.",
+            "date": "2026-01-09",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate duty has been paid on this repurchase."
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5ODI2NjU3MGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/WtSwwNRZg0jAPkrcqcHP_BJV25AAPKTcC-vKJnMmamU"
+        }
+      },
+      {
+        "transaction_id": "MzQ5NjYxMzE0MGFkaXF6a2N4",
+        "barcode": "AEHYU5WX",
+        "type": "SH01",
+        "date": "2026-01-05",
+        "category": "capital",
+        "description": "capital-allotment-shares",
+        "description_values": {
+          "date": "2025-12-11",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,471,529,249"
+            }
+          ]
+        },
+        "pages": 8,
+        "action_date": "2025-12-11",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5NjYxMzE0MGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/FDg5ls7Dnzd8DTGSEgcBDiCdr6KJXsK-twNvBqEz7T8"
+        }
+      },
+      {
+        "transaction_id": "MzQ5NjYyNDEzMGFkaXF6a2N4",
+        "barcode": "AEHYVA29",
+        "type": "SH06",
+        "date": "2025-12-31",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-11",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,472,832,688"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-11",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5NjYyNDEzMGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/TRrANSUMlnNST12gw9Bmcbd3oWHQB8XwkCqZBtKUSd0"
+        }
+      },
+      {
+        "transaction_id": "MzQ5NjYyNDEzMWFkaXF6a2N4",
+        "barcode": "AEHYVA2P",
+        "type": "SH06",
+        "date": "2025-12-31",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-15",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,471,639,964"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-15",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5NjYyNDEzMWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/qlCKvdY62BaYJ5uixUniC9DQnR2ezjtQr9S3WpV-10c"
+        }
+      },
+      {
+        "transaction_id": "MzQ5NjYyNDEyOWFkaXF6a2N4",
+        "barcode": "AEHYVA2H",
+        "type": "SH06",
+        "date": "2025-12-31",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-12",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,472,219,702"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-12",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5NjYyNDEyOWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/VrWH0p5LcUqLpBv4LpBosrSD3Omsi45Jotgs3vVmD60"
+        }
+      },
+      {
+        "transaction_id": "MzQ5NjYyNDEzMmFkaXF6a2N4",
+        "barcode": "AEHYVA2X",
+        "type": "SH06",
+        "date": "2025-12-31",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-16",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,470,769,954"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-16",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5NjYyNDEzMmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/W2smJFx921NwMfbyUuPO26Nbl6kvIT_uwdg_D7S0g3s"
+        }
+      },
+      {
+        "transaction_id": "MzQ5NjYyNDEyOGFkaXF6a2N4",
+        "barcode": "AEHYVA21",
+        "type": "SH06",
+        "date": "2025-12-31",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-10",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,473,483,260"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-10",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5NjYyNDEyOGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/tJXxCST1nD-16gQyApZaObNvbOlTj7eo52x3P3D1cuo"
+        }
+      },
+      {
+        "transaction_id": "MzQ5NjU2NDkyNmFkaXF6a2N4",
+        "barcode": "AEI1ORVV",
+        "type": "SH03",
+        "date": "2025-12-31",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC confirmation received that appropriate stamp duty has been paid on this transaction.",
+            "date": "2025-12-31",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc confirmation received that appropriate stamp duty has been paid on this transaction."
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5NjU2NDkyNmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/dGMIXeacROW6-20KVkkZbvKcVnwdv6jUtOUCxmIBaUQ"
+        }
+      },
+      {
+        "transaction_id": "MzQ5NTc2MTI3MWFkaXF6a2N4",
+        "barcode": "AEHP47L4",
+        "type": "SH03",
+        "date": "2025-12-30",
+        "category": "capital",
+        "annotations": [
+          {
+            "annotation": "Clarification HMRC - CONFIMATION RECEIVED THAT APPROPRIATE DUTY THAT HAS BEEN PAID ON THIS TRANSACTION.",
+            "date": "2025-12-30",
+            "description": "annotation",
+            "category": "annotation",
+            "type": "ANNOTATION",
+            "description_values": {
+              "description": "Clarification hmrc - confimation received that appropriate duty that has been paid on this transaction."
+            }
+          }
+        ],
+        "description": "capital-return-purchase-own-shares",
+        "pages": 4,
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5NTc2MTI3MWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/6vnwCNzzMalU8uu-7DbEr9Y7SmVV7MCHo8dvzaTwVBo"
+        }
+      },
+      {
+        "transaction_id": "MzQ5NTc2MTMxMWFkaXF6a2N4",
+        "barcode": "AEHP47IO",
+        "type": "SH06",
+        "date": "2025-12-29",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-11-28",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,477,687,784"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-11-28",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5NTc2MTMxMWFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/WOSOTGe7Y-kzu_-C9yNrrdL2VsJizhrAyJkxomt23-E"
+        }
+      },
+      {
+        "transaction_id": "MzQ5NTc2MTMyNGFkaXF6a2N4",
+        "barcode": "AEHP47IW",
+        "type": "SH06",
+        "date": "2025-12-29",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-01",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,476,620,320"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-01",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5NTc2MTMyNGFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/8dkJyVVvCcDJNSvOnGrGxFcA8V--ovLQzWDDMR2KRWM"
+        }
+      },
+      {
+        "transaction_id": "MzQ5NTc2MTI3MmFkaXF6a2N4",
+        "barcode": "AEHP47KW",
+        "type": "SH06",
+        "date": "2025-12-29",
+        "category": "capital",
+        "description": "capital-cancellation-shares",
+        "description_values": {
+          "date": "2025-12-02",
+          "capital": [
+            {
+              "currency": "GBP",
+              "figure": "3,476,758,696"
+            }
+          ]
+        },
+        "pages": 6,
+        "action_date": "2025-12-02",
+        "paper_filed": true,
+        "links": {
+          "self": "/company/00048839/filing-history/MzQ5NTc2MTI3MmFkaXF6a2N4",
+          "document_metadata": "https://document-api.company-information.service.gov.uk/document/AqYFc2HxYi9qC3Cn2mi8NE5h8WuPGO-VumsVsFQFvxM"
+        }
+      }
+    ],
+    "items_per_page": 100,
+    "start_index": 0,
+    "total_count": 4708
+  }
+}
