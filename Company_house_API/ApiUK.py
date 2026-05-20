@@ -1,16 +1,474 @@
 """
-Compatibilidad: usa scripts/companies_house.py o python -m desde scripts/.
+CLI Companies House (Reino Unido): búsqueda por nombre, perfil completo e historial de filings.
+Requiere COMPANIES_HOUSE_API_KEY en .env (misma variable que main.py).
+Opcional: GEMINI_API_KEY para analizar el primer documento descargable del historial.
 """
+from __future__ import annotations
+
+import json
+import os
 import sys
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / "src"))
-sys.path.insert(0, str(_ROOT / "scripts"))
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
-import _bootstrap  # noqa: F401
+import requests
+from dotenv import load_dotenv
 
-from dossier.companies_house.cli import main
+from dossier_cli_format import (
+    FUENTE_UK,
+    print_analisis_gemini_header,
+    print_archivos_generados,
+    print_banner,
+    print_documento_principal,
+    print_filing_entry,
+    print_section_title,
+)
+from dossier_limits import MAX_RECENT_FILINGS_CLI
+
+SEARCH_URL = "https://api.company-information.service.gov.uk/search/companies"
+COMPANY_URL_TEMPLATE = "https://api.company-information.service.gov.uk/company/{number}"
+FILING_HISTORY_URL_TEMPLATE = (
+    "https://api.company-information.service.gov.uk/company/{number}/filing-history"
+)
+MAX_ITEMS_SEARCH = 100
+MAX_ITEMS_FILINGS = 100
+CH_PUBLIC_BASE = "https://find-and-update.company-information.service.gov.uk"
+
+
+def load_api_key() -> tuple[str, str]:
+    load_dotenv(_ROOT / ".env")
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+    key = os.getenv("COMPANIES_HOUSE_API_KEY")
+    if not key or not str(key).strip():
+        raise SystemExit(
+            "Falta COMPANIES_HOUSE_API_KEY. Añádela al archivo .env (como en main.py)."
+        )
+    return (str(key).strip(), "")
+
+
+def ch_get(url: str, auth: tuple[str, str], params: dict | None = None) -> dict:
+    response = requests.get(url, auth=auth, params=params or {}, timeout=60)
+    response.raise_for_status()
+    return response.json()
+
+
+def search_companies(query: str, auth: tuple[str, str]) -> dict:
+    return ch_get(
+        SEARCH_URL,
+        auth,
+        params={"q": query, "items_per_page": MAX_ITEMS_SEARCH},
+    )
+
+
+def filter_and_sort_items(items: list[dict], query: str) -> tuple[list[dict], bool]:
+    """
+    Filtra por subcadena en el título sin distinguir mayúsculas.
+    Si no hay coincidencias, devuelve los items de la API sin filtrar (fallback).
+    """
+    q = query.strip().casefold()
+    if not q:
+        return items, False
+    filtered = [it for it in items if q in (it.get("title") or "").casefold()]
+    if filtered:
+        items_to_sort = filtered
+        strict = True
+    else:
+        items_to_sort = list(items)
+        strict = False
+
+    def sort_key(it: dict) -> tuple[int, int]:
+        t = (it.get("title") or "").casefold()
+        if t == q:
+            rank = 0
+        elif t.startswith(q):
+            rank = 1
+        elif q in t:
+            rank = 2
+        else:
+            rank = 3
+        return (rank, len(t))
+
+    return sorted(items_to_sort, key=sort_key), strict
+
+
+def get_company_profile(company_number: str, auth: tuple[str, str]) -> dict:
+    url = COMPANY_URL_TEMPLATE.format(number=company_number)
+    return ch_get(url, auth)
+
+
+def get_filing_history(company_number: str, auth: tuple[str, str]) -> dict:
+    url = FILING_HISTORY_URL_TEMPLATE.format(number=company_number)
+    return ch_get(
+        url,
+        auth,
+        params={"items_per_page": MAX_ITEMS_FILINGS},
+    )
+
+
+MIME_TO_EXT = {
+    "application/pdf": ".pdf",
+    "application/xhtml+xml": ".html",
+    "text/html": ".html",
+    "application/json": ".json",
+    "application/xml": ".xml",
+    "text/xml": ".xml",
+}
+
+DEFAULT_ACCEPT_ORDER: list[tuple[str, str]] = [
+    ("application/pdf", ".pdf"),
+    ("application/xhtml+xml", ".html"),
+    ("text/html", ".html"),
+    ("application/json", ".json"),
+    ("application/xml", ".xml"),
+]
+
+
+def _mime_sort_key(mime: str) -> int:
+    m = mime.split(";")[0].strip().lower()
+    if "pdf" in m:
+        return 0
+    if "xhtml" in m or m == "text/html":
+        return 1
+    if "json" in m:
+        return 2
+    if "xml" in m:
+        return 3
+    return 9
+
+
+def _accept_order_from_metadata(meta: dict | None) -> list[tuple[str, str]]:
+    if not meta:
+        return list(DEFAULT_ACCEPT_ORDER)
+    resources = meta.get("resources") or {}
+    keys = [k.split(";")[0].strip() for k in resources if k]
+    keys_sorted = sorted(set(keys), key=_mime_sort_key)
+    order: list[tuple[str, str]] = []
+    for mime in keys_sorted:
+        ext = MIME_TO_EXT.get(mime.lower(), ".bin")
+        order.append((mime, ext))
+    for mime, ext in DEFAULT_ACCEPT_ORDER:
+        if mime not in [x[0] for x in order]:
+            order.append((mime, ext))
+    return order
+
+
+def ch_fetch_metadata_dict(metadata_url: str, auth: tuple[str, str]) -> dict | None:
+    try:
+        return ch_get(metadata_url, auth)
+    except requests.HTTPError:
+        return None
+
+
+def ch_download_filing_document(metadata_url: str, auth: tuple[str, str]) -> tuple[bytes, str]:
+    """
+    Descarga el contenido del documento (Document API) probando Accept según metadatos.
+    """
+    base = metadata_url.rstrip("/")
+    content_url = f"{base}/content"
+    meta = ch_fetch_metadata_dict(metadata_url, auth)
+    attempts = _accept_order_from_metadata(meta)
+    last: tuple[int, str] | None = None
+    for accept, ext in attempts:
+        response = requests.get(
+            content_url,
+            auth=auth,
+            headers={"Accept": accept},
+            timeout=120,
+            allow_redirects=True,
+        )
+        if response.status_code == 200 and response.content:
+            return response.content, ext
+        last = (response.status_code, (response.text or "")[:300])
+    raise RuntimeError(
+        f"No se pudo descargar el documento desde {content_url}. "
+        f"Último intento HTTP {last[0]}: {last[1]!r}"
+        if last
+        else "Sin respuesta."
+    )
+
+
+def maybe_analyze_ch_filing_with_gemini(
+    profile: dict,
+    filing_history: dict,
+    auth: tuple[str, str],
+    company_number: str,
+) -> Path | None:
+    """
+    Si hay GEMINI_API_KEY en el .env de la raíz del proyecto, descarga el primer filing
+    con document_metadata y lo analiza con Gemini.
+    Desactivar: GEMINI_SKIP_ANALYSIS=1
+    """
+    load_dotenv(_ROOT / ".env")
+    if (os.getenv("GEMINI_SKIP_ANALYSIS") or "").strip() in ("1", "true", "yes"):
+        print("\n(Gemini: omitido por GEMINI_SKIP_ANALYSIS.)")
+        return None
+    if not (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip():
+        print(
+            "\n(Gemini: no hay GEMINI_API_KEY; añádela al .env del proyecto para analizar "
+            "documentos de Companies House automáticamente.)"
+        )
+        return None
+
+    items = filing_history.get("items") or []
+    chosen: tuple[dict, str] | None = None
+    for item in items:
+        meta_url = (item.get("links") or {}).get("document_metadata")
+        if meta_url:
+            chosen = (item, str(meta_url))
+            break
+
+    if not chosen:
+        print(
+            "\n(Gemini: ningún ítem del historial reciente incluye document_metadata "
+            "(p. ej. solo presentaciones en papel); no hay archivo que descargar.)"
+        )
+        return None
+
+    item, meta_url = chosen
+    from gemini_analyze import analyze_document_bytes
+
+    company_name = profile.get("company_name", "N/A")
+    print("\nDescargando documento desde Companies House (Document API) para Gemini…")
+    try:
+        data, ext = ch_download_filing_document(meta_url, auth)
+        date = item.get("date", "")
+        ftype = item.get("type", "")
+        category = item.get("category", "")
+        desc = item.get("description", "")
+        tx = item.get("transaction_id", "doc")[:24]
+        safe_cn = "".join(c if c.isalnum() else "_" for c in company_number)[:16]
+        filename = f"ch_{safe_cn}_{date}_{ftype}{ext}"
+
+        prompt = (
+            "Eres un analista corporativo (Reino Unido). Resume en español este documento "
+            "presentado en Companies House. Incluye: tipo de hecho o trámite, datos clave "
+            "que aparezcan, fechas relevantes y una conclusión breve. "
+            f"Empresa: {company_name} ({company_number}). "
+            f"Presentación: fecha={date}, tipo={ftype}, categoría={category}, descripción={desc}."
+        )
+        print("Enviando a Gemini (puede tardar si el PDF/HTML es grande)…")
+        analysis = analyze_document_bytes(data, filename, prompt)
+        print_analisis_gemini_header()
+        print(analysis)
+
+        out_path = _ROOT / f"ch_gemini_analysis_{safe_cn}_{tx}.txt"
+        out_path.write_text(
+            f"document_metadata: {meta_url}\n\n{analysis}",
+            encoding="utf-8",
+        )
+        return out_path
+    except ImportError as e:
+        print(f"\n(Gemini: instala dependencias: pip install -r requirements.txt) {e}")
+        return None
+    except Exception as e:
+        print(f"\n(Gemini: error al analizar — {e})")
+        return None
+
+
+def save_json_file(data: dict, filename: str) -> Path:
+    output_path = Path(filename)
+    output_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return output_path
+
+
+def _format_address(addr: dict | None) -> str:
+    if not addr:
+        return "N/A"
+    parts = [
+        addr.get("premises"),
+        addr.get("address_line_1"),
+        addr.get("address_line_2"),
+        addr.get("locality"),
+        addr.get("region"),
+        addr.get("postal_code"),
+        addr.get("country"),
+    ]
+    return ", ".join(p for p in parts if p)
+
+
+def print_profile_summary(profile: dict) -> None:
+    print(f"Empresa:            {profile.get('company_name', 'N/A')}")
+    print(f"Número de sociedad: {profile.get('company_number', 'N/A')}")
+    print(f"Estado:             {profile.get('company_status', 'N/A')}")
+    print(f"Tipo:               {profile.get('type', 'N/A')}")
+    print(f"Jurisdicción:       {profile.get('jurisdiction', 'N/A')}")
+    print(f"Constitución:       {profile.get('date_of_creation', 'N/A')}")
+    print(f"Domicilio social:   {_format_address(profile.get('registered_office_address'))}")
+
+    sic = profile.get("sic_codes")
+    if sic:
+        print("SIC:")
+        for code in sic:
+            print(f"  - {code}")
+
+    accounts = profile.get("accounts")
+    if accounts:
+        na = accounts.get("next_accounts") or {}
+        la = accounts.get("last_accounts") or {}
+        if na.get("due_on"):
+            print(f"Cuentas — próximo vencimiento: {na.get('due_on')}")
+        if la.get("made_up_to"):
+            print(f"Cuentas — último periodo hasta: {la.get('made_up_to')}")
+
+    ch_profile = profile.get("links", {}).get("self")
+    if ch_profile:
+        web = f"{CH_PUBLIC_BASE}{ch_profile}"
+        print(f"Ficha (web):        {web}")
+
+
+def _filing_enlace_web(item: dict) -> str:
+    self_path = (item.get("links") or {}).get("self")
+    if self_path and isinstance(self_path, str):
+        if self_path.startswith("http"):
+            return self_path
+        return f"{CH_PUBLIC_BASE}{self_path}"
+    meta = (item.get("links") or {}).get("document_metadata")
+    if meta:
+        return str(meta)
+    return ""
+
+
+def print_filing_history_summary(company_number: str) -> None:
+    base_web = f"{CH_PUBLIC_BASE}/company/{company_number}/filing-history"
+    print(f"Historial (web):    {base_web}")
+
+
+def main() -> None:
+    print_banner(FUENTE_UK)
+    nombre = input("Nombre de la empresa (Reino Unido, Companies House): ").strip()
+    if not nombre:
+        print("No ingresaste ningún nombre.")
+        return
+
+    try:
+        auth = load_api_key()
+        print("\nBuscando en Companies House…")
+        data = search_companies(nombre, auth)
+        items = data.get("items") or []
+        total = data.get("total_results", 0)
+
+        if not items:
+            print(f"No hay resultados para «{nombre}». Total API: {total}.")
+            return
+
+        matches, strict = filter_and_sort_items(items, nombre)
+        max_show = 30
+        if len(matches) > max_show:
+            print(
+                f"Hay {len(matches)} resultados mostrables; se listan {max_show} "
+                "(mejor ordenados)."
+            )
+            matches = matches[:max_show]
+
+        if not strict:
+            print(
+                "\n(Aviso: ningún resultado contiene tu texto en el título con el mismo criterio; "
+                "se muestran los primeros resultados de la API.)"
+            )
+
+        selected: dict
+        if len(matches) == 1:
+            selected = matches[0]
+            print(f"\nCoincidencia única: {selected.get('title')} ({selected.get('company_number')})")
+        else:
+            print("\nVarias coincidencias — elige una:\n")
+            for i, m in enumerate(matches, 1):
+                print(
+                    f"  {i}. {m.get('title')} | {m.get('company_number')} | "
+                    f"{m.get('company_status', '')} | {m.get('address_snippet', '')}"
+                )
+            while True:
+                raw = input(f"\nNúmero (1–{len(matches)}): ").strip()
+                if not raw.isdigit():
+                    print("Escribe un número válido.")
+                    continue
+                idx = int(raw)
+                if 1 <= idx <= len(matches):
+                    selected = matches[idx - 1]
+                    break
+                print("Fuera de rango.")
+
+        company_number = selected.get("company_number")
+        if not company_number:
+            print("Respuesta sin company_number.")
+            return
+
+        print(f"\nObteniendo perfil y filing history para {company_number}…")
+        profile = get_company_profile(company_number, auth)
+        filing_history = get_filing_history(company_number, auth)
+
+        slug = "".join(c if c.isalnum() else "_" for c in company_number)[:16]
+        bundle = {"profile": profile, "filing_history": filing_history}
+        out_name = f"company_uk_{slug}.json"
+        output_file = save_json_file(bundle, out_name)
+
+        print_section_title("Resumen")
+        print(f"Término buscado:    {nombre}")
+        print_profile_summary(profile)
+        print_filing_history_summary(company_number)
+
+        items = filing_history.get("items") or []
+        list_slice = items[:MAX_RECENT_FILINGS_CLI]
+        print_section_title("Presentaciones recientes")
+        print(
+            f"Últimos {len(list_slice)} ítems del historial "
+            f"(máx. {MAX_RECENT_FILINGS_CLI} mostrados).\n"
+        )
+        for i, it in enumerate(list_slice, start=1):
+            meta = (it.get("links") or {}).get("document_metadata")
+            ref = (it.get("transaction_id") or it.get("description") or "N/A")[:120]
+            print_filing_entry(
+                i,
+                formulario=str(it.get("type") or it.get("description") or "N/A")[:80],
+                fecha=str(it.get("date") or "N/A"),
+                referencia=ref,
+                enlace=_filing_enlace_web(it) or str(meta or "(sin enlace)"),
+            )
+
+        archivos: list[tuple[str, Path]] = [("Datos JSON (bundle)", output_file)]
+
+        first_meta: str | None = None
+        first_filename = ""
+        for it in items:
+            mu = (it.get("links") or {}).get("document_metadata")
+            if mu:
+                first_meta = str(mu)
+                cn = company_number
+                safe_cn = "".join(c if c.isalnum() else "_" for c in cn)[:16]
+                d = it.get("date", "")
+                ft = it.get("type", "doc")
+                first_filename = f"ch_{safe_cn}_{d}_{ft} (tipo al descargar)"
+                break
+
+        if first_meta and first_filename:
+            print_documento_principal(archivo=first_filename, url=first_meta)
+            gemini_path = maybe_analyze_ch_filing_with_gemini(
+                profile, filing_history, auth, company_number
+            )
+            if gemini_path is not None:
+                archivos.append(("Análisis Gemini", gemini_path))
+        else:
+            print_section_title("Documento principal")
+            print(
+                "(Ningún ítem reciente incluye document_metadata descargable; "
+                "revisa el historial en la web.)"
+            )
+
+        print_archivos_generados(archivos)
+
+    except requests.HTTPError as e:
+        detail = ""
+        try:
+            detail = e.response.json() if e.response is not None else ""
+        except ValueError:
+            detail = e.response.text if e.response is not None else ""
+        print(f"Error HTTP (Companies House): {e} {detail}")
+    except requests.RequestException as e:
+        print(f"Error de red: {e}")
+
 
 if __name__ == "__main__":
     main()
