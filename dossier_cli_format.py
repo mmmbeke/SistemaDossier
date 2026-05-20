@@ -53,3 +53,35 @@ def print_archivos_generados(items: list[tuple[str, Path]]) -> None:
         except OSError:
             resuelto = p
         print(f"- {etiqueta}: {resuelto}")
+
+
+def print_status_api(texto: str) -> None:
+    """Línea de progreso antes de llamadas a la API (mismo estilo en SEC y UK)."""
+    print(f"\n{texto}")
+
+
+def print_listado_presentaciones_intro(
+    cantidad: int, *, max_mostrar: int, origen_listado: str
+) -> None:
+    print(
+        f"Últimos {cantidad} registros listados "
+        f"(máx. {max_mostrar} mostrados; {origen_listado}).\n"
+    )
+
+
+def print_gemini_descarga_inicio() -> None:
+    print("\nDescargando documento para análisis con Gemini…")
+
+
+def print_gemini_enviando() -> None:
+    print("Enviando a Gemini (puede tardar en archivos grandes)…")
+
+
+def print_documento_principal_aviso(texto: str) -> None:
+    """Cuando no hay URL/archivo principal detectable (mismo bloque en SEC y UK)."""
+    print_section_title("Documento principal")
+    print(texto)
+
+
+def print_varias_coincidencias_intro(n_total: int, n_listadas: int) -> None:
+    print(f"\nVarias coincidencias ({n_total} en total; mostrando {n_listadas}). Elige una:\n")

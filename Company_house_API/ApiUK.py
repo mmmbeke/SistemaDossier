@@ -23,10 +23,16 @@ from dossier_cli_format import (
     print_archivos_generados,
     print_banner,
     print_documento_principal,
+    print_documento_principal_aviso,
     print_filing_entry,
+    print_gemini_descarga_inicio,
+    print_gemini_enviando,
+    print_listado_presentaciones_intro,
     print_section_title,
+    print_status_api,
+    print_varias_coincidencias_intro,
 )
-from dossier_limits import MAX_RECENT_FILINGS_CLI
+from dossier_limits import MAX_RECENT_FILINGS_CLI, data_json_path
 
 SEARCH_URL = "https://api.company-information.service.gov.uk/search/companies"
 COMPANY_URL_TEMPLATE = "https://api.company-information.service.gov.uk/company/{number}"
@@ -231,7 +237,7 @@ def maybe_analyze_ch_filing_with_gemini(
     from gemini_analyze import analyze_document_bytes
 
     company_name = profile.get("company_name", "N/A")
-    print("\nDescargando documento desde Companies House (Document API) para Gemini…")
+    print_gemini_descarga_inicio()
     try:
         data, ext = ch_download_filing_document(meta_url, auth)
         date = item.get("date", "")
@@ -249,7 +255,7 @@ def maybe_analyze_ch_filing_with_gemini(
             f"Empresa: {company_name} ({company_number}). "
             f"Presentación: fecha={date}, tipo={ftype}, categoría={category}, descripción={desc}."
         )
-        print("Enviando a Gemini (puede tardar si el PDF/HTML es grande)…")
+        print_gemini_enviando()
         analysis = analyze_document_bytes(data, filename, prompt)
         print_analisis_gemini_header()
         print(analysis)
@@ -269,8 +275,11 @@ def maybe_analyze_ch_filing_with_gemini(
 
 
 def save_json_file(data: dict, filename: str) -> Path:
-    output_path = Path(filename)
-    output_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    output_path = data_json_path(_ROOT, filename)
+    output_path.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
     return output_path
 
 
@@ -345,7 +354,7 @@ def main() -> None:
 
     try:
         auth = load_api_key()
-        print("\nBuscando en Companies House…")
+        print_status_api("Obteniendo datos — búsqueda Companies House.")
         data = search_companies(nombre, auth)
         items = data.get("items") or []
         total = data.get("total_results", 0)
@@ -356,6 +365,7 @@ def main() -> None:
 
         matches, strict = filter_and_sort_items(items, nombre)
         max_show = 30
+        coincidencias_totales = len(matches)
         if len(matches) > max_show:
             print(
                 f"Hay {len(matches)} resultados mostrables; se listan {max_show} "
@@ -374,14 +384,16 @@ def main() -> None:
             selected = matches[0]
             print(f"\nCoincidencia única: {selected.get('title')} ({selected.get('company_number')})")
         else:
-            print("\nVarias coincidencias — elige una:\n")
+            print_varias_coincidencias_intro(coincidencias_totales, len(matches))
             for i, m in enumerate(matches, 1):
                 print(
                     f"  {i}. {m.get('title')} | {m.get('company_number')} | "
                     f"{m.get('company_status', '')} | {m.get('address_snippet', '')}"
                 )
             while True:
-                raw = input(f"\nNúmero (1–{len(matches)}): ").strip()
+                raw = input(
+                    f"\nNúmero de la empresa (1-{len(matches)}): "
+                ).strip()
                 if not raw.isdigit():
                     print("Escribe un número válido.")
                     continue
@@ -396,7 +408,7 @@ def main() -> None:
             print("Respuesta sin company_number.")
             return
 
-        print(f"\nObteniendo perfil y filing history para {company_number}…")
+        print_status_api(f"Obteniendo datos — perfil e historial ({company_number}).")
         profile = get_company_profile(company_number, auth)
         filing_history = get_filing_history(company_number, auth)
 
@@ -413,9 +425,10 @@ def main() -> None:
         items = filing_history.get("items") or []
         list_slice = items[:MAX_RECENT_FILINGS_CLI]
         print_section_title("Presentaciones recientes")
-        print(
-            f"Últimos {len(list_slice)} ítems del historial "
-            f"(máx. {MAX_RECENT_FILINGS_CLI} mostrados).\n"
+        print_listado_presentaciones_intro(
+            len(list_slice),
+            max_mostrar=MAX_RECENT_FILINGS_CLI,
+            origen_listado="orden según filing history de la API",
         )
         for i, it in enumerate(list_slice, start=1):
             meta = (it.get("links") or {}).get("document_metadata")
@@ -451,10 +464,9 @@ def main() -> None:
             if gemini_path is not None:
                 archivos.append(("Análisis Gemini", gemini_path))
         else:
-            print_section_title("Documento principal")
-            print(
-                "(Ningún ítem reciente incluye document_metadata descargable; "
-                "revisa el historial en la web.)"
+            print_documento_principal_aviso(
+                "Ningún ítem reciente incluye document_metadata descargable; "
+                "revisa el historial en la web."
             )
 
         print_archivos_generados(archivos)
@@ -465,9 +477,9 @@ def main() -> None:
             detail = e.response.json() if e.response is not None else ""
         except ValueError:
             detail = e.response.text if e.response is not None else ""
-        print(f"Error HTTP (Companies House): {e} {detail}")
+        print(f"\nError (HTTP Companies House): {e} {detail}")
     except requests.RequestException as e:
-        print(f"Error de red: {e}")
+        print(f"\nError (red): {e}")
 
 
 if __name__ == "__main__":
