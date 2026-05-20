@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+:root,
+[data-theme="dark"] {
+  --bg-page: #0c111b;
+  --bg-sidebar-start: #111827;
+  --bg-sidebar-end: #0f172a;
+  --bg-card-start: #1e293b;
+  --bg-card-end: #172033;
+  --bg-surface: rgba(30, 41, 59, 0.4);
+  --bg-surface-strong: rgba(30, 41, 59, 0.5);
+  --bg-surface-hover: rgba(30, 41, 59, 0.6);
+  --bg-input: rgba(30, 41, 59, 0.6);
+  --border-subtle: rgba(148, 163, 184, 0.08);
+  --border-default: rgba(148, 163, 184, 0.15);
+  --border-strong: rgba(148, 163, 184, 0.25);
+  --text-primary: #f8fafc;
+  --text-secondary: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-subtle: #64748b;
+  --accent-from: #3b82f6;
+  --accent-to: #6366f1;
+}
+
+[data-theme="light"] {
+  --bg-page: #f1f5f9;
+  --bg-sidebar-start: #ffffff;
+  --bg-sidebar-end: #f8fafc;
+  --bg-card-start: #ffffff;
+  --bg-card-end: #f8fafc;
+  --bg-surface: rgba(241, 245, 249, 0.7);
+  --bg-surface-strong: rgba(226, 232, 240, 0.6);
+  --bg-surface-hover: rgba(226, 232, 240, 0.8);
+  --bg-input: #ffffff;
+  --border-subtle: rgba(15, 23, 42, 0.08);
+  --border-default: rgba(15, 23, 42, 0.12);
+  --border-strong: rgba(15, 23, 42, 0.18);
+  --text-primary: #0f172a;
+  --text-secondary: #1e293b;
+  --text-muted: #475569;
+  --text-subtle: #64748b;
+  --accent-from: #3b82f6;
+  --accent-to: #6366f1;
+}
+
+@theme inline {
+  --color-bg-page: var(--bg-page);
+  --color-bg-card-start: var(--bg-card-start);
+  --color-bg-card-end: var(--bg-card-end);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-input: var(--bg-input);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+  --color-accent-from: var(--accent-from);
+  --color-accent-to: var(--accent-to);
+  --font-sans: var(--font-dm-sans);
+  --font-mono: var(--font-space-mono);
+}
+
+html,
+body {
+  background: var(--bg-page);
+  color: var(--text-secondary);
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+}
+
+html {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}

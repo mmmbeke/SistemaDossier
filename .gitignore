@@ -2,10 +2,10 @@
 .env
 .env.*
 !.env.example
-__pycache__/
-*.pyc
 .venv/
 venv/
+__pycache__/
+*.pyc
 
 # Salidas generadas (JSON, análisis Gemini)
 data/*
@@ -14,3 +14,11 @@ data/*
 # Legacy: archivos en raíz antes de data/
 company_uk_*.json
 *_gemini_analysis_*.txt
+
+# Frontend Next.js (frontend-react/)
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
