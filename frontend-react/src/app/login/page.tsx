@@ -6,6 +6,12 @@ import { useState, type FormEvent } from "react";
 import AuthShell from "@/components/AuthShell";
 import FormField from "@/components/FormField";
 import PrimaryButton from "@/components/PrimaryButton";
+import {
+  authLogin,
+  DossierApiError,
+  persistAuthToken,
+  writeDossierUserPreview,
+} from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 type Errors = {
@@ -21,6 +27,8 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(true);
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
+  /** Error global devuelto por la API (credenciales, red, servidor no configurado, etc.). */
+  const [formError, setFormError] = useState<string | null>(null);
 
   function validate(): Errors {
     const next: Errors = {};
@@ -41,12 +49,32 @@ export default function LoginPage() {
     e.preventDefault();
     const v = validate();
     setErrors(v);
+    setFormError(null);
     if (Object.keys(v).length > 0) return;
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    router.push("/dashboard");
+    try {
+      const data = await authLogin({ email: email.trim(), password });
+      persistAuthToken(data.access_token, remember);
+      writeDossierUserPreview(
+        {
+          email: data.user.email,
+          full_name: data.user.full_name,
+          company_name: data.user.company_name,
+        },
+        remember ? "local" : "session"
+      );
+      router.push("/dashboard");
+    } catch (e) {
+      if (e instanceof DossierApiError) {
+        if (e.isNetworkError()) setFormError(t("auth.error.network"));
+        else setFormError(e.message || t("auth.error.server"));
+      } else {
+        setFormError(t("auth.error.server"));
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -67,6 +95,14 @@ export default function LoginPage() {
       }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+        {formError && (
+          <p
+            className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200"
+            role="alert"
+          >
+            {formError}
+          </p>
+        )}
         <FormField
           label={t("auth.login.email")}
           name="email"

@@ -1,0 +1,304 @@
+/**
+ * Cliente HTTP mínimo para hablar con la API FastAPI (registro / login).
+ *
+ * - `NEXT_PUBLIC_API_URL`: URL base del backend (ej. http://127.0.0.1:8000).
+ *   Defínela en `frontend-react/.env.local` (no subas ese archivo a git).
+ * - El navegador solo puede llamar a otro origen si el backend tiene CORS
+ *   permitiendo el origen del Next.js (ver `CORS_ORIGINS` en `.env` del backend).
+ */
+
+/** Clave donde guardamos el JWT tras login o registro (localStorage o sessionStorage). */
+export const AUTH_TOKEN_STORAGE_KEY = "dossier_access_token";
+
+export function getApiBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (raw) return raw.replace(/\/$/, "");
+  return "http://127.0.0.1:8000";
+}
+
+export type AuthUser = {
+  id: string;
+  email: string;
+  full_name: string;
+  company_name: string;
+  organization_id?: string;
+  role?: string;
+};
+
+/** Fila devuelta por `GET /dossiers` (tabla `dossiers` en PostgreSQL). */
+export type DossierListItem = {
+  id: string;
+  subject_name: string | null;
+  subject_email: string | null;
+  status: string;
+  depth_level: string;
+  credits_consumed: number;
+  created_at: string | null;
+  updated_at: string | null;
+  dossier_data: unknown;
+};
+
+export type DossiersListResponse = {
+  organization_id: string;
+  items: DossierListItem[];
+};
+
+export type AuthSuccessResponse = {
+  access_token: string;
+  token_type: string;
+  user: AuthUser;
+};
+
+/** Perfil mínimo guardado tras login/registro para mostrar nombre en el layout (sidebar). */
+export type DossierUserPreview = {
+  email: string;
+  full_name: string;
+  company_name?: string;
+};
+
+export const DOSSIER_USER_PREVIEW_KEY = "dossier_user_preview";
+
+export function readDossierUserPreview(): DossierUserPreview | null {
+  if (typeof window === "undefined") return null;
+  const raw =
+    window.localStorage.getItem(DOSSIER_USER_PREVIEW_KEY) ??
+    window.sessionStorage.getItem(DOSSIER_USER_PREVIEW_KEY);
+  if (!raw) return null;
+  try {
+    const o = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof o.email !== "string" || typeof o.full_name !== "string") return null;
+    return {
+      email: o.email,
+      full_name: o.full_name,
+      company_name: typeof o.company_name === "string" ? o.company_name : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Alineado con `persistAuthToken`: local = recuérdame / post-registro; session = sesión temporal. */
+export function writeDossierUserPreview(
+  data: DossierUserPreview,
+  storage: "local" | "session"
+): void {
+  if (typeof window === "undefined") return;
+  const raw = JSON.stringify(data);
+  if (storage === "local") {
+    window.localStorage.setItem(DOSSIER_USER_PREVIEW_KEY, raw);
+    window.sessionStorage.removeItem(DOSSIER_USER_PREVIEW_KEY);
+  } else {
+    window.sessionStorage.setItem(DOSSIER_USER_PREVIEW_KEY, raw);
+    window.localStorage.removeItem(DOSSIER_USER_PREVIEW_KEY);
+  }
+}
+
+/** Error de red o respuesta HTTP no OK con cuerpo parseable de FastAPI. */
+export class DossierApiError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+
+  constructor(status: number, message: string, body?: unknown) {
+    super(message);
+    this.name = "DossierApiError";
+    this.status = status;
+    this.body = body;
+  }
+
+  /** True si falló fetch (servidor apagado, DNS, etc.). */
+  isNetworkError(): boolean {
+    return this.status === 0;
+  }
+}
+
+function formatFastApiValidationItem(item: unknown): string {
+  if (!item || typeof item !== "object") return JSON.stringify(item);
+  const o = item as { loc?: unknown[]; msg?: unknown };
+  const loc =
+    Array.isArray(o.loc) && o.loc.length > 0
+      ? o.loc.map((x) => (typeof x === "string" ? x : String(x))).join(".")
+      : "";
+  const msg = typeof o.msg === "string" ? o.msg : "";
+  if (loc && msg) return `${loc}: ${msg}`;
+  if (msg) return msg;
+  return JSON.stringify(item);
+}
+
+function parseFastApiDetail(data: unknown): string {
+  if (!data || typeof data !== "object") return "";
+  const d = data as { detail?: unknown };
+  if (typeof d.detail === "string") return d.detail;
+  if (Array.isArray(d.detail)) {
+    return d.detail.map((item) => formatFastApiValidationItem(item)).join(" ");
+  }
+  return "";
+}
+
+function assertAuthSuccessResponse(data: unknown): asserts data is AuthSuccessResponse {
+  if (!data || typeof data !== "object") {
+    throw new DossierApiError(
+      502,
+      "La API respondió con un cuerpo inválido (no es JSON de auth).",
+      data
+    );
+  }
+  const d = data as Record<string, unknown>;
+  if (typeof d.access_token !== "string" || !d.access_token) {
+    throw new DossierApiError(
+      502,
+      "La API respondió sin access_token. Revisa la consola de red y la URL del backend.",
+      data
+    );
+  }
+  if (!d.user || typeof d.user !== "object") {
+    throw new DossierApiError(502, "La API respondió sin objeto user.", data);
+  }
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const url = `${getApiBaseUrl()}${path}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new DossierApiError(0, "NETWORK");
+  }
+
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+
+  return parsed as T;
+}
+
+export async function authRegister(payload: {
+  email: string;
+  password: string;
+  full_name: string;
+  company_name: string;
+}): Promise<AuthSuccessResponse> {
+  const data = await postJson<AuthSuccessResponse>("/auth/register", payload);
+  assertAuthSuccessResponse(data);
+  return data;
+}
+
+export async function authLogin(payload: {
+  email: string;
+  password: string;
+}): Promise<AuthSuccessResponse> {
+  const data = await postJson<AuthSuccessResponse>("/auth/login", payload);
+  assertAuthSuccessResponse(data);
+  return data;
+}
+
+/** Perfil del usuario autenticado (JWT). */
+export async function fetchAuthMe(): Promise<AuthUser> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/auth/me`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throw new DossierApiError(0, "NETWORK");
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new DossierApiError(502, "Respuesta inválida de /auth/me.", parsed);
+  }
+  return parsed as AuthUser;
+}
+
+/**
+ * Guarda el JWT: localStorage si "recuérdame", si no sessionStorage (se pierde al cerrar pestaña).
+ * Limpia el otro almacén para no dejar un token viejo.
+ */
+export function persistAuthToken(token: string, remember: boolean): void {
+  if (typeof window === "undefined") return;
+  if (remember) {
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+    sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  } else {
+    sessionStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  }
+}
+
+/** Dónde está guardado el JWT (alineado con persistAuthToken). */
+export function getAuthTokenStorageMode(): "local" | "session" {
+  if (typeof window === "undefined") return "local";
+  if (window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)) return "local";
+  if (window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY)) return "session";
+  return "local";
+}
+
+/** JWT actual guardado por `persistAuthToken` (localStorage o sessionStorage). */
+export function getStoredAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return (
+    localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) ??
+    sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
+  );
+}
+
+/**
+ * Lista dossiers de la organización del token (`org_id` en el JWT).
+ * Requiere haber aplicado el SQL de migración y tener filas en `dossiers`.
+ */
+export async function fetchDossiersFromApi(limit = 50): Promise<DossiersListResponse> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/dossiers?limit=${encodeURIComponent(String(limit))}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throw new DossierApiError(0, "NETWORK");
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as DossiersListResponse;
+}

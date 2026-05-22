@@ -34,6 +34,16 @@ Opcional: `POSTGRES_POOL_SIZE`, `POSTGRES_MAX_OVERFLOW`.
 | `dossier.db.get_db` | Dependencia FastAPI `Depends(get_db)` |
 | `dossier.db.dispose_engine()` | Cerrar pool (tests / shutdown) |
 
+## Schema SQL (migración v1.0)
+
+Ejecuta en PostgreSQL el script consolidado:
+
+- **[sql/schema_project_dossier.sql](sql/schema_project_dossier.sql)** (mismo contenido que `src/dossier/db/Migracion.md`).
+
+Incluye extensiones `uuid-ossp` y `pgcrypto`, tablas multi-tenant (`organizations`, `users`, `org_memberships`, `dossiers`, …) y triggers.
+
+Tras aplicarlo, puedes desactivar la creación automática de tablas al arrancar la API con **`DATABASE_AUTO_CREATE_TABLES=0`** en `.env` (ver [auth-app.md](auth-app.md)).
+
 ## Comprobar conexión
 
 Con el backend en marcha:

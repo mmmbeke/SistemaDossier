@@ -6,6 +6,12 @@ import { useState, type FormEvent } from "react";
 import AuthShell from "@/components/AuthShell";
 import FormField from "@/components/FormField";
 import PrimaryButton from "@/components/PrimaryButton";
+import {
+  authRegister,
+  DossierApiError,
+  persistAuthToken,
+  writeDossierUserPreview,
+} from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 
@@ -34,6 +40,8 @@ export default function RegisterPage() {
   const [accepted, setAccepted] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
+  /** Mensaje de error de la API (email duplicado, BD no lista, red, etc.). */
+  const [formError, setFormError] = useState<string | null>(null);
 
   function passwordStrength(pwd: string): { score: 0 | 1 | 2 | 3 } {
     let score = 0;
@@ -67,12 +75,38 @@ export default function RegisterPage() {
     e.preventDefault();
     const v = validate();
     setErrors(v);
+    setFormError(null);
     if (Object.keys(v).length > 0) return;
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setLoading(false);
-    router.push("/dashboard");
+    try {
+      const data = await authRegister({
+        email: email.trim(),
+        password,
+        full_name: fullName.trim(),
+        company_name: company.trim(),
+      });
+      // Tras crear cuenta dejamos sesión iniciada (misma UX que "recuérdame" en login).
+      persistAuthToken(data.access_token, true);
+      writeDossierUserPreview(
+        {
+          email: data.user.email,
+          full_name: data.user.full_name,
+          company_name: data.user.company_name,
+        },
+        "local"
+      );
+      router.push("/dashboard");
+    } catch (e) {
+      if (e instanceof DossierApiError) {
+        if (e.isNetworkError()) setFormError(t("auth.error.network"));
+        else setFormError(e.message || t("auth.error.server"));
+      } else {
+        setFormError(t("auth.error.server"));
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -93,6 +127,14 @@ export default function RegisterPage() {
       }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+        {formError && (
+          <p
+            className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200"
+            role="alert"
+          >
+            {formError}
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             label={t("auth.register.name")}
