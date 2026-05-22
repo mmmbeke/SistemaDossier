@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import StatCard from "@/components/dashboard/StatCard";
 import TopBar from "@/components/dashboard/TopBar";
 import NewDossierButton from "@/components/dossier/NewDossierButton";
+import {
+  fetchAuthMe,
+  getStoredAccessToken,
+  readDossierUserPreview,
+} from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 
@@ -107,13 +113,53 @@ function ActivityIcon({ type }: { type: ActivityType }) {
   );
 }
 
+function firstDisplayName(fullName: string, email: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts[0]) return parts[0];
+  const local = email.split("@")[0]?.trim();
+  return local || email;
+}
+
 export default function OverviewPage() {
   const { t } = useTranslation();
+  const [welcomeName, setWelcomeName] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    const p = readDossierUserPreview();
+    return p ? firstDisplayName(p.full_name, p.email) : "";
+  });
 
-  return (
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const preview = readDossierUserPreview();
+      if (preview) {
+        if (!cancelled) setWelcomeName(firstDisplayName(preview.full_name, preview.email));
+        return;
+      }
+      const token = getStoredAccessToken();
+      if (token) {
+        try {
+          const me = await fetchAuthMe();
+          if (!cancelled) setWelcomeName(firstDisplayName(me.full_name, me.email));
+        } catch {
+          if (!cancelled) setWelcomeName(t("overview.anonymous"));
+        }
+        return;
+      }
+      if (!cancelled) setWelcomeName("John");
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  const titleName = welcomeName || t("overview.anonymous");
     <>
       <TopBar
-        title={t("overview.title")}
+        title={t("overview.title", { name: titleName })}
         subtitle={t("overview.subtitle")}
         action={<NewDossierButton />}
       />

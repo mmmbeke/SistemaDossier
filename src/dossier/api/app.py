@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
 from typing import Optional
 
 import msal
 from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
 
+from dossier.api.auth_routes import router as auth_router
+from dossier.api.dossier_routes import router as dossiers_router
 from dossier.config import PROJECT_ROOT, load_env
 from dossier.db import is_database_configured
 from dossier.db.connection import get_engine
@@ -20,11 +24,53 @@ from dossier.services import (
 
 load_env()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Arranque/apagado de la app.
+
+    Tras aplicar el SQL de migración (`docs/sql/schema_project_dossier.sql`), puedes
+    poner `DATABASE_AUTO_CREATE_TABLES=0` en `.env` para no ejecutar `create_all`
+    al arrancar (solo tu DDL en PostgreSQL).
+
+    Si dejas el valor por defecto, SQLAlchemy crea tablas/columnas que falten
+    (útil en desarrollo sin haber corrido aún toda la migración).
+    """
+    if is_database_configured():
+        auto = os.getenv("DATABASE_AUTO_CREATE_TABLES", "1").strip().lower()
+        if auto not in ("0", "false", "no"):
+            from dossier.db import models  # noqa: F401 — registra modelos en metadata
+            from dossier.db.base import Base
+
+            engine = get_engine()
+            Base.metadata.create_all(bind=engine)
+    yield
+
+
 app = FastAPI(
     title="Project Dossier API",
     description="Backend para la generación automática de informes de reuniones",
     version="0.2.0",
+    lifespan=lifespan,
 )
+
+# Orígenes permitidos para el dashboard Next.js (navegador bloquea sin CORS).
+_cors_raw = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://[::1]:3000",
+)
+_cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth_router)
+app.include_router(dossiers_router)
 
 CLIENT_ID = os.getenv("MICROSOFT_CLIENT_ID")
 CLIENT_SECRET = os.getenv("MICROSOFT_CLIENT_SECRET")
@@ -77,6 +123,7 @@ def read_root():
             "openai": _status("OPENAI_API_KEY"),
             "google_oauth": _status("GOOGLE_CLIENT_ID"),
             "microsoft": _status("MICROSOFT_CLIENT_ID"),
+            "app_auth_jwt": _status("JWT_SECRET"),
             "postgresql": "configurada ✅"
             if is_database_configured()
             else "no configurada (opcional)",
@@ -242,9 +289,17 @@ def db_health():
         engine = get_engine()
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
+        url = engine.url
+        # Sin credenciales: ayuda a comprobar que pgAdmin y la API apuntan al mismo servidor/BD.
+        connection = {
+            "host": url.host or "",
+            "port": int(url.port or 5432),
+            "database": url.database or "",
+        }
         return {
             "postgresql": "ok",
             "mensaje": "Conexión exitosa con la base de datos PostgreSQL.",
+            "connection": connection,
         }
     except Exception as e:
         return JSONResponse(

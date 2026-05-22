@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import BrandLogo from "@/components/BrandLogo";
+import {
+  fetchAuthMe,
+  getAuthTokenStorageMode,
+  getStoredAccessToken,
+  readDossierUserPreview,
+  writeDossierUserPreview,
+} from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 type NavItem = {
@@ -53,14 +61,94 @@ const navItems: NavItem[] = [
   },
 ];
 
+function initialsFromProfile(fullName: string, email: string): string {
+  const n = fullName.trim();
+  if (n.length >= 1) {
+    const parts = n.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      const a = parts[0][0];
+      const b = parts[parts.length - 1][0];
+      if (a && b) return (a + b).toUpperCase();
+    }
+    return n.slice(0, 2).toUpperCase();
+  }
+  const e = email.trim();
+  if (e.length >= 2) return e.slice(0, 2).toUpperCase();
+  return "?";
+}
+
+type FooterProfile = { initials: string; name: string; detail: string };
+
+const DEMO_FOOTER: FooterProfile = {
+  initials: "JD",
+  name: "John Doe",
+  detail: "",
+};
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { t } = useTranslation();
+  const [footer, setFooter] = useState<FooterProfile | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const preview = readDossierUserPreview();
+      if (preview) {
+        const initials = initialsFromProfile(preview.full_name, preview.email);
+        const name = preview.full_name.trim() || preview.email;
+        const detail = preview.company_name?.trim() || preview.email;
+        if (!cancelled) setFooter({ initials, name, detail });
+        return;
+      }
+
+      const token = getStoredAccessToken();
+      if (token) {
+        try {
+          const me = await fetchAuthMe();
+          writeDossierUserPreview(
+            {
+              email: me.email,
+              full_name: me.full_name,
+              company_name: me.company_name,
+            },
+            getAuthTokenStorageMode()
+          );
+          const initials = initialsFromProfile(me.full_name, me.email);
+          const name = me.full_name.trim() || me.email;
+          const detail = me.company_name?.trim() || me.email;
+          if (!cancelled) setFooter({ initials, name, detail });
+        } catch {
+          if (!cancelled)
+            setFooter({
+              initials: "?",
+              name: t("auth.error.server"),
+              detail: t("user.plan"),
+            });
+        }
+        return;
+      }
+
+      if (!cancelled)
+        setFooter({
+          ...DEMO_FOOTER,
+          detail: t("user.plan"),
+        });
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
   }
+
+  const display = footer ?? { ...DEMO_FOOTER, detail: t("user.plan") };
 
   return (
     <aside
@@ -113,26 +201,28 @@ export default function Sidebar() {
       >
         <div className="flex items-center gap-3">
           <div
-            className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
             style={{
               backgroundImage:
                 "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
             }}
           >
-            JD
+            {display.initials}
           </div>
-          <div className="flex flex-col">
+          <div className="min-w-0 flex-1 flex flex-col">
             <span
-              className="text-sm font-semibold"
+              className="truncate text-sm font-semibold"
               style={{ color: "var(--text-primary)" }}
+              title={display.name}
             >
-              John Doe
+              {display.name}
             </span>
             <span
-              className="text-xs"
+              className="truncate text-xs"
               style={{ color: "var(--text-muted)" }}
+              title={display.detail}
             >
-              {t("user.plan")}
+              {display.detail}
             </span>
           </div>
         </div>
