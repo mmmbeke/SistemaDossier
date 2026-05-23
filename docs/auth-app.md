@@ -21,6 +21,8 @@ Cuerpos JSON esperados:
 
 - **`JWT_SECRET`**: obligatoria para firmar tokens (mínimo 16 caracteres; en producción, 32+ aleatorios).
 - **`JWT_ACCESS_TOKEN_EXPIRE_MINUTES`**: opcional (por defecto `10080` = 7 días).
+- **`ORG_SIGNUP_CREDITS`**: opcional — créditos iniciales de la **organización** al completar `POST /auth/register` (entero ≥ 0; por defecto `500` en código si no está en `.env`).
+- **`ORG_SIGNUP_CREDITS_MONTHLY_LIMIT`**: opcional — tope mensual de la org al registrarse; si no se define, coincide con `ORG_SIGNUP_CREDITS`.
 - **`CORS_ORIGINS`**: orígenes del frontend (coma). Por defecto incluye `http://localhost:3000` y `http://127.0.0.1:3000`.
 - PostgreSQL: **`DATABASE_URL`** o **`POSTGRES_*`** como en [postgresql.md](postgresql.md).
 

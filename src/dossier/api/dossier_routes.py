@@ -1,6 +1,9 @@
-"""Listado de dossiers persistidos en PostgreSQL (tabla `dossiers` del schema migrado)."""
+"""Listado y generación de dossiers persistidos en PostgreSQL (tabla `dossiers` del schema migrado)."""
 from __future__ import annotations
 
+import time
+import uuid
+from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID
 
@@ -10,8 +13,134 @@ from sqlalchemy.orm import Session
 
 from dossier.api.auth_routes import get_current_user_and_org, get_db_if_configured
 from dossier.db.models import Dossier, Organization, User
+from dossier.graphs.corporate_dossier_graph import run_corporate_dossier_langgraph
+from dossier.schemas.dossier_generation import (
+    DEPTH_CREDITS,
+    CreateCorporateDossierRequest,
+    build_corporate_generation_strings,
+)
+from dossier.services.corporate_company_search import search_corporate_company_candidates
 
 router = APIRouter(tags=["Dossiers"])
+
+# Temporal: sin comprobación de saldo ni descuento al generar dossiers corporativos.
+# Pon en True cuando quieras volver a cobrar según `DEPTH_CREDITS`.
+_CHARGE_CREDITS_FOR_CORPORATE_DOSSIER = False
+
+
+# Ruta bajo `/dossiers/corporate/...` para no colisionar con `GET /dossiers/{dossier_id}` (un solo segmento).
+
+
+@router.get("/dossiers/corporate/company-search")
+def corporate_company_search(
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    q: str = Query(..., min_length=2, max_length=200),
+):
+    """Búsqueda UK (Companies House) + US (SEC tickers) para desambiguar nombres de empresa."""
+    _user, _org = user_org
+    return search_corporate_company_candidates(q)
+
+
+@router.post("/dossiers/corporate/generate")
+def generate_corporate_dossier(
+    body: CreateCorporateDossierRequest,
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    db: Session = Depends(get_db_if_configured),
+):
+    """
+    Genera un dossier con el **agente corporativo** (LangGraph: UK + USA en paralelo,
+    síntesis Gemini) y lo guarda en `dossiers`.
+
+    El cobro de créditos está gobernado por `_CHARGE_CREDITS_FOR_CORPORATE_DOSSIER`
+    (por defecto desactivado).
+    """
+    user, org = user_org
+    cost = DEPTH_CREDITS[body.depth] if _CHARGE_CREDITS_FOR_CORPORATE_DOSSIER else 0
+
+    if _CHARGE_CREDITS_FOR_CORPORATE_DOSSIER and org.credits_balance < cost:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                f"Créditos insuficientes: se requieren {cost} y la organización tiene "
+                f"{org.credits_balance}."
+            ),
+        )
+
+    descripcion_parts: list[str] = []
+    if body.subject_email:
+        descripcion_parts.append(f"Email participante: {body.subject_email}")
+    descripcion = "\n".join(descripcion_parts)
+
+    participantes, subject_display = build_corporate_generation_strings(body)
+
+    t0 = time.perf_counter()
+    markdown = run_corporate_dossier_langgraph(
+        tema_reunion=f"Dossier corporativo — {participantes[:200]}",
+        participantes=participantes,
+        descripcion=descripcion,
+    )
+    elapsed_ms = int((time.perf_counter() - t0) * 1000)
+    now = datetime.now(timezone.utc)
+
+    is_err = markdown.lstrip().startswith("# Error")
+    # Alineado con CHECK dossiers_status en Migración: complete | partial | failed | …
+    status = "failed" if is_err else "complete"
+
+    dossier_id = uuid.uuid4()
+    dossier_data_body: dict = {
+            "format": "markdown",
+            "body": markdown,
+            "pipeline": "langgraph_corporate",
+            "depth_requested": body.depth,
+            "success": not is_err,
+            # Consumido por el trigger `fn_debit_credits_on_dossier` (Migración): sin débito si es "none".
+            "billing": "none" if cost == 0 else "charged",
+        }
+    if body.resolution is not None:
+        dossier_data_body["resolution"] = body.resolution.model_dump(mode="json")
+
+    dossier = Dossier(
+        id=dossier_id,
+        organization_id=org.id,
+        requested_by_user_id=user.id,
+        contact_id=None,
+        subject_name=subject_display,
+        subject_email=body.subject_email,
+        module_identity=False,
+        module_corporate=True,
+        module_media=False,
+        depth_level=body.depth,
+        credits_consumed=cost,
+        status=status,
+        status_message="Error en síntesis o en el pipeline." if is_err else None,
+        dossier_data=dossier_data_body,
+        agents_activated=["agent_corporate_uk", "agent_corporate_usa", "synthesize_gemini"],
+        agents_failed=(["synthesize_gemini"] if is_err else []),
+        data_sources_used=["companies_house", "sec_edgar", "gemini"],
+        generation_started_at=now,
+        generation_completed_at=now,
+        generation_duration_ms=elapsed_ms,
+        trigger_source="manual",
+    )
+
+    if _CHARGE_CREDITS_FOR_CORPORATE_DOSSIER and cost > 0:
+        org.credits_balance = org.credits_balance - cost
+        db.add(org)
+
+    db.add(dossier)
+    db.commit()
+    db.refresh(dossier)
+    if _CHARGE_CREDITS_FOR_CORPORATE_DOSSIER and cost > 0:
+        db.refresh(org)
+
+    return {
+        "id": str(dossier.id),
+        "organization_id": str(org.id),
+        "status": dossier.status,
+        "credits_consumed": dossier.credits_consumed,
+        "organization_credits_balance": org.credits_balance,
+        "generation_duration_ms": dossier.generation_duration_ms,
+    }
 
 
 @router.get("/dossiers/{dossier_id}")
@@ -37,6 +166,11 @@ def get_dossier_by_id(
         "updated_at": d.updated_at.isoformat() if d.updated_at else None,
         "dossier_data": d.dossier_data,
         "alerts": d.alerts,
+        "agents_activated": list(d.agents_activated or []),
+        "agents_failed": list(d.agents_failed or []),
+        "data_sources_used": list(d.data_sources_used or []),
+        "generation_duration_ms": d.generation_duration_ms,
+        "status_message": d.status_message,
     }
 
 

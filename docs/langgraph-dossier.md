@@ -17,6 +17,10 @@ Antes, `generar_dossier_ejecutivo` era **un solo paso**: un prompt a OpenAI. Eso
 | Archivo | Rol |
 |--------|-----|
 | `src/dossier/graphs/corporate_dossier_graph.py` | Define el **estado**, los **nodos** (agentes + síntesis), el **grafo** y `run_corporate_dossier_langgraph`. |
+| `src/dossier/services/corporate_registry_context.py` | Obtiene **datos reales** UK (perfil + filing history CH) y US (submissions SEC). En UK, si hay Gemini configurado, aplica el **mismo prompt que el CLI** al primer filing con `document_metadata` (`prompt_templates.py`). |
+| `src/dossier/companies_house/prompt_templates.py` | Texto del prompt Gemini para análisis de documento CH (compartido CLI + pipeline). |
+
+Si ves **429 / RESOURCE_EXHAUSTED** (cuota free tier), define `DOSSIER_CORPORATE_CH_FILING_GEMINI=0` en `.env` para omitir el análisis del filing CH y dejar solo la síntesis final (una petición menos por dossier).
 | `src/dossier/gemini/text_generate.py` | Llamada de **texto** a Gemini (sin subir PDF/HTML). |
 | `src/dossier/services/openai_dossier.py` | Punto de entrada `generar_dossier_ejecutivo`: por defecto LangGraph+Gemini; opcional legacy OpenAI. |
 
@@ -39,22 +43,32 @@ Antes, `generar_dossier_ejecutivo` era **un solo paso**: un prompt a OpenAI. Eso
 
 Campos típicos:
 
-- **Entrada**: `tema_reunion`, `participantes`, `descripcion`
+- **Entrada**: `tema_reunion`, `participantes`, `descripcion`, `jurisdiction_scope` (`uk_only` | `us_only` | `dual`)
 - **Salidas de agentes**: `uk_corporate_context`, `us_corporate_context`
 - **Salida final**: `final_dossier_markdown`
 - **Errores**: `agent_errors` (lista; la síntesis puede añadir entradas si Gemini falla)
 
 Cada nodo devuelve solo un **fragmento** del estado; LangGraph los **fusiona** con el estado anterior.
 
-## Cómo enganchar Companies House y SEC
+## Cómo enganchan Companies House y SEC
 
-1. Edita `_node_agent_corporate_uk` en `corporate_dossier_graph.py`:
-   - Sustituye el texto “marcador de posición” por llamadas a tu cliente HTTP (o reutiliza lógica de `dossier/companies_house/cli.py` extrayendo funciones reutilizables).
-   - Si la API falla, puedes devolver `{"uk_corporate_context": "...", "agent_errors": state.get("agent_errors", []) + ["UK: ..."]}`.
+Los nodos `_node_agent_corporate_uk` y `_node_agent_corporate_usa` delegan en
+`corporate_registry_context.py`:
 
-2. Igual para `_node_agent_corporate_usa` con SEC / OpenCorporates.
+- **UK**: si existe `COMPANIES_HOUSE_API_KEY`, intenta extraer el **company number**
+  del brief (p. ej. tras elegir empresa en el dashboard) o buscar por el término entre « ».
+  Llama a `get_company_profile` y una muestra de `get_filing_history` (`companies_house/cli.py`).
+- **US**: deduce **CIK** (explícito en el brief, o vía ticker / nombre con el índice SEC)
+  y descarga `https://data.sec.gov/submissions/CIK{cik}.json`, resumiendo los filings recientes.
 
-3. **No hace falta cambiar** el nodo `synthesize_gemini` si sigues alimentando los mismos campos de texto; Gemini seguirá uniendo los bloques.
+Si falta clave o no se puede resolver la entidad, el Markdown indica el motivo; Gemini
+sigue pudiendo redactar con lo disponible.
+
+### Ajustes avanzados
+
+- Para más detalle UK (officers, charges), amplía `build_uk_corporate_context_markdown`.
+- Para enlazar a un 10-K concreto, amplía `build_us_corporate_context_markdown` reutilizando
+  rutas de `dossier/sec_edgar/cli.py` (índice + documento principal).
 
 ## Variables de entorno
 

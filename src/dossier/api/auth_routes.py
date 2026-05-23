@@ -12,6 +12,7 @@ El JWT incluye `org_id` para multi-tenant en rutas como `GET /dossiers`.
 """
 from __future__ import annotations
 
+import os
 import re
 import secrets
 from collections.abc import Generator
@@ -33,6 +34,34 @@ from dossier.security import create_access_token, hash_password, verify_password
 from dossier.security.jwt_tokens import decode_access_token
 
 router = APIRouter(prefix="/auth", tags=["Autenticación app"])
+
+
+def _signup_org_credits() -> tuple[int, int]:
+    """
+    Créditos iniciales de la organización al registrarse (`/auth/register`).
+
+    Variables opcionales en `.env`:
+    - `ORG_SIGNUP_CREDITS` — saldo inicial (≥ 0). Por defecto 500.
+    - `ORG_SIGNUP_CREDITS_MONTHLY_LIMIT` — tope mensual; si no se define, igual al saldo.
+    """
+
+    def _parse(name: str, default: int) -> int:
+        raw = os.getenv(name)
+        if raw is None or not str(raw).strip():
+            return default
+        try:
+            v = int(str(raw).strip())
+        except ValueError:
+            return default
+        return max(0, v)
+
+    balance = _parse("ORG_SIGNUP_CREDITS", 500)
+    lim_raw = os.getenv("ORG_SIGNUP_CREDITS_MONTHLY_LIMIT")
+    if lim_raw is not None and str(lim_raw).strip():
+        limit = _parse("ORG_SIGNUP_CREDITS_MONTHLY_LIMIT", balance)
+    else:
+        limit = balance
+    return balance, limit
 
 
 def get_db_if_configured() -> Generator[Session, None, None]:
@@ -210,7 +239,13 @@ def register_user(
         )
 
     slug = allocate_org_slug(db, body.company_name)
-    org = Organization(name=body.company_name.strip()[:255], slug=slug)
+    credits_balance, credits_monthly_limit = _signup_org_credits()
+    org = Organization(
+        name=body.company_name.strip()[:255],
+        slug=slug,
+        credits_balance=credits_balance,
+        credits_monthly_limit=credits_monthly_limit,
+    )
     user = User(
         email=email_norm,
         email_verified=False,

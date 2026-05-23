@@ -1,118 +1,107 @@
 """
 Grafo LangGraph — dossier corporativo (UK + USA en paralelo → síntesis Gemini).
 
-Qué es LangGraph (resumen explícito)
--------------------------------------
-- Defines un **estado** compartido (un ``TypedDict``): todos los nodos leen y escriben
-  campos de ese diccionario.
-- Defines **nodos**: funciones ``def nodo(state) -> dict`` que solo devuelven los
-  campos que quieren actualizar (merge parcial).
-- Defines **aristas**: quién va después de quién. Si varios nodos arrancan desde
-  ``START``, pueden ejecutarse **en paralelo** en el mismo “superpaso”. Si una arista
-  tiene varios orígenes ``[ "a", "b" ], destino``, LangGraph **espera a que terminen
-  todos** antes de ejecutar ``destino`` (fan-in / unión).
+Topología: UK y US en paralelo desde START → síntesis (fan-in).
 
-Este archivo implementa el patrón del PDF v2.0 de forma reducida:
-  ``Agent_Corporate_UK`` y ``Agent_Corporate_USA`` → ``síntesis`` (Gemini).
-
-Los nodos UK/US hoy devuelven **contexto estructurado de marcador de posición**:
-las llamadas HTTP reales a Companies House / SEC pueden engancharse ahí sin cambiar
-el resto del grafo.
+El alcance ``jurisdiction_scope`` evita mezclar datos cuando el usuario eligió solo
+UK (Companies House) o solo USA (SEC) en el dashboard.
 """
 from __future__ import annotations
 
 import logging
-from typing import Any, TypedDict
+import re
+from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
 logger = logging.getLogger(__name__)
 
+JurisdictionScope = Literal["uk_only", "us_only", "dual"]
+
+
+def infer_jurisdiction_scope(participantes: str) -> JurisdictionScope:
+    """
+    Deduce el alcance a partir del brief generado por la API (resolución explícita).
+
+    - UK: texto con ``Companies House (número …)`` sin bloque SEC de resolución.
+    - USA: ``emisor SEC (ticker …)`` sin número CH de resolución.
+    """
+    p = (participantes or "").strip()
+    ch = bool(re.search(r"Companies House\s*\(\s*número", p, re.IGNORECASE))
+    sec = bool(re.search(r"emisor\s+SEC\s*\(\s*ticker", p, re.IGNORECASE))
+    if ch and not sec:
+        return "uk_only"
+    if sec and not ch:
+        return "us_only"
+    return "dual"
+
 
 class CorporateDossierState(TypedDict, total=False):
     """Estado que circula por el grafo (campos opcionales salvo los de entrada)."""
 
-    # Entrada (obligatorios al invocar)
     tema_reunion: str
     participantes: str
     descripcion: str
+    jurisdiction_scope: JurisdictionScope
 
-    # Salida de cada “agente” corporativo
     uk_corporate_context: str
     us_corporate_context: str
 
-    # Salida final
     final_dossier_markdown: str
 
-    # Errores no fatales de agentes (la síntesis puede seguir con lo disponible)
     agent_errors: list[str]
 
 
 def _node_agent_corporate_uk(state: CorporateDossierState) -> dict[str, Any]:
-    """
-    Agente UK (Companies House).
+    """Agente UK (Companies House)."""
+    scope = state.get("jurisdiction_scope", "dual")
+    if scope == "us_only":
+        bloque = (
+            "## Reino Unido (Companies House)\n\n"
+            "*No aplica: el brief corresponde a un **emisor estadounidense (SEC)**. "
+            "No se consultó Companies House para no mezclar datos con una posible homónima en el Reino Unido.*\n"
+        )
+        logger.info("LangGraph agent_corporate_uk omitido (alcance SEC únicamente)")
+        return {"uk_corporate_context": bloque}
 
-    Aquí solo generamos texto estructurado de apoyo. Sustituir el cuerpo por
-    llamadas a tu cliente HTTP / SDK de Companies House usando ``participantes``
-    y/o empresa deducida.
-    """
-    tema = state.get("tema_reunion", "").strip()
-    participantes = state.get("participantes", "").strip()
-    descripcion = (state.get("descripcion") or "").strip()
+    from dossier.services.corporate_registry_context import build_uk_corporate_context_markdown
 
-    bloque = f"""## Contexto corporativo — Reino Unido (Companies House)
+    try:
+        bloque = build_uk_corporate_context_markdown(state.get("participantes", "") or "")
+    except Exception as e:
+        logger.exception("Fallo agente UK (Companies House)")
+        bloque = f"## Reino Unido (Companies House)\n\n*Error interno al construir contexto: {e}*\n"
 
-Este bloque lo produce el nodo **agent_corporate_uk** del grafo LangGraph.
-
-**Qué haría la integración real**
-- Resolver empresa / número de empresa (company number) a partir de los participantes o tema.
-- Consultar Companies House API: perfil de empresa, officers, filing history, insolvency flags.
-
-**Entrada actual (texto libre de la reunión)**
-- Tema: {tema or "(vacío)"}
-- Participantes: {participantes or "(vacío)"}
-- Descripción: {descripcion or "(ninguna)"}
-
-*(Marcador de posición hasta conectar API y parseo de entidades.)*
-"""
     logger.info("LangGraph nodo agent_corporate_uk completado")
     return {"uk_corporate_context": bloque}
 
 
 def _node_agent_corporate_usa(state: CorporateDossierState) -> dict[str, Any]:
-    """
-    Agente USA (SEC EDGAR + eventual OpenCorporates).
+    """Agente USA (SEC EDGAR)."""
+    scope = state.get("jurisdiction_scope", "dual")
+    if scope == "uk_only":
+        bloque = (
+            "## Estados Unidos (SEC EDGAR)\n\n"
+            "*No aplica: el brief corresponde a una **empresa del Reino Unido (Companies House)**. "
+            "No se consultó la SEC para no mezclar datos con una posible homónima en EE. UU.*\n"
+        )
+        logger.info("LangGraph agent_corporate_usa omitido (alcance UK únicamente)")
+        return {"us_corporate_context": bloque}
 
-    Igual que UK: hoy contexto marcador; sustituir por cliente SEC / tickers / CIK.
-    """
-    tema = state.get("tema_reunion", "").strip()
-    participantes = state.get("participantes", "").strip()
-    descripcion = (state.get("descripcion") or "").strip()
+    from dossier.services.corporate_registry_context import build_us_corporate_context_markdown
 
-    bloque = f"""## Contexto corporativo — Estados Unidos (SEC EDGAR)
+    try:
+        bloque = build_us_corporate_context_markdown(state.get("participantes", "") or "")
+    except Exception as e:
+        logger.exception("Fallo agente USA (SEC)")
+        bloque = f"## Estados Unidos (SEC EDGAR)\n\n*Error interno al construir contexto: {e}*\n"
 
-Este bloque lo produce el nodo **agent_corporate_usa** del grafo LangGraph.
-
-**Qué haría la integración real**
-- Resolver emisor (ticker / CIK) y últimos filings 10-K, 10-Q, 8-K vía SEC EDGAR.
-- Opcional: OpenCorporates para entidad registrada en un estado US.
-
-**Entrada actual**
-- Tema: {tema or "(vacío)"}
-- Participantes: {participantes or "(vacío)"}
-- Descripción: {descripcion or "(ninguna)"}
-
-*(Marcador de posición hasta conectar API y parseo de entidades.)*
-"""
     logger.info("LangGraph nodo agent_corporate_usa completado")
     return {"us_corporate_context": bloque}
 
 
 def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
-    """
-    Nodo de síntesis: lee ``uk_corporate_context`` + ``us_corporate_context`` y pide
-    a Gemini un informe ejecutivo en Markdown.
-    """
+    """Síntesis Gemini según alcance UK / US / dual."""
     from dossier.gemini.text_generate import generate_text_with_gemini
 
     tema = state.get("tema_reunion", "").strip()
@@ -120,33 +109,101 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
     descripcion = (state.get("descripcion") or "").strip()
     uk = state.get("uk_corporate_context", "").strip()
     us = state.get("us_corporate_context", "").strip()
+    scope = state.get("jurisdiction_scope", "dual")
 
-    system = (
-        "Eres un analista de inteligencia corporativa. Redactas informes claros, "
-        "en español, en Markdown, sin inventar hechos que no aparezcan en el contexto. "
-        "Si el contexto es solo orientativo o incompleto, dilo explícitamente."
-    )
+    if scope == "uk_only":
+        system = (
+            "Eres un analista corporativo del Reino Unido. Redactas en español, en Markdown. "
+            "Te basas **solo** en el contexto de **Companies House** (perfil, historial y, si existe, "
+            "el análisis Gemini del formulario descargado). "
+            "El bloque USA del mensaje indica explícitamente que no aplica: **no** lo uses como evidencia "
+            "ni hagas comparativa transatlántica. No inventes hechos ajenos al contexto."
+        )
+        user = f"""Preparación de reunión (solo **Reino Unido / Companies House**)
 
-    user = f"""Reunión a preparar:
 **Tema:** {tema}
-**Participantes / empresas (texto libre):** {participantes}
+**Brief / participantes:** {participantes}
 **Descripción adicional:** {descripcion or "(ninguna)"}
 
 ---
-### Contexto UK (Companies House — puede ser parcial o marcador de posición)
+### Contexto UK (Companies House — API + posible análisis de formulario)
 
 {uk}
 
 ---
-### Contexto USA (SEC / corporativo — puede ser parcial o marcador de posición)
+### Bloque USA (marcado como no aplicable por el sistema)
 
 {us}
 
 ---
 ### Tu entrega
 
-1. Resumen ejecutivo (5–8 líneas).
-2. Riesgos o vacíos de información (si el contexto no basta para afirmar hechos).
+1. Resumen ejecutivo del estado societario y de los hechos que el contexto UK respalde (incluido el análisis del formulario si aparece).
+2. Riesgos o vacíos de información.
+3. Preguntas sugeridas para la reunión (3–5 bullets).
+"""
+
+    elif scope == "us_only":
+        system = (
+            "Eres un analista financiero-corporativo de emisores **estadounidenses**. Redactas en español, en Markdown. "
+            "Te basas **solo** en el contexto de la **SEC** (submissions / filings recientes en la tabla). "
+            "El bloque UK indica que no aplica: **no** lo uses ni hagas comparativa con Companies House. "
+            "No inventes hechos ajenos al contexto."
+        )
+        user = f"""Preparación de reunión (solo **Estados Unidos / SEC**)
+
+**Tema:** {tema}
+**Brief / participantes:** {participantes}
+**Descripción adicional:** {descripcion or "(ninguna)"}
+
+---
+### Bloque UK (marcado como no aplicable por el sistema)
+
+{uk}
+
+---
+### Contexto USA (SEC EDGAR — datos de API)
+
+{us}
+
+---
+### Tu entrega
+
+1. Resumen ejecutivo del emisor y de los envíos recientes que el contexto SEC respalde.
+2. Riesgos o vacíos de información.
+3. Preguntas sugeridas para la reunión (3–5 bullets).
+"""
+
+    else:
+        system = (
+            "Eres un analista de inteligencia corporativa. Redactas en español, en Markdown. "
+            "Recibes un bloque **UK (Companies House)** y otro **USA (SEC)** que pueden referirse a "
+            "**entidades distintas** (homónimos, ADRs, etc.). "
+            "**No** asumas que describen la misma empresa salvo que el brief del usuario lo indique de forma clara. "
+            "Si un bloque es principalmente aviso de error o vacío, dilo y no lo compares como si fuera equivalente al otro. "
+            "No inventes hechos no respaldados por el contexto."
+        )
+        user = f"""Reunión a preparar (contexto **UK y USA** — tratarlos como fuentes independientes salvo indicación contraria en el brief)
+
+**Tema:** {tema}
+**Participantes / empresas (texto libre):** {participantes}
+**Descripción adicional:** {descripcion or "(ninguna)"}
+
+---
+### Contexto UK (Companies House)
+
+{uk}
+
+---
+### Contexto USA (SEC EDGAR)
+
+{us}
+
+---
+### Tu entrega
+
+1. Resumen ejecutivo: separa claramente lo que aplica a **UK** y lo que aplica a **EE. UU.**, sin fusionar entidades.
+2. Riesgos o vacíos (incluida ambigüedad entre jurisdicciones si el brief es genérico).
 3. Preguntas sugeridas para la reunión (3–5 bullets).
 """
 
@@ -164,16 +221,6 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
 
 
 def build_corporate_dossier_graph() -> StateGraph:
-    """
-    Construye el ``StateGraph`` sin compilar.
-
-    Topología::
-
-        START ─┬─► agent_corporate_uk ─┐
-               └─► agent_corporate_usa ─┼─► synthesize_gemini ─► END
-                     (paralelo)        │
-                      add_edge([uk,us], synth) espera ambos
-    """
     graph = StateGraph(CorporateDossierState)
     graph.add_node("agent_corporate_uk", _node_agent_corporate_uk)
     graph.add_node("agent_corporate_usa", _node_agent_corporate_usa)
@@ -191,15 +238,16 @@ def run_corporate_dossier_langgraph(
     participantes: str,
     descripcion: str = "",
 ) -> str:
-    """
-    Punto de entrada: compila (cache interno de LangGraph), invoca y devuelve Markdown.
-    """
+    """Compila el grafo, infiere alcance UK/US y devuelve Markdown."""
     app = build_corporate_dossier_graph().compile()
+    scope = infer_jurisdiction_scope(participantes)
+    logger.info("Corporate dossier jurisdiction_scope=%s", scope)
     result = app.invoke(
         {
             "tema_reunion": tema_reunion,
             "participantes": participantes,
             "descripcion": descripcion or "",
+            "jurisdiction_scope": scope,
             "agent_errors": [],
         }
     )
