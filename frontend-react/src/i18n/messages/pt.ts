@@ -66,6 +66,9 @@ const messages = {
     "Pelo menos 2 caracteres: só minúsculas, números e hífens simples entre partes (ex.: minha-empresa).",
   "auth.error.slug_unreadable":
     "Não foi possível gerar um URL válido. Usa letras ou números no nome, apelido ou empresa.",
+  "auth.error.network":
+    "Não foi possível ligar à API. Confirma que o backend está a correr e NEXT_PUBLIC_API_URL em .env.local.",
+  "auth.error.server": "Não foi possível concluir o registo. Tenta novamente.",
   "landing.badge": "Next.js Frontend · v0.1",
   "landing.title": "Project Dossier",
   "landing.subtitle": "Automated intelligence platform to prepare high-impact meetings.",

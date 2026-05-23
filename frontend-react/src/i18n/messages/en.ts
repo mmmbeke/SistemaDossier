@@ -66,6 +66,9 @@ const messages = {
     "Use at least 2 characters: lowercase letters, numbers, and single hyphens between parts (e.g. acme-corp).",
   "auth.error.slug_unreadable":
     "Could not build a valid URL from this text. Use letters or numbers in the name or company field.",
+  "auth.error.network":
+    "Could not reach the API. Check that the backend is running and NEXT_PUBLIC_API_URL in .env.local.",
+  "auth.error.server": "Registration could not be completed. Please try again.",
   "landing.badge": "Next.js Frontend · v0.1",
   "landing.title": "Project Dossier",
   "landing.subtitle": "Automated intelligence platform to prepare high-impact meetings.",

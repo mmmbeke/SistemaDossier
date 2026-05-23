@@ -66,6 +66,9 @@ const messages = {
     "Au moins 2 caractères : minuscules, chiffres et tirets simples entre les segments (ex. : mon-entreprise).",
   "auth.error.slug_unreadable":
     "Impossible de créer une URL valide. Utilisez des lettres ou des chiffres dans le prénom, le nom ou l’entreprise.",
+  "auth.error.network":
+    "Impossible de joindre l’API. Vérifiez que le backend tourne et NEXT_PUBLIC_API_URL dans .env.local.",
+  "auth.error.server": "L’inscription n’a pas pu aboutir. Réessayez.",
   "landing.badge": "Next.js Frontend · v0.1",
   "landing.title": "Project Dossier",
   "landing.subtitle": "Automated intelligence platform to prepare high-impact meetings.",

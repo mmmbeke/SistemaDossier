@@ -6,6 +6,12 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import AuthShell from "@/components/AuthShell";
 import FormField from "@/components/FormField";
 import PrimaryButton from "@/components/PrimaryButton";
+import {
+  authRegister,
+  DossierApiError,
+  persistAuthToken,
+  writeDossierUserPreview,
+} from "@/lib/dossier-api";
 import { useTranslation, usePreferences } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 import type { Locale } from "@/i18n/types";
@@ -105,6 +111,7 @@ export default function RegisterPage() {
   const [accepted, setAccepted] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const draftHydratedRef = useRef(false);
 
   const fullName = buildFullName(firstName, lastName);
@@ -240,27 +247,57 @@ export default function RegisterPage() {
 
     const finalSlug = resolvedOrganizationSlug();
 
+    setFormError(null);
     setLoading(true);
-    if (typeof window !== "undefined") {
-      const draft = {
-        account_kind: accountKind,
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
+    try {
+      if (typeof window !== "undefined") {
+        const draft = {
+          account_kind: accountKind,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          full_name: fullName,
+          company_name: orgDisplayName,
+          organization_slug: finalSlug,
+          organization_slug_input:
+            accountKind === "work" ? orgSlug.trim().toLowerCase() : "",
+          email: email.trim().toLowerCase(),
+          timezone,
+          locale: accountLocale,
+          ui_locale_at_signup: uiLocale,
+        };
+        sessionStorage.setItem("dossier_register_draft", JSON.stringify(draft));
+      }
+
+      const data = await authRegister({
+        email: email.trim().toLowerCase(),
+        password,
         full_name: fullName,
         company_name: orgDisplayName,
-        organization_slug: finalSlug,
-        organization_slug_input:
-          accountKind === "work" ? orgSlug.trim().toLowerCase() : "",
-        email: email.trim().toLowerCase(),
-        timezone,
-        locale: accountLocale,
-        ui_locale_at_signup: uiLocale,
-      };
-      sessionStorage.setItem("dossier_register_draft", JSON.stringify(draft));
+      });
+
+      persistAuthToken(data.access_token, true);
+      writeDossierUserPreview(
+        {
+          email: data.user.email,
+          full_name: data.user.full_name,
+          company_name: data.user.company_name,
+        },
+        "local"
+      );
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("dossier_register_draft");
+      }
+      router.push("/dashboard");
+    } catch (err) {
+      if (err instanceof DossierApiError) {
+        if (err.isNetworkError()) setFormError(t("auth.error.network"));
+        else setFormError(err.message || t("auth.error.server"));
+      } else {
+        setFormError(t("auth.error.server"));
+      }
+    } finally {
+      setLoading(false);
     }
-    await new Promise((r) => setTimeout(r, 600));
-    setLoading(false);
-    router.push("/dashboard");
   }
 
   const borderDefault = "var(--border-default)";
@@ -289,6 +326,15 @@ export default function RegisterPage() {
       }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-3" noValidate>
+        {formError ? (
+          <div
+            role="alert"
+            className="rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-sm"
+            style={{ color: textPrimary }}
+          >
+            {formError}
+          </div>
+        ) : null}
         <div className="flex flex-col gap-1.5">
           <span
             className="text-xs font-medium uppercase tracking-wide"

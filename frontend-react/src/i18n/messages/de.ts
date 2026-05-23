@@ -66,6 +66,9 @@ const messages = {
     "Mindestens 2 Zeichen: nur Kleinbuchstaben, Ziffern und einzelne Bindestriche (z. B. acme-corp).",
   "auth.error.slug_unreadable":
     "Aus diesen Angaben lässt sich keine gültige URL bilden. Bitte Buchstaben oder Ziffern in Name oder Firma verwenden.",
+  "auth.error.network":
+    "Die API ist nicht erreichbar. Prüfen Sie, ob das Backend läuft und NEXT_PUBLIC_API_URL in .env.local.",
+  "auth.error.server": "Die Registrierung konnte nicht abgeschlossen werden. Bitte erneut versuchen.",
   "landing.badge": "Next.js Frontend · v0.1",
   "landing.title": "Project Dossier",
   "landing.subtitle": "Automated intelligence platform to prepare high-impact meetings.",
