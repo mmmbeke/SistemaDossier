@@ -42,6 +42,11 @@ Ejecuta en PostgreSQL el script consolidado:
 
 Incluye extensiones `uuid-ossp` y `pgcrypto`, tablas multi-tenant (`organizations`, `users`, `org_memberships`, `dossiers`, …) y triggers.
 
+Si tu base se creó con una **versión antigua** del DDL y falla el `INSERT` en `dossiers` con error de FK en `credit_ledger`, aplica el parche idempotente:
+
+- **[../scripts/fix_dossier_credit_triggers.sql](../scripts/fix_dossier_credit_triggers.sql)** (SQL puro; en Windows hace falta `psql` en el PATH), o bien
+- **`python scripts/apply_fix_dossier_credit_triggers.py`** desde la raíz del repo (usa tu `.env` y `psycopg`, sin `psql`).
+
 Tras aplicarlo, puedes desactivar la creación automática de tablas al arrancar la API con **`DATABASE_AUTO_CREATE_TABLES=0`** en `.env` (ver [auth-app.md](auth-app.md)).
 
 ## Comprobar conexión

@@ -43,6 +43,26 @@ export type DossiersListResponse = {
   items: DossierListItem[];
 };
 
+/** Respuesta de `GET /dossiers/{id}` (detalle). */
+export type DossierDetailResponse = {
+  id: string;
+  organization_id: string;
+  subject_name: string | null;
+  subject_email: string | null;
+  status: string;
+  depth_level: string;
+  credits_consumed: number;
+  created_at: string | null;
+  updated_at: string | null;
+  dossier_data: unknown;
+  alerts: unknown;
+  agents_activated?: string[];
+  agents_failed?: string[];
+  data_sources_used?: string[];
+  generation_duration_ms?: number | null;
+  status_message?: string | null;
+};
+
 export type AuthSuccessResponse = {
   access_token: string;
   token_type: string;
@@ -271,6 +291,135 @@ export function getStoredAccessToken(): string | null {
   );
 }
 
+async function postJsonWithAuth<T>(path: string, body: unknown): Promise<T> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}${path}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new DossierApiError(0, "NETWORK");
+  }
+
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+
+  return parsed as T;
+}
+
+/** Igual que ``CorporateCompanyResolution`` en la API (Pydantic). */
+export type CorporateCompanyResolutionPayload =
+  | {
+      source: "companies_house";
+      title: string;
+      company_number: string;
+    }
+  | {
+      source: "sec_edgar";
+      title: string;
+      ticker: string;
+      cik: string;
+    };
+
+export type CreateCorporateDossierPayload = {
+  subject_query: string;
+  subject_email?: string;
+  depth: "basic" | "standard" | "deep";
+  resolution?: CorporateCompanyResolutionPayload;
+};
+
+/** Coincidencias UK/US para desambiguar el nombre de empresa. */
+export type CorporateCompanySearchUk = {
+  company_number: string;
+  title: string;
+  company_status: string;
+  company_type: string;
+};
+
+export type CorporateCompanySearchUs = {
+  ticker: string;
+  title: string;
+  cik: string;
+};
+
+export type CorporateCompanySearchResponse = {
+  query: string;
+  uk: CorporateCompanySearchUk[];
+  us: CorporateCompanySearchUs[];
+  warnings: string[];
+};
+
+export type CreateCorporateDossierResponse = {
+  id: string;
+  organization_id: string;
+  status: string;
+  credits_consumed: number;
+  organization_credits_balance: number;
+  generation_duration_ms: number | null;
+};
+
+/** Búsqueda de empresas (UK + US) para elegir el registro correcto. */
+export async function fetchCorporateCompanySearch(
+  q: string
+): Promise<CorporateCompanySearchResponse> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/dossiers/corporate/company-search?q=${encodeURIComponent(q)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throw new DossierApiError(0, "NETWORK");
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as CorporateCompanySearchResponse;
+}
+
+/** Genera dossier con pipeline LangGraph (UK + US + Gemini) y lo persiste en la API. */
+export async function createCorporateDossier(
+  payload: CreateCorporateDossierPayload
+): Promise<CreateCorporateDossierResponse> {
+  return postJsonWithAuth<CreateCorporateDossierResponse>(
+    "/dossiers/corporate/generate",
+    payload
+  );
+}
+
 /**
  * Lista dossiers de la organización del token (`org_id` en el JWT).
  * Requiere haber aplicado el SQL de migración y tener filas en `dossiers`.
@@ -301,4 +450,33 @@ export async function fetchDossiersFromApi(limit = 50): Promise<DossiersListResp
     throw new DossierApiError(res.status, msg, parsed);
   }
   return parsed as DossiersListResponse;
+}
+
+/** Detalle de un dossier (`GET /dossiers/{id}`). */
+export async function fetchDossierById(dossierId: string): Promise<DossierDetailResponse> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/dossiers/${encodeURIComponent(dossierId)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throw new DossierApiError(0, "NETWORK");
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as DossierDetailResponse;
 }
