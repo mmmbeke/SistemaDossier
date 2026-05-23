@@ -7,6 +7,8 @@ type AuthShellProps = {
   subtitle: string;
   children: ReactNode;
   footer: ReactNode;
+  /** Formularios largos (p. ej. registro) con más columnas */
+  wide?: boolean;
 };
 
 export default function AuthShell({
@@ -14,6 +16,7 @@ export default function AuthShell({
   subtitle,
   children,
   footer,
+  wide = false,
 }: AuthShellProps) {
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
@@ -73,7 +76,7 @@ export default function AuthShell({
       </aside>
 
       <main className="flex flex-1 items-center justify-center p-6 lg:p-12">
-        <div className="w-full max-w-md">
+        <div className={wide ? "w-full max-w-xl" : "w-full max-w-md"}>
           <div className="mb-8 flex flex-col gap-2">
             <h1
               className="text-3xl font-semibold tracking-tight"
