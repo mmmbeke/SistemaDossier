@@ -7,6 +7,7 @@ import FilterTabs, { type FilterValue } from "@/components/dossier/FilterTabs";
 import TopBar from "@/components/dashboard/TopBar";
 import NewDossierButton from "@/components/dossier/NewDossierButton";
 import {
+  DossierApiError,
   fetchDossiersFromApi,
   getStoredAccessToken,
   type DossierListItem,

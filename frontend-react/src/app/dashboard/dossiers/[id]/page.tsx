@@ -3,57 +3,35 @@
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import CorporateDossierDetailView from "./CorporateDossierDetailView";
 import DossierDetailView from "./DossierDetailView";
-import { getApiBaseUrl, getStoredAccessToken } from "@/lib/dossier-api";
+import { fetchDossierById, type DossierDetailResponse } from "@/lib/dossier-api";
 import { getDossierById } from "@/lib/mock-dossiers";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export default function DossierDetailPage() {
-  const params = useParams();
-  const id = typeof params?.id === "string" ? params.id : "";
-  const mock = id ? getDossierById(id) : undefined;
-  const isUuid = Boolean(id && UUID_RE.test(id));
-
-  const [apiJson, setApiJson] = useState<unknown>(null);
-  const [apiState, setApiState] = useState<"idle" | "loading" | "ok" | "err">(() =>
-    !mock && isUuid ? "loading" : "idle",
-  );
+function PostgresDossierDetail({ id }: { id: string }) {
+  const [apiDossier, setApiDossier] = useState<DossierDetailResponse | null>(null);
+  const [apiState, setApiState] = useState<"loading" | "ok" | "err">("loading");
 
   useEffect(() => {
-    if (mock || !isUuid) return;
-    const token = getStoredAccessToken();
-    if (!token) {
-      setApiState("err");
-      return;
-    }
-    setApiState("loading");
-    fetch(`${getApiBaseUrl()}/dossiers/${id}`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-    })
-      .then(async (r) => {
-        if (!r.ok) {
-          setApiState("err");
-          setApiJson(null);
-          return;
-        }
-        setApiJson(await r.json());
+    let cancelled = false;
+    void fetchDossierById(id)
+      .then((d) => {
+        if (cancelled) return;
+        setApiDossier(d);
         setApiState("ok");
       })
       .catch(() => {
+        if (cancelled) return;
+        setApiDossier(null);
         setApiState("err");
-        setApiJson(null);
       });
-  }, [id, mock, isUuid]);
-
-  if (mock) {
-    return <DossierDetailView dossier={mock} />;
-  }
-
-  if (!id || !isUuid) {
-    notFound();
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   if (apiState === "loading") {
     return (
@@ -63,7 +41,7 @@ export default function DossierDetailPage() {
     );
   }
 
-  if (apiState === "err" || !apiJson) {
+  if (apiState === "err" || !apiDossier) {
     return (
       <div className="mx-auto max-w-lg space-y-4 p-8">
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -81,24 +59,25 @@ export default function DossierDetailPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4 p-6">
-      <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
-        Dossier (PostgreSQL)
-      </h1>
-      <pre
-        className="overflow-auto rounded-lg border p-4 text-xs"
-        style={{
-          borderColor: "var(--border-default)",
-          backgroundColor: "var(--bg-surface)",
-          color: "var(--text-muted)",
-        }}
-      >
-        {JSON.stringify(apiJson, null, 2)}
-      </pre>
-      <p className="text-xs" style={{ color: "var(--text-subtle)" }}>
-        Vista JSON: cuando `dossier_data` cumpla el schema del producto, se puede reutilizar
-        `DossierDetailView` con un mapeo desde la API.
-      </p>
+    <div className="mx-auto max-w-5xl p-6">
+      <CorporateDossierDetailView dossier={apiDossier} />
     </div>
   );
+}
+
+export default function DossierDetailPage() {
+  const params = useParams();
+  const id = typeof params?.id === "string" ? params.id : "";
+  const mock = id ? getDossierById(id) : undefined;
+  const isUuid = Boolean(id && UUID_RE.test(id));
+
+  if (mock) {
+    return <DossierDetailView dossier={mock} />;
+  }
+
+  if (!id || !isUuid) {
+    notFound();
+  }
+
+  return <PostgresDossierDetail key={id} id={id} />;
 }

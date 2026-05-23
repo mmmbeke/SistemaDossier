@@ -1,24 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import TopBar from "@/components/dashboard/TopBar";
 import DepthSelector from "@/components/dossier/DepthSelector";
 import FormField from "@/components/FormField";
 import GenerationProgress from "@/components/dossier/GenerationProgress";
 import PrimaryButton from "@/components/PrimaryButton";
+import {
+  createCorporateDossier,
+  DossierApiError,
+  fetchCorporateCompanySearch,
+  getStoredAccessToken,
+  type CorporateCompanyResolutionPayload,
+  type CorporateCompanySearchResponse,
+} from "@/lib/dossier-api";
+import { DEPTH_OPTIONS, type DossierDepth, stepsForDepth } from "@/lib/mock-generation";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
-import {
-  DEPTH_OPTIONS,
-  type DossierDepth,
-  type GenerationStepId,
-  resolveDossierId,
-  simulateGeneration,
-  stepsForDepth,
-} from "@/lib/mock-generation";
 
 type Phase = "form" | "generating" | "done";
 
@@ -30,10 +31,58 @@ const PIPELINE_STEP_KEYS: TranslationKey[] = [
   "gen.step.complete",
 ];
 
-export default function GenerateDossierPage() {
+const WARN_I18N: Partial<Record<string, TranslationKey>> = {
+  missing_companies_house_api_key: "generate.warn_missing_ch",
+  companies_house_request_failed: "generate.warn_ch_http",
+  sec_request_failed: "generate.warn_sec_http",
+  query_too_short: "generate.warn_query_short",
+};
+
+function AutoFetchCompanySearch({
+  query,
+  onDone,
+}: {
+  query: string;
+  onDone: (r: CorporateCompanySearchResponse) => void;
+}) {
+  const { t } = useTranslation();
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCorporateCompanySearch(query)
+      .then((data) => {
+        if (!cancelled) onDone(data);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [query, onDone]);
+
+  if (failed) {
+    return <p className="text-sm text-red-400">{t("generate.company_search_error")}</p>;
+  }
+  return (
+    <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+      {t("generate.company_search_loading")}
+    </p>
+  );
+}
+
+function GenerateDossierForm({
+  initialQuery,
+  autoDisambiguate,
+}: {
+  initialQuery: string;
+  autoDisambiguate: boolean;
+}) {
   const router = useRouter();
   const { t } = useTranslation();
-  const [query, setQuery] = useState("");
+  const stepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [query, setQuery] = useState(initialQuery);
   const [email, setEmail] = useState("");
   const [depth, setDepth] = useState<DossierDepth>("standard");
   const [phase, setPhase] = useState<Phase>("form");
@@ -41,8 +90,52 @@ export default function GenerateDossierPage() {
   const [error, setError] = useState("");
   const [resultId, setResultId] = useState<string | null>(null);
 
+  const [searchResults, setSearchResults] = useState<CorporateCompanySearchResponse | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedResolution, setSelectedResolution] =
+    useState<CorporateCompanyResolutionPayload | null>(null);
+
+  const handleAutoSearchDone = useCallback((r: CorporateCompanySearchResponse) => {
+    setSearchResults(r);
+    setSelectedResolution(null);
+  }, []);
+
+  async function runManualCompanySearch() {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setError(t("generate.error.query_min"));
+      return;
+    }
+    if (!getStoredAccessToken()) {
+      setError(t("generate.error.auth"));
+      return;
+    }
+    setError("");
+    setSearchLoading(true);
+    setSelectedResolution(null);
+    try {
+      const r = await fetchCorporateCompanySearch(trimmed);
+      setSearchResults(r);
+    } catch (e) {
+      if (e instanceof DossierApiError) {
+        setError(e.message || t("generate.error.api"));
+      } else {
+        setError(t("generate.error.api"));
+      }
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
   const steps = useMemo(() => stepsForDepth(depth), [depth]);
   const selectedDepth = DEPTH_OPTIONS.find((d) => d.id === depth)!;
+
+  function clearStepInterval() {
+    if (stepIntervalRef.current) {
+      clearInterval(stepIntervalRef.current);
+      stepIntervalRef.current = null;
+    }
+  }
 
   async function handleGenerate() {
     const trimmed = query.trim();
@@ -54,22 +147,54 @@ export default function GenerateDossierPage() {
       setError(t("auth.error.email_invalid"));
       return;
     }
+    if (!getStoredAccessToken()) {
+      setError(t("generate.error.auth"));
+      return;
+    }
+
+    const totalHits =
+      (searchResults?.uk.length ?? 0) + (searchResults?.us.length ?? 0);
+    if (autoDisambiguate && totalHits > 0 && !selectedResolution) {
+      setError(t("generate.company_pick_required"));
+      return;
+    }
 
     setError("");
     setPhase("generating");
     setCurrentStepIndex(0);
-    const dossierId = resolveDossierId(trimmed);
 
-    await simulateGeneration(depth, (_stepId: GenerationStepId, index: number) => {
-      setCurrentStepIndex(index);
-    });
+    stepIntervalRef.current = setInterval(() => {
+      setCurrentStepIndex((i) => Math.min(i + 1, Math.max(0, steps.length - 2)));
+    }, 700);
 
-    setPhase("done");
-    setResultId(dossierId);
-
-    window.setTimeout(() => {
-      router.push(`/dashboard/dossiers/${dossierId}`);
-    }, 900);
+    try {
+      const res = await createCorporateDossier({
+        subject_query: trimmed,
+        subject_email: email.trim() || undefined,
+        depth,
+        resolution: selectedResolution ?? undefined,
+      });
+      clearStepInterval();
+      setCurrentStepIndex(Math.max(0, steps.length - 1));
+      setPhase("done");
+      setResultId(res.id);
+      window.setTimeout(() => {
+        router.push(`/dashboard/dossiers/${res.id}`);
+      }, 900);
+    } catch (e) {
+      clearStepInterval();
+      setPhase("form");
+      setCurrentStepIndex(0);
+      if (e instanceof DossierApiError) {
+        if (e.status === 401) {
+          setError(t("generate.error.auth"));
+        } else {
+          setError(e.message || t("generate.error.api"));
+        }
+      } else {
+        setError(t("generate.error.api"));
+      }
+    }
   }
 
   return (
@@ -111,6 +236,179 @@ export default function GenerateDossierPage() {
                   onChange={(e) => setQuery(e.target.value)}
                   hint={t("generate.name_hint")}
                 />
+
+                {autoDisambiguate && query.trim().length >= 2 && searchResults === null && (
+                  <AutoFetchCompanySearch query={query.trim()} onDone={handleAutoSearchDone} />
+                )}
+
+                <div
+                  className="flex flex-col gap-3 rounded-lg border p-4"
+                  style={{ borderColor: "var(--border-default)" }}
+                >
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                      {t("generate.company_search_title")}
+                    </span>
+                    <button
+                      type="button"
+                      className="rounded-lg border px-3 py-1.5 text-xs font-medium transition hover:opacity-90 disabled:opacity-50"
+                      style={{ borderColor: "var(--border-default)", color: "var(--accent-from)" }}
+                      disabled={searchLoading || phase !== "form"}
+                      onClick={() => void runManualCompanySearch()}
+                    >
+                      {searchLoading ? t("generate.company_search_loading") : t("generate.company_search_btn")}
+                    </button>
+                  </div>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    {t("generate.company_pick_hint")}
+                  </p>
+                  {searchResults?.warnings?.length ? (
+                    <ul className="list-inside list-disc text-xs" style={{ color: "#fbbf24" }}>
+                      {searchResults.warnings.map((w) => {
+                        const key = WARN_I18N[w];
+                        return <li key={w}>{key ? t(key) : w}</li>;
+                      })}
+                    </ul>
+                  ) : null}
+                  {searchResults && (
+                    <div className="flex max-h-72 flex-col gap-4 overflow-y-auto pr-1">
+                      {searchResults.uk.length > 0 && (
+                        <div>
+                          <div
+                            className="mb-3 flex items-center gap-2 border-b pb-2"
+                            style={{ borderColor: "var(--border-default)" }}
+                          >
+                            <span
+                              className="rounded-md px-2 py-1 text-xs font-bold uppercase tracking-wide text-white"
+                              style={{ backgroundColor: "#1d4ed8" }}
+                            >
+                              {t("generate.country_tag_uk")}
+                            </span>
+                            <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                              {t("generate.company_search_uk")}
+                            </span>
+                          </div>
+                          <ul className="flex flex-col gap-2">
+                            {searchResults.uk.map((row) => {
+                              const picked =
+                                selectedResolution?.source === "companies_house" &&
+                                selectedResolution.company_number === row.company_number;
+                              return (
+                                <li key={row.company_number}>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedResolution({
+                                        source: "companies_house",
+                                        title: row.title,
+                                        company_number: row.company_number,
+                                      })
+                                    }
+                                    className="w-full rounded-lg border p-3 text-left text-sm transition hover:opacity-95"
+                                    style={{
+                                      borderColor: picked ? "var(--accent-from)" : "var(--border-default)",
+                                      backgroundColor: picked ? "rgba(99,102,241,0.08)" : "transparent",
+                                      color: "var(--text-primary)",
+                                    }}
+                                  >
+                                    <div className="mb-2 flex items-center gap-2">
+                                      <span
+                                        className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white"
+                                        style={{ backgroundColor: "#2563eb" }}
+                                      >
+                                        {t("generate.country_tag_uk")}
+                                      </span>
+                                      <span className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
+                                        {t("generate.company_registry_ch")}
+                                      </span>
+                                    </div>
+                                    <span className="font-medium">{row.title}</span>
+                                    <span className="mt-1 block text-xs" style={{ color: "var(--text-muted)" }}>
+                                      {row.company_number}
+                                      {row.company_status ? ` · ${row.company_status}` : ""}
+                                      {row.company_type ? ` · ${row.company_type}` : ""}
+                                    </span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      )}
+                      {searchResults.us.length > 0 && (
+                        <div>
+                          <div
+                            className="mb-3 flex items-center gap-2 border-b pb-2"
+                            style={{ borderColor: "var(--border-default)" }}
+                          >
+                            <span
+                              className="rounded-md px-2 py-1 text-xs font-bold uppercase tracking-wide text-white"
+                              style={{ backgroundColor: "#047857" }}
+                            >
+                              {t("generate.country_tag_usa")}
+                            </span>
+                            <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                              {t("generate.company_search_us")}
+                            </span>
+                          </div>
+                          <ul className="flex flex-col gap-2">
+                            {searchResults.us.map((row) => {
+                              const picked =
+                                selectedResolution?.source === "sec_edgar" &&
+                                selectedResolution.ticker === row.ticker &&
+                                selectedResolution.cik === row.cik;
+                              return (
+                                <li key={`${row.ticker}-${row.cik}`}>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedResolution({
+                                        source: "sec_edgar",
+                                        title: row.title,
+                                        ticker: row.ticker,
+                                        cik: row.cik,
+                                      })
+                                    }
+                                    className="w-full rounded-lg border p-3 text-left text-sm transition hover:opacity-95"
+                                    style={{
+                                      borderColor: picked ? "var(--accent-from)" : "var(--border-default)",
+                                      backgroundColor: picked ? "rgba(99,102,241,0.08)" : "transparent",
+                                      color: "var(--text-primary)",
+                                    }}
+                                  >
+                                    <div className="mb-2 flex items-center gap-2">
+                                      <span
+                                        className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white"
+                                        style={{ backgroundColor: "#059669" }}
+                                      >
+                                        {t("generate.country_tag_usa")}
+                                      </span>
+                                      <span className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
+                                        {t("generate.company_registry_sec")}
+                                      </span>
+                                    </div>
+                                    <span className="font-medium">
+                                      [{row.ticker}] {row.title}
+                                    </span>
+                                    <span className="mt-1 block text-xs" style={{ color: "var(--text-muted)" }}>
+                                      CIK {row.cik}
+                                    </span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      )}
+                      {searchResults.uk.length === 0 && searchResults.us.length === 0 && (
+                        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                          {t("generate.company_search_empty")}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <FormField
                   label={t("generate.email_optional")}
                   name="email"
@@ -205,5 +503,32 @@ export default function GenerateDossierPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function GenerateDossierPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>
+          …
+        </div>
+      }
+    >
+      <GenerateDossierPageWithQuery />
+    </Suspense>
+  );
+}
+
+function GenerateDossierPageWithQuery() {
+  const searchParams = useSearchParams();
+  const q = searchParams.get("q")?.trim() ?? "";
+  const pick = searchParams.get("pick") === "1";
+  return (
+    <GenerateDossierForm
+      key={`${q || "__empty__"}__${pick ? "pick" : "nopick"}`}
+      initialQuery={q}
+      autoDisambiguate={pick}
+    />
   );
 }

@@ -5,7 +5,7 @@ Fuente de verdad del DDL: `docs/sql/schema_project_dossier.sql` (copia de
 `src/dossier/db/Migracion.md`). Ejecuta ese SQL en tu base antes de usar auth.
 
 Tablas cubiertas por los modelos ORM actuales: `organizations`, `users`, `org_memberships`,
-`dossiers` (alineadas con `docs/sql/schema_project_dossier.sql`).
+`contacts`, `dossiers` (alineadas con `docs/sql/schema_project_dossier.sql`).
 """
 from __future__ import annotations
 
@@ -115,6 +115,45 @@ class OrgMembership(Base):
     )
 
 
+class Contact(Base):
+    """Address book por organización; referenciado por `dossiers.contact_id`."""
+
+    __tablename__ = "contacts"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        index=True,
+    )
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+    )
+    email: Mapped[str | None] = mapped_column(String(255))
+    full_name: Mapped[str | None] = mapped_column(String(255))
+    linkedin_url: Mapped[str | None] = mapped_column(String(500))
+    company: Mapped[str | None] = mapped_column(String(255))
+    job_title: Mapped[str | None] = mapped_column(String(255))
+    domain: Mapped[str | None] = mapped_column(String(255))
+    tags: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default=text("'{}'::text[]")
+    )
+    is_vip: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    last_dossier_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class Dossier(Base):
     """Tabla `dossiers` del schema migrado (solo columnas necesarias para lectura vía API)."""
 
@@ -131,10 +170,10 @@ class Dossier(Base):
     requested_by_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), index=True
     )
+    # Sin ForeignKey en ORM: evita NoReferencedTableError si el orden de import no
+    # registra `contacts` en metadata; la FK real sigue en PostgreSQL (Migración).
     contact_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("contacts.id", ondelete="SET NULL"),
-        nullable=True,
+        UUID(as_uuid=True), nullable=True, index=True
     )
     subject_email: Mapped[str | None] = mapped_column(String(255))
     subject_name: Mapped[str | None] = mapped_column(String(255))
