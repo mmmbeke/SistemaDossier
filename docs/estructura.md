@@ -12,11 +12,15 @@ SistemaDossier/
 │
 ├── src/dossier/            # Paquete principal
 │   ├── api/
-│   │   └── app.py          # FastAPI: rutas, Microsoft, calendario, BD
+│   │   ├── app.py          # FastAPI: CORS, lifespan, rutas Microsoft, calendario, BD
+│   │   ├── auth_routes.py  # Auth app: register/login/me (tablas migradas + JWT)
+│   │   └── dossier_routes.py  # GET /dossiers, GET /dossiers/{id} (PostgreSQL)
 │   ├── services/
 │   │   ├── graph_calendar.py   # Microsoft Graph (Outlook)
 │   │   └── openai_dossier.py   # Dossiers con OpenAI
-│   ├── db/                 # PostgreSQL (SQLAlchemy)
+│   ├── db/                 # SQLAlchemy: `Migracion.md` (DDL), modelos alineados al schema
+│   ├── schemas/            # Pydantic (p. ej. cuerpos de auth)
+│   ├── security/           # Hash bcrypt + JWT para cuentas del dashboard
 │   ├── gemini/             # Análisis de documentos con Gemini
 │   ├── companies_house/    # CLI UK
 │   ├── sec_edgar/          # CLI USA (SEC)
@@ -24,7 +28,8 @@ SistemaDossier/
 │
 ├── scripts/                # CLIs (Companies House, SEC)
 ├── data/                   # Salidas JSON / análisis (gitignored parcialmente)
-├── docs/                   # Documentación markdown
+├── docs/                   # Documentación markdown (auth-app, postgresql, …)
+├── frontend-react/         # Dashboard Next.js (login/registro → API FastAPI)
 ├── Frontend/               # Interfaz estática (HTML/JS/CSS)
 │
 ├── Company_house_API/      # Puntero de compatibilidad → scripts + src

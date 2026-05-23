@@ -111,6 +111,7 @@ export default function RegisterPage() {
   const [accepted, setAccepted] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
+  /** Mensaje de error de la API (email duplicado, BD no lista, red, etc.). */
   const [formError, setFormError] = useState<string | null>(null);
   const draftHydratedRef = useRef(false);
 
@@ -243,11 +244,11 @@ export default function RegisterPage() {
     e.preventDefault();
     const v = validate();
     setErrors(v);
+    setFormError(null);
     if (Object.keys(v).length > 0) return;
 
     const finalSlug = resolvedOrganizationSlug();
 
-    setFormError(null);
     setLoading(true);
     try {
       if (typeof window !== "undefined") {
@@ -274,7 +275,7 @@ export default function RegisterPage() {
         full_name: fullName,
         company_name: orgDisplayName,
       });
-
+      // Tras crear cuenta dejamos sesión iniciada (misma UX que "recuérdame" en login).
       persistAuthToken(data.access_token, true);
       writeDossierUserPreview(
         {

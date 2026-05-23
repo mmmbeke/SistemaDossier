@@ -267,7 +267,10 @@ def maybe_analyze_with_gemini(
         prompt = (
             "Eres un analista financiero. Resume en español este envío de la SEC. "
             "Incluye: contexto del documento, puntos clave para inversores o cumplimiento, "
-            "riesgos o eventos destacados si los hay, y una conclusión breve. "
+            "riesgos o eventos destacados si los hay, y una conclusión breve que sintetice el "
+            "análisis e indique si conviene o no trabajar con la empresa (como contraparte "
+            "comercial o contractual), con argumentos concretos; si el documento no alcanza "
+            "para decidirlo, dilo explícitamente y qué faltaría saber. "
             f"Metadatos: empresa={company_name}, formulario={form}, fecha={filing_date}, "
             f"accession={accession}, CIK={cik}, archivo={document_name}."
         )

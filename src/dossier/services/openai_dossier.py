@@ -1,47 +1,36 @@
-"""Generación de dossiers con OpenAI (lazy client)."""
+"""Generación de dossiers ejecutivos (orquestación + IA).
+
+Por defecto usa **LangGraph** (agentes UK + USA en paralelo) y **Gemini** para la síntesis.
+La ruta antigua **solo OpenAI (GPT-3.5)** sigue disponible con ``DOSSIER_LEGACY_OPENAI=1``.
+"""
 
 from __future__ import annotations
 
 import os
 
-from openai import OpenAI
-
-_client: OpenAI | None = None
+from dossier.config import load_env
 
 
-def _get_openai_client() -> OpenAI:
-    """Cliente singleton; solo exige clave cuando se va a llamar a la API."""
-    global _client
-    if _client is not None:
-        return _client
-
-    from dossier.config import load_env
-
-    load_env()
-
-    key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    if not key:
-        raise ValueError(
-            "Falta OPENAI_API_KEY en el .env (raíz del proyecto). "
-            "Añádela para generar dossiers con OpenAI."
-        )
-    _client = OpenAI(api_key=key)
-    return _client
-
-
-def generar_dossier_ejecutivo(
+def _legacy_openai_dossier(
     tema_reunion: str,
     participantes: str,
     descripcion: str = "",
-):
-    """
-    Función maestra que redacta el dossier.
-    En el futuro, aquí conectaremos la lógica de SEC / Companies House.
-    """
-    try:
-        client = _get_openai_client()
-    except ValueError as e:
-        return str(e)
+) -> str:
+    """Ruta histórica: una sola llamada a OpenAI chat completions."""
+    from openai import OpenAI
+
+    from dossier.config import load_env as _load
+
+    _load()
+
+    key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not key:
+        return (
+            "Falta OPENAI_API_KEY en el .env (raíz del proyecto). "
+            "Añádela para usar DOSSIER_LEGACY_OPENAI=1."
+        )
+
+    client = OpenAI(api_key=key)
 
     instrucciones = (
         "Eres un asistente de inteligencia de negocios experto. "
@@ -73,6 +62,34 @@ def generar_dossier_ejecutivo(
             ],
             temperature=0.7,
         )
-        return response.choices[0].message.content
+        return response.choices[0].message.content or ""
     except Exception as e:
         return f"Error de conexión con OpenAI: {str(e)}"
+
+
+def generar_dossier_ejecutivo(
+    tema_reunion: str,
+    participantes: str,
+    descripcion: str = "",
+):
+    """
+    Función maestra que redacta el dossier.
+
+    - **Por defecto**: grafo LangGraph (UK + US en paralelo) + síntesis con **Gemini**
+      (requiere ``GEMINI_API_KEY``).
+    - **Legacy**: exporta ``DOSSIER_LEGACY_OPENAI=1`` y define ``OPENAI_API_KEY`` para
+      usar solo GPT-3.5 sin grafo.
+    """
+    load_env()
+    legacy = (os.getenv("DOSSIER_LEGACY_OPENAI") or "").strip().lower()
+    if legacy in ("1", "true", "yes", "on"):
+        return _legacy_openai_dossier(tema_reunion, participantes, descripcion)
+
+    from dossier.graphs.corporate_dossier_graph import run_corporate_dossier_langgraph
+
+    try:
+        return run_corporate_dossier_langgraph(
+            tema_reunion, participantes, descripcion
+        )
+    except Exception as e:
+        return f"Error en pipeline LangGraph / Gemini: {e}"
