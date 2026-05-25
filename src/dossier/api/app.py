@@ -120,6 +120,7 @@ def read_root():
         "config_check": {
             "companies_house": _status("COMPANIES_HOUSE_API_KEY"),
             "gemini": _status("GEMINI_API_KEY"),
+            "netrows": _status("NETROWS_API_KEY"),
             "openai": _status("OPENAI_API_KEY"),
             "google_oauth": _status("GOOGLE_CLIENT_ID"),
             "microsoft": _status("MICROSOFT_CLIENT_ID"),

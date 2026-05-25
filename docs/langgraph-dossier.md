@@ -17,10 +17,10 @@ Antes, `generar_dossier_ejecutivo` era **un solo paso**: un prompt a OpenAI. Eso
 | Archivo | Rol |
 |--------|-----|
 | `src/dossier/graphs/corporate_dossier_graph.py` | Define el **estado**, los **nodos** (agentes + síntesis), el **grafo** y `run_corporate_dossier_langgraph`. |
-| `src/dossier/services/corporate_registry_context.py` | Obtiene **datos reales** UK (perfil + filing history CH) y US (submissions SEC). En UK, si hay Gemini configurado, aplica el **mismo prompt que el CLI** al primer filing con `document_metadata` (`prompt_templates.py`). |
+| `src/dossier/services/corporate_registry_context.py` | Obtiene **datos reales** UK (perfil + filing history CH) y US (submissions SEC). Opcional: análisis Gemini del **primer filing descargable** CH y del **primer HTML** de filing SEC (`DOSSIER_CORPORATE_*_FILING_GEMINI`). |
 | `src/dossier/companies_house/prompt_templates.py` | Texto del prompt Gemini para análisis de documento CH (compartido CLI + pipeline). |
 
-Si ves **429 / RESOURCE_EXHAUSTED** (cuota free tier), define `DOSSIER_CORPORATE_CH_FILING_GEMINI=0` en `.env` para omitir el análisis del filing CH y dejar solo la síntesis final (una petición menos por dossier).
+Si ves **429 / RESOURCE_EXHAUSTED** (cuota free tier), define `DOSSIER_CORPORATE_CH_FILING_GEMINI=0` y/o `DOSSIER_CORPORATE_SEC_FILING_GEMINI=0` en `.env` para omitir el análisis por documento (CH y/o SEC) y dejar solo la síntesis final (menos peticiones por dossier).
 | `src/dossier/gemini/text_generate.py` | Llamada de **texto** a Gemini (sin subir PDF/HTML). |
 | `src/dossier/services/openai_dossier.py` | Punto de entrada `generar_dossier_ejecutivo`: por defecto LangGraph+Gemini; opcional legacy OpenAI. |
 
@@ -49,6 +49,8 @@ Campos típicos:
 - **Errores**: `agent_errors` (lista; la síntesis puede añadir entradas si Gemini falla)
 
 Cada nodo devuelve solo un **fragmento** del estado; LangGraph los **fusiona** con el estado anterior.
+
+Si la API recibe `resolution` (empresa UK o SEC elegida en el dashboard), `dossier_routes` pasa `jurisdiction_scope` explícito (`uk_only` / `us_only`) a `run_corporate_dossier_langgraph`, de modo que **no** se consulta el registro del otro país. Sin `resolution`, el alcance se infiere del texto (`infer_jurisdiction_scope`) y puede quedar `dual` si el brief es ambiguo.
 
 ## Cómo enganchan Companies House y SEC
 

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import DashboardCard from "@/components/dashboard/DashboardCard";
-import type { DossierDetailResponse } from "@/lib/dossier-api";
+import { DossierApiError, deleteDossierFromApi, type DossierDetailResponse } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import { formatLongDate } from "@/lib/format";
 
@@ -83,7 +84,10 @@ function refineHref(subject: string | null): string {
 
 export default function CorporateDossierDetailView({ dossier }: Props) {
   const { t, preferences } = useTranslation();
+  const router = useRouter();
   const [showRaw, setShowRaw] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   const meta = useMemo(() => parseDossierData(dossier.dossier_data), [dossier.dossier_data]);
 
@@ -114,6 +118,22 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
     Boolean(statusMsg);
 
   const statusOk = dossier.status === "complete" && meta.success !== false;
+
+  async function handleDelete() {
+    if (deleting) return;
+    if (!window.confirm(t("dossiers.delete_confirm"))) return;
+    setDeleteErr(null);
+    setDeleting(true);
+    try {
+      await deleteDossierFromApi(dossier.id);
+      router.push("/dashboard/dossiers");
+      router.refresh();
+    } catch (e) {
+      setDeleteErr(e instanceof DossierApiError ? e.message : t("detail.delete_error"));
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <>
@@ -182,6 +202,23 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
           >
             {t("detail.refine_cta")}
           </Link>
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={() => void handleDelete()}
+            className="inline-flex items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition hover:bg-red-500/10 disabled:opacity-50"
+            style={{
+              borderColor: "rgba(248,113,113,0.45)",
+              color: "var(--text-muted)",
+            }}
+          >
+            {deleting ? t("dossiers.deleting") : t("detail.delete")}
+          </button>
+          {deleteErr && (
+            <p className="max-w-xs text-right text-xs text-red-400" role="alert">
+              {deleteErr}
+            </p>
+          )}
         </div>
       </header>
 

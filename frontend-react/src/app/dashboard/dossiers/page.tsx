@@ -8,6 +8,7 @@ import TopBar from "@/components/dashboard/TopBar";
 import NewDossierButton from "@/components/dossier/NewDossierButton";
 import {
   DossierApiError,
+  deleteDossierFromApi,
   fetchDossiersFromApi,
   getStoredAccessToken,
   type DossierListItem,
@@ -31,6 +32,7 @@ export default function DossiersPage() {
   const [dbLoad, setDbLoad] = useState<DbLoadState>("idle");
   const [dbItems, setDbItems] = useState<DossierListItem[]>([]);
   const [dbError, setDbError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   /** Si hay JWT, cargamos filas reales de `GET /dossiers` (PostgreSQL). */
   useEffect(() => {
@@ -100,6 +102,21 @@ export default function DossiersPage() {
   }, [useLiveDb, dbItems]);
 
   const filterAllLabel = t("dossiers.filter_all").replace(/\s*\(\d+\)/, ` (${counts.all})`);
+
+  async function handleDeleteRow(row: DossierListItem) {
+    if (deletingId) return;
+    if (!window.confirm(t("dossiers.delete_confirm"))) return;
+    setDeletingId(row.id);
+    setDbError(null);
+    try {
+      await deleteDossierFromApi(row.id);
+      setDbItems((prev) => prev.filter((r) => r.id !== row.id));
+    } catch (e) {
+      setDbError(e instanceof DossierApiError ? e.message : String(e));
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <>
@@ -210,27 +227,42 @@ export default function DossiersPage() {
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredDb.map((row) => (
-                <Link
+                <div
                   key={row.id}
-                  href={`/dashboard/dossiers/${row.id}`}
-                  className="flex flex-col gap-2 rounded-xl border p-4 text-left transition hover:border-strong"
+                  className="flex gap-1 rounded-xl border transition hover:border-strong"
                   style={{
                     borderColor: "var(--border-default)",
                     backgroundColor: "var(--bg-surface)",
                   }}
                 >
-                  <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                    {row.subject_name || row.subject_email || "—"}
-                  </span>
-                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    {row.subject_email || "—"} · {row.status} · {row.depth_level}
-                  </span>
-                  {row.created_at && (
-                    <span className="text-xs" style={{ color: "var(--text-subtle)" }}>
-                      {row.created_at.slice(0, 10)}
+                  <Link
+                    href={`/dashboard/dossiers/${row.id}`}
+                    className="flex min-w-0 flex-1 flex-col gap-2 p-4 text-left"
+                  >
+                    <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                      {row.subject_name || row.subject_email || "—"}
                     </span>
-                  )}
-                </Link>
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      {row.subject_email || "—"} · {row.status} · {row.depth_level}
+                    </span>
+                    {row.created_at && (
+                      <span className="text-xs" style={{ color: "var(--text-subtle)" }}>
+                        {row.created_at.slice(0, 10)}
+                      </span>
+                    )}
+                  </Link>
+                  <button
+                    type="button"
+                    disabled={deletingId === row.id}
+                    onClick={() => void handleDeleteRow(row)}
+                    className="shrink-0 self-stretch rounded-r-xl px-3 text-xs font-medium transition hover:bg-red-500/15 disabled:opacity-50"
+                    style={{ color: "var(--text-muted)" }}
+                    title={t("dossiers.delete_aria")}
+                    aria-label={t("dossiers.delete_aria")}
+                  >
+                    {deletingId === row.id ? t("dossiers.deleting") : t("dossiers.delete")}
+                  </button>
+                </div>
               ))}
             </div>
           )}

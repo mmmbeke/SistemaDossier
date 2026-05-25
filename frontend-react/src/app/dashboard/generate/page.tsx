@@ -94,10 +94,12 @@ function GenerateDossierForm({
   const [searchLoading, setSearchLoading] = useState(false);
   const [selectedResolution, setSelectedResolution] =
     useState<CorporateCompanyResolutionPayload | null>(null);
+  const [companyConfirmed, setCompanyConfirmed] = useState(false);
 
   const handleAutoSearchDone = useCallback((r: CorporateCompanySearchResponse) => {
     setSearchResults(r);
     setSelectedResolution(null);
+    setCompanyConfirmed(false);
   }, []);
 
   async function runManualCompanySearch() {
@@ -113,6 +115,7 @@ function GenerateDossierForm({
     setError("");
     setSearchLoading(true);
     setSelectedResolution(null);
+    setCompanyConfirmed(false);
     try {
       const r = await fetchCorporateCompanySearch(trimmed);
       setSearchResults(r);
@@ -154,9 +157,15 @@ function GenerateDossierForm({
 
     const totalHits =
       (searchResults?.uk.length ?? 0) + (searchResults?.us.length ?? 0);
-    if (autoDisambiguate && totalHits > 0 && !selectedResolution) {
-      setError(t("generate.company_pick_required"));
-      return;
+    if (totalHits > 0) {
+      if (!selectedResolution) {
+        setError(t("generate.company_pick_required"));
+        return;
+      }
+      if (!companyConfirmed) {
+        setError(t("generate.company_confirm_required"));
+        return;
+      }
     }
 
     setError("");
@@ -271,7 +280,8 @@ function GenerateDossierForm({
                     </ul>
                   ) : null}
                   {searchResults && (
-                    <div className="flex max-h-72 flex-col gap-4 overflow-y-auto pr-1">
+                    <>
+                      <div className="flex max-h-72 flex-col gap-4 overflow-y-auto pr-1">
                       {searchResults.uk.length > 0 && (
                         <div>
                           <div
@@ -297,13 +307,14 @@ function GenerateDossierForm({
                                 <li key={row.company_number}>
                                   <button
                                     type="button"
-                                    onClick={() =>
+                                    onClick={() => {
+                                      setCompanyConfirmed(false);
                                       setSelectedResolution({
                                         source: "companies_house",
                                         title: row.title,
                                         company_number: row.company_number,
-                                      })
-                                    }
+                                      });
+                                    }}
                                     className="w-full rounded-lg border p-3 text-left text-sm transition hover:opacity-95"
                                     style={{
                                       borderColor: picked ? "var(--accent-from)" : "var(--border-default)",
@@ -361,14 +372,15 @@ function GenerateDossierForm({
                                 <li key={`${row.ticker}-${row.cik}`}>
                                   <button
                                     type="button"
-                                    onClick={() =>
+                                    onClick={() => {
+                                      setCompanyConfirmed(false);
                                       setSelectedResolution({
                                         source: "sec_edgar",
                                         title: row.title,
                                         ticker: row.ticker,
                                         cik: row.cik,
-                                      })
-                                    }
+                                      });
+                                    }}
                                     className="w-full rounded-lg border p-3 text-left text-sm transition hover:opacity-95"
                                     style={{
                                       borderColor: picked ? "var(--accent-from)" : "var(--border-default)",
@@ -406,6 +418,69 @@ function GenerateDossierForm({
                         </p>
                       )}
                     </div>
+                      {selectedResolution && !companyConfirmed && (
+                        <div
+                          className="mt-3 flex flex-col gap-2 rounded-lg border p-3"
+                          style={{ borderColor: "rgba(251,191,36,0.45)", backgroundColor: "rgba(251,191,36,0.06)" }}
+                        >
+                          <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                            {t("generate.company_confirm_hint")}
+                          </p>
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
+                            style={{
+                              backgroundImage:
+                                "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
+                            }}
+                            onClick={() => setCompanyConfirmed(true)}
+                          >
+                            {t("generate.company_confirm_btn")}
+                          </button>
+                        </div>
+                      )}
+                      {selectedResolution && companyConfirmed && (
+                        <div
+                          className="mt-3 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
+                          style={{ borderColor: "rgba(52,211,153,0.45)", backgroundColor: "rgba(52,211,153,0.06)" }}
+                        >
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300/90">
+                              {t("generate.company_confirmed_title")}
+                            </p>
+                            <p className="truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                              {selectedResolution.source === "companies_house" ? (
+                                <span className="mr-2 inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white" style={{ backgroundColor: "#2563eb" }}>
+                                  {t("generate.country_tag_uk")}
+                                </span>
+                              ) : (
+                                <span className="mr-2 inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white" style={{ backgroundColor: "#059669" }}>
+                                  {t("generate.country_tag_usa")}
+                                </span>
+                              )}
+                              {selectedResolution.title}
+                              {selectedResolution.source === "companies_house" && selectedResolution.company_number
+                                ? ` · ${selectedResolution.company_number}`
+                                : null}
+                              {selectedResolution.source === "sec_edgar" && selectedResolution.ticker
+                                ? ` · ${selectedResolution.ticker} · CIK ${selectedResolution.cik}`
+                                : null}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="shrink-0 rounded-lg border px-3 py-2 text-xs font-medium transition hover:opacity-90"
+                            style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}
+                            onClick={() => {
+                              setCompanyConfirmed(false);
+                              setSelectedResolution(null);
+                            }}
+                          >
+                            {t("generate.company_change")}
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 

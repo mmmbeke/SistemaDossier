@@ -13,9 +13,14 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
+_SRC = _ROOT / "src"
+if _SRC.is_dir() and str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
 import requests
 from dotenv import load_dotenv
+
+from dossier.companies_house.prompt_templates import format_ch_filing_gemini_prompt
 
 from dossier_cli_format import (
     FUENTE_UK,
@@ -248,15 +253,13 @@ def maybe_analyze_ch_filing_with_gemini(
         safe_cn = "".join(c if c.isalnum() else "_" for c in company_number)[:16]
         filename = f"ch_{safe_cn}_{date}_{ftype}{ext}"
 
-        prompt = (
-            "Eres un analista corporativo (Reino Unido). Resume en español este documento "
-            "presentado en Companies House. Incluye: tipo de hecho o trámite, datos clave "
-            "que aparezcan, fechas relevantes y una conclusión breve que sintetice el análisis "
-            "e indique si conviene o no trabajar con la empresa (como contraparte comercial o "
-            "contractual), con argumentos concretos; si el documento no alcanza para decidirlo, "
-            "dilo explícitamente y qué faltaría saber. "
-            f"Empresa: {company_name} ({company_number}). "
-            f"Presentación: fecha={date}, tipo={ftype}, categoría={category}, descripción={desc}."
+        prompt = format_ch_filing_gemini_prompt(
+            company_name=str(company_name),
+            company_number=str(company_number),
+            date=str(date),
+            ftype=str(ftype),
+            category=str(category),
+            description=str(desc),
         )
         print_gemini_enviando()
         analysis = analyze_document_bytes(data, filename, prompt)

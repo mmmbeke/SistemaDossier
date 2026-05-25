@@ -237,10 +237,11 @@ def run_corporate_dossier_langgraph(
     tema_reunion: str,
     participantes: str,
     descripcion: str = "",
+    jurisdiction_scope: JurisdictionScope | None = None,
 ) -> str:
-    """Compila el grafo, infiere alcance UK/US y devuelve Markdown."""
+    """Compila el grafo, infiere alcance UK/US (o usa el explícito) y devuelve Markdown."""
     app = build_corporate_dossier_graph().compile()
-    scope = infer_jurisdiction_scope(participantes)
+    scope = jurisdiction_scope if jurisdiction_scope is not None else infer_jurisdiction_scope(participantes)
     logger.info("Corporate dossier jurisdiction_scope=%s", scope)
     result = app.invoke(
         {

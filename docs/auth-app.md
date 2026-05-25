@@ -11,6 +11,7 @@ Cuentas con **email y contraseña** guardadas en **PostgreSQL**, sesión con **J
 | `GET` | `/auth/me` | Cabecera `Authorization: Bearer <token>`; devuelve perfil + `organization_id` + `role`. |
 | `GET` | `/dossiers` | Lista dossiers de la org del JWT (tabla `dossiers`). |
 | `GET` | `/dossiers/{id}` | Detalle de un dossier de tu organización. |
+| `DELETE` | `/dossiers/{id}` | Elimina un dossier de tu organización (respuesta `204 No Content`). |
 
 Cuerpos JSON esperados:
 

@@ -7,19 +7,24 @@ from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from dossier.api.auth_routes import get_current_user_and_org, get_db_if_configured
 from dossier.db.models import Dossier, Organization, User
-from dossier.graphs.corporate_dossier_graph import run_corporate_dossier_langgraph
+from dossier.graphs.corporate_dossier_graph import (
+    JurisdictionScope,
+    run_corporate_dossier_langgraph,
+)
 from dossier.schemas.dossier_generation import (
     DEPTH_CREDITS,
     CreateCorporateDossierRequest,
     build_corporate_generation_strings,
 )
+from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.corporate_company_search import search_corporate_company_candidates
+from dossier.services.person_research_service import run_person_research
 
 router = APIRouter(tags=["Dossiers"])
 
@@ -39,6 +44,23 @@ def corporate_company_search(
     """Búsqueda UK (Companies House) + US (SEC tickers) para desambiguar nombres de empresa."""
     _user, _org = user_org
     return search_corporate_company_candidates(q)
+
+
+@router.post("/dossiers/person/research")
+def person_professional_research(
+    body: PersonResearchRequest,
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+):
+    """
+    Búsqueda de persona vía Netrows (`/people/search` + `/people/profile`) y análisis
+    narrativo con Gemini a partir del JSON devuelto. Requiere `NETROWS_API_KEY` y, para
+    el informe de IA, `GEMINI_API_KEY` (o `GOOGLE_API_KEY`).
+    """
+    _user, _org = user_org
+    try:
+        return run_person_research(body)
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
 
 
 @router.post("/dossiers/corporate/generate")
@@ -73,11 +95,18 @@ def generate_corporate_dossier(
 
     participantes, subject_display = build_corporate_generation_strings(body)
 
+    explicit_scope: JurisdictionScope | None = None
+    if body.resolution is not None:
+        explicit_scope = (
+            "uk_only" if body.resolution.source == "companies_house" else "us_only"
+        )
+
     t0 = time.perf_counter()
     markdown = run_corporate_dossier_langgraph(
         tema_reunion=f"Dossier corporativo — {participantes[:200]}",
         participantes=participantes,
         descripcion=descripcion,
+        jurisdiction_scope=explicit_scope,
     )
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
     now = datetime.now(timezone.utc)
@@ -172,6 +201,22 @@ def get_dossier_by_id(
         "generation_duration_ms": d.generation_duration_ms,
         "status_message": d.status_message,
     }
+
+
+@router.delete("/dossiers/{dossier_id}", status_code=204)
+def delete_dossier_by_id(
+    dossier_id: UUID,
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    db: Session = Depends(get_db_if_configured),
+):
+    """Elimina un dossier de la organización del JWT (filas hijas con ON DELETE CASCADE en BD)."""
+    _user, org = user_org
+    d = db.get(Dossier, dossier_id)
+    if d is None or d.organization_id != org.id:
+        raise HTTPException(status_code=404, detail="Dossier no encontrado.")
+    db.delete(d)
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.get("/dossiers")
