@@ -157,7 +157,6 @@ export default function OverviewPage() {
   }, [t]);
 
   const titleName = welcomeName || t("overview.anonymous");
-
   return (
     <>
       <TopBar
