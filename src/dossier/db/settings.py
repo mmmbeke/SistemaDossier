@@ -21,6 +21,22 @@ if importlib.util.find_spec("dossier") is None:
 from dossier.config import load_env
 
 
+def _database_url_for_sqlalchemy(url: str) -> str:
+    """
+    Railway y otros proveedores suelen dar `postgresql://` o `postgres://`.
+    SQLAlchemy 2 asocia eso al driver **psycopg2** (no instalado aquí).
+    Este proyecto usa **psycopg3** (`pip install psycopg[binary]`).
+    """
+    u = url.strip()
+    if u.startswith("postgresql+psycopg://") or u.startswith("postgresql+asyncpg://"):
+        return u
+    if u.startswith("postgres://"):
+        return "postgresql+psycopg://" + u[len("postgres://") :]
+    if u.startswith("postgresql://"):
+        return "postgresql+psycopg://" + u[len("postgresql://") :]
+    return u
+
+
 def build_database_url() -> str | None:
     """
     Devuelve la URL SQLAlchemy para psycopg3, o None si no hay configuración.
@@ -33,7 +49,7 @@ def build_database_url() -> str | None:
 
     direct = (os.getenv("DATABASE_URL") or "").strip()
     if direct:
-        return direct
+        return _database_url_for_sqlalchemy(direct)
 
     host = (os.getenv("POSTGRES_HOST") or "").strip()
     if not host:
