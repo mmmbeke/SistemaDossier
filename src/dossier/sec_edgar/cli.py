@@ -6,6 +6,7 @@ import time
 
 import requests
 
+from dossier.companies_house.prompt_templates import format_sec_filing_gemini_prompt
 from dossier.config import data_path, load_env
 from dossier.gemini.analyze import analyze_document_bytes
 
@@ -131,6 +132,7 @@ def maybe_analyze_with_gemini(
     filing_date: str,
     accession: str,
     cik: str,
+    ticker: str = "",
 ) -> None:
     load_env()
     if (os.getenv("GEMINI_SKIP_ANALYSIS") or "").strip() in ("1", "true", "yes"):
@@ -146,15 +148,14 @@ def maybe_analyze_with_gemini(
     print("\nDescargando documento para análisis con Gemini…")
     try:
         data = fetch_bytes(document_url)
-        prompt = (
-            "Eres un analista financiero. Resume en español este envío de la SEC. "
-            "Incluye: contexto del documento, puntos clave para inversores o cumplimiento, "
-            "riesgos o eventos destacados si los hay, y una conclusión breve que sintetice el "
-            "análisis e indique si conviene o no trabajar con la empresa (como contraparte "
-            "comercial o contractual), con argumentos concretos; si el documento no alcanza "
-            "para decidirlo, dilo explícitamente y qué faltaría saber. "
-            f"Metadatos: empresa={company_name}, formulario={form}, fecha={filing_date}, "
-            f"accession={accession}, CIK={cik}, archivo={document_name}."
+        prompt = format_sec_filing_gemini_prompt(
+            company_name=str(company_name),
+            cik=str(cik),
+            ticker=str(ticker or ""),
+            form=str(form),
+            filing_date=str(filing_date),
+            accession=str(accession),
+            document_name=str(document_name),
         )
         print("Enviando a Gemini (puede tardar en documentos largos)…")
         analysis = analyze_document_bytes(data, document_name, prompt)
@@ -275,6 +276,7 @@ def main() -> None:
                 filing_date=first["date"],
                 accession=first["accession"],
                 cik=cik,
+                ticker=str(company.get("ticker", "") or ""),
             )
         else:
             print(

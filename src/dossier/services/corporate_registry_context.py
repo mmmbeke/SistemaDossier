@@ -2,8 +2,10 @@
 Contexto corporativo real para el grafo LangGraph (Companies House + SEC).
 
 Los nodos del grafo llaman aquí para inyectar datos de APIs públicas en el prompt
-de síntesis Gemini. Si falla una API o faltan credenciales, se devuelve Markdown
-explicativo en lugar de fallar el pipeline entero.
+de síntesis Gemini. Opcionalmente se analiza con Gemini un **documento** del filing
+(CH vía Document API; SEC vía HTML principal en EDGAR), gobernado por variables de entorno.
+Si falla una API o faltan credenciales, se devuelve Markdown explicativo en lugar de fallar
+el pipeline entero.
 """
 from __future__ import annotations
 
@@ -21,7 +23,10 @@ from dossier.companies_house.cli import (
     get_company_profile,
     get_filing_history,
 )
-from dossier.companies_house.prompt_templates import format_ch_filing_gemini_prompt
+from dossier.companies_house.prompt_templates import (
+    format_ch_filing_gemini_prompt,
+    format_sec_filing_gemini_prompt,
+)
 from dossier.config import load_env
 from dossier.gemini.analyze import analyze_document_bytes
 from dossier.services.corporate_company_search import (
@@ -32,6 +37,17 @@ from dossier.services.corporate_company_search import (
 logger = logging.getLogger(__name__)
 
 SEC_USER_AGENT = "CarlosApp/1.0 (fduran@utem.cl)"
+
+
+def _sec_filing_gemini_enabled() -> bool:
+    """
+    Análisis Gemini del primer documento HTML principal de un filing SEC reciente.
+
+    Desactivar con ``DOSSIER_CORPORATE_SEC_FILING_GEMINI=0`` (misma filosofía que CH).
+    """
+    load_env()
+    v = (os.getenv("DOSSIER_CORPORATE_SEC_FILING_GEMINI") or "1").strip().lower()
+    return v not in ("0", "false", "no", "off")
 
 
 def _ch_filing_gemini_enabled() -> bool:
@@ -63,7 +79,9 @@ def _gemini_retry_sleep_seconds(exc: BaseException) -> float:
     return 58.0
 
 
-def _analyze_ch_document_with_retries(data: bytes, filename: str, prompt: str) -> str:
+def _gemini_analyze_bytes_with_retries(
+    data: bytes, filename: str, prompt: str, *, log_prefix: str
+) -> str:
     """Reintentos ante 429 / RESOURCE_EXHAUSTED (cuota o ráfaga)."""
     last: BaseException | None = None
     for attempt in range(4):
@@ -74,7 +92,8 @@ def _analyze_ch_document_with_retries(data: bytes, filename: str, prompt: str) -
             if attempt < 3 and _is_gemini_429_or_quota(e):
                 wait = _gemini_retry_sleep_seconds(e)
                 logger.info(
-                    "Gemini filing CH: 429/cuota, reintento en %.1fs (paso %s/4)",
+                    "%s: 429/cuota, reintento en %.1fs (paso %s/4)",
+                    log_prefix,
                     wait,
                     attempt + 2,
                 )
@@ -83,6 +102,12 @@ def _analyze_ch_document_with_retries(data: bytes, filename: str, prompt: str) -
             raise
     assert last is not None
     raise last
+
+
+def _analyze_ch_document_with_retries(data: bytes, filename: str, prompt: str) -> str:
+    return _gemini_analyze_bytes_with_retries(
+        data, filename, prompt, log_prefix="Gemini filing CH"
+    )
 
 # Número tras plantilla de resolución (español) del backend.
 _RE_CH_NUMBER = re.compile(
@@ -139,6 +164,14 @@ def _resolve_ch_company_number(participantes: str) -> tuple[str | None, str]:
             return rows[0]["company_number"], "primera coincidencia UK por texto del brief (heurística)"
 
     return None, "no se pudo deducir número UK (falta clave API, texto o coincidencias)"
+
+
+def _sec_fetch_bytes(url: str) -> bytes:
+    headers = {"User-Agent": SEC_USER_AGENT, "Accept-Encoding": "gzip, deflate"}
+    r = requests.get(url, headers=headers, timeout=120)
+    r.raise_for_status()
+    time.sleep(0.11)
+    return r.content
 
 
 def _sec_get_json(url: str) -> dict[str, Any]:
@@ -299,6 +332,134 @@ def _ch_gemini_filing_markdown(
         return f"\n\n### Análisis del formulario (Gemini)\n\n*Error al analizar el documento: {e}*\n"
 
 
+def _sec_gemini_filing_markdown(
+    submissions_data: dict[str, Any],
+    cik: str,
+    ticker_resolver: str | None,
+    resolution_note: str,
+) -> str:
+    """
+    Descarga el HTML principal del filing SEC más reciente que permita index.json
+    y lo analiza con Gemini (misma plantilla de riesgo que CH).
+    """
+    from dossier.sec_edgar.cli import build_document_url, build_index_url, find_main_document
+
+    load_env()
+    if (os.getenv("GEMINI_SKIP_ANALYSIS") or "").strip().lower() in ("1", "true", "yes"):
+        return ""
+
+    if not (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip():
+        return (
+            "\n\n### Análisis del documento SEC (Gemini)\n\n"
+            "*No hay `GEMINI_API_KEY` / `GOOGLE_API_KEY`: se omitió el análisis del documento.*\n"
+        )
+
+    if not _sec_filing_gemini_enabled():
+        return (
+            "\n\n### Análisis del documento SEC (Gemini)\n\n"
+            "*Omitido por configuración (`DOSSIER_CORPORATE_SEC_FILING_GEMINI=0`): no se descarga "
+            "HTML de EDGAR para Gemini (ahorra una petición además de la síntesis final).*\n"
+        )
+
+    company_name = str(submissions_data.get("name") or "N/A")
+    tickers_list = submissions_data.get("tickers") or []
+    ticker_display = (ticker_resolver or "").strip()
+    if not ticker_display and isinstance(tickers_list, list) and tickers_list:
+        ticker_display = str(tickers_list[0])
+    symbol_hint = ticker_display or None
+
+    recent = (submissions_data.get("filings") or {}).get("recent") or {}
+    forms = recent.get("form") or []
+    dates = recent.get("filingDate") or []
+    accns = recent.get("accessionNumber") or []
+    if not forms or not accns or len(forms) != len(accns):
+        return (
+            "\n\n### Análisis del documento SEC (Gemini)\n\n"
+            "*No hay bloque `filings.recent` utilizable en submissions.*\n"
+        )
+
+    chosen_form = chosen_date = chosen_acc = ""
+    chosen_doc: str | None = None
+    doc_bytes: bytes | None = None
+    doc_url = ""
+
+    n = min(len(forms), len(dates), len(accns), 28)
+    for i in range(n):
+        form_s = str(forms[i])
+        date_s = str(dates[i])
+        acc_s = str(accns[i])
+        try:
+            idx_url = build_index_url(cik, acc_s)
+            index_data = _sec_get_json(idx_url)
+        except Exception as e:
+            logger.info("SEC index.json omitido accession=%s: %s", acc_s, e)
+            continue
+        doc_name = find_main_document(index_data, symbol_hint=symbol_hint)
+        if not doc_name:
+            continue
+        low = str(doc_name).lower()
+        if not (low.endswith(".htm") or low.endswith(".html")):
+            continue
+        try:
+            final_url = build_document_url(cik, acc_s, str(doc_name))
+            raw = _sec_fetch_bytes(final_url)
+        except Exception as e:
+            logger.warning("SEC documento omitido %s: %s", doc_name, e)
+            continue
+        chosen_form, chosen_date, chosen_acc = form_s, date_s, acc_s
+        chosen_doc = str(doc_name)
+        doc_bytes = raw
+        doc_url = final_url
+        break
+
+    if not chosen_doc or doc_bytes is None:
+        return (
+            "\n\n### Análisis del documento SEC (Gemini)\n\n"
+            "*No se encontró un HTML principal descargable en los envíos recientes revisados "
+            "(o falló `index.json` / la descarga).*\n"
+        )
+
+    safe_acc = "".join(c if c.isalnum() else "_" for c in chosen_acc.replace("-", ""))[:28]
+    safe_doc = "".join(c if c.isalnum() else "_" for c in chosen_doc)[:40]
+    filename = f"sec_{safe_acc}_{chosen_form}_{safe_doc}"
+
+    prompt = format_sec_filing_gemini_prompt(
+        company_name=company_name,
+        cik=cik,
+        ticker=ticker_display,
+        form=chosen_form,
+        filing_date=chosen_date,
+        accession=chosen_acc,
+        document_name=chosen_doc,
+    )
+    try:
+        logger.info("Gemini: analizando filing SEC CIK=%s accession=%s (%s)", cik, chosen_acc, filename)
+        analysis = _gemini_analyze_bytes_with_retries(
+            doc_bytes, filename, prompt, log_prefix="Gemini filing SEC"
+        )
+        return (
+            "\n\n### Análisis del documento SEC (Gemini)\n\n"
+            f"*Resolución emisor: {resolution_note}"
+            + (f", ticker **{ticker_display}**" if ticker_display else "")
+            + f". URL analizada: `{doc_url}`*\n\n"
+            + (analysis.strip() or "(Gemini devolvió texto vacío.)")
+            + "\n"
+        )
+    except Exception as e:
+        logger.warning("Gemini SEC filing analysis failed: %s", e)
+        if _is_gemini_429_or_quota(e):
+            return (
+                "\n\n### Análisis del documento SEC (Gemini)\n\n"
+                "**Cuota o límite de Gemini (429 / RESOURCE_EXHAUSTED).** Este paso usa una petición "
+                "adicional a la síntesis final.\n\n"
+                "- Espera y reintenta, o revisa cuota en Google AI.\n"
+                "- Para omitir este análisis SEC en dossiers corporativos:\n\n"
+                "  `DOSSIER_CORPORATE_SEC_FILING_GEMINI=0`\n\n"
+                f"*Detalle:* `{e}`\n"
+            )
+        return f"\n\n### Análisis del documento SEC (Gemini)\n\n*Error al analizar el documento: {e}*\n"
+
+
 def build_uk_corporate_context_markdown(participantes: str) -> str:
     """Markdown con perfil + muestra de historial Companies House, o mensaje de fallo."""
     auth = _ch_auth()
@@ -385,6 +546,7 @@ def build_us_corporate_context_markdown(participantes: str) -> str:
         )
 
     body = _format_sec_recent_submissions(data, limit=22)
+    sec_gemini = _sec_gemini_filing_markdown(data, cik, ticker, note)
     return (
         "## Estados Unidos (SEC EDGAR) — datos de API\n\n"
         f"*Emisor resuelto: CIK **{cik}** ({note})"
@@ -392,4 +554,5 @@ def build_us_corporate_context_markdown(participantes: str) -> str:
         + ".*\n\n"
         + body
         + "\n"
+        + sec_gemini
     )

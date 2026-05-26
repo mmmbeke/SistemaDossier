@@ -14,7 +14,7 @@ SistemaDossier/
 │   ├── api/
 │   │   ├── app.py          # FastAPI: CORS, lifespan, rutas Microsoft, calendario, BD
 │   │   ├── auth_routes.py  # Auth app: register/login/me (tablas migradas + JWT)
-│   │   └── dossier_routes.py  # GET /dossiers, GET /dossiers/{id} (PostgreSQL)
+│   │   └── dossier_routes.py  # Dossiers PostgreSQL: listado, detalle, borrado, corporativo
 │   ├── services/
 │   │   ├── graph_calendar.py   # Microsoft Graph (Outlook)
 │   │   └── openai_dossier.py   # Dossiers con OpenAI

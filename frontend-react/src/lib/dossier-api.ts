@@ -291,6 +291,15 @@ export function getStoredAccessToken(): string | null {
   );
 }
 
+/** Quita JWT y vista previa de usuario en local y session (cerrar sesión). */
+export function clearAuthSession(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(DOSSIER_USER_PREVIEW_KEY);
+  sessionStorage.removeItem(DOSSIER_USER_PREVIEW_KEY);
+}
+
 async function postJsonWithAuth<T>(path: string, body: unknown): Promise<T> {
   const token = getStoredAccessToken();
   if (!token) {
@@ -410,6 +419,34 @@ export async function fetchCorporateCompanySearch(
   return parsed as CorporateCompanySearchResponse;
 }
 
+export type PersonResearchPayload = {
+  full_name: string;
+  job_area?: string | null;
+  company?: string | null;
+  country?: string | null;
+  city?: string | null;
+  extra_keywords?: string | null;
+  start?: number;
+  max_profiles?: number;
+  include_posts?: boolean;
+};
+
+export type PersonResearchApiResponse = {
+  filters_applied: Record<string, unknown>;
+  search_attempts: unknown[];
+  profile_urls: string[];
+  profiles: unknown[];
+  posts_by_url: Record<string, unknown>;
+  gemini_analysis_markdown: string | null;
+  warnings: string[];
+};
+
+export async function postPersonResearch(
+  payload: PersonResearchPayload
+): Promise<PersonResearchApiResponse> {
+  return postJsonWithAuth<PersonResearchApiResponse>("/dossiers/person/research", payload);
+}
+
 /** Genera dossier con pipeline LangGraph (UK + US + Gemini) y lo persiste en la API. */
 export async function createCorporateDossier(
   payload: CreateCorporateDossierPayload
@@ -479,4 +516,35 @@ export async function fetchDossierById(dossierId: string): Promise<DossierDetail
     throw new DossierApiError(res.status, msg, parsed);
   }
   return parsed as DossierDetailResponse;
+}
+
+/** Elimina un dossier (`DELETE /dossiers/{id}`). Respuesta 204 sin cuerpo. */
+export async function deleteDossierFromApi(dossierId: string): Promise<void> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/dossiers/${encodeURIComponent(dossierId)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throw new DossierApiError(0, "NETWORK");
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  if (text) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = { detail: text.slice(0, 500) };
+    }
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
 }
