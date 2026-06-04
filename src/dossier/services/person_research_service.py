@@ -134,7 +134,11 @@ def _search_strategies(req: PersonResearchRequest) -> list[tuple[str, dict[str, 
     return unique
 
 
-def run_person_research(req: PersonResearchRequest) -> dict[str, Any]:
+def run_person_research(
+    req: PersonResearchRequest,
+    *,
+    organization_context_block: str | None = None,
+) -> dict[str, Any]:
     warnings: list[str] = []
     try:
         client = NetrowsClient()
@@ -192,15 +196,19 @@ def run_person_research(req: PersonResearchRequest) -> dict[str, Any]:
         warnings.append("GEMINI_API_KEY no configurada: se omitió el análisis con IA.")
     elif profiles:
         try:
+            filters: dict[str, Any] = {
+                "full_name": req.full_name,
+                "job_area": req.job_area,
+                "company": req.company,
+                "country": req.country,
+                "city": req.city,
+                "extra_keywords": req.extra_keywords,
+            }
+            oc = (organization_context_block or "").strip()
+            if oc:
+                filters["contexto_organizacion_cliente"] = oc
             gemini_md = analyze_person_profile_bundle(
-                filters={
-                    "full_name": req.full_name,
-                    "job_area": req.job_area,
-                    "company": req.company,
-                    "country": req.country,
-                    "city": req.city,
-                    "extra_keywords": req.extra_keywords,
-                },
+                filters=filters,
                 profiles=profiles,
                 posts_by_url=posts_by_url if req.include_posts else {},
             )
@@ -223,6 +231,8 @@ def run_person_research(req: PersonResearchRequest) -> dict[str, Any]:
             "country": req.country,
             "city": req.city,
             "extra_keywords": req.extra_keywords,
+            "contexto_organizacion_cliente": (organization_context_block or "").strip()
+            or None,
             "geo_effective": _merge_geo(req.country, req.city),
             "start": req.start,
             "max_profiles": req.max_profiles,

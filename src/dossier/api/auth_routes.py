@@ -26,10 +26,20 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from dossier.billing.plan_catalog import apply_plan_to_organization
 from dossier.db import is_database_configured
 from dossier.db.models import Organization, OrgMembership, User
 from dossier.db.session import get_db
-from dossier.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserPublic
+from dossier.org_dossier_context import apply_dossier_context_patch, read_dossier_context
+from dossier.org_workspace import ORG_NAME_PERSONAL_PLACEHOLDER, read_workspace_kind
+from dossier.schemas.auth import (
+    LoginRequest,
+    OrganizationDossierContextPatch,
+    OrganizationPlanPatch,
+    RegisterRequest,
+    TokenResponse,
+    UserPublic,
+)
 from dossier.security import create_access_token, hash_password, verify_password
 from dossier.security.jwt_tokens import decode_access_token
 
@@ -142,13 +152,23 @@ def build_user_public(db: Session, user: User) -> UserPublic:
             detail="Usuario sin membresía de organización.",
         )
     org, m = pair
+    org_summary, org_industry = read_dossier_context(org)
+    wk = read_workspace_kind(org)
+    company_public = "" if wk == "personal" else org.name
     return UserPublic(
         id=user.id,
         email=user.email,
         full_name=user.full_name or "",
-        company_name=org.name,
+        company_name=company_public,
         organization_id=org.id,
         role=m.role,
+        is_platform_admin=bool(user.is_platform_admin),
+        organization_plan=org.plan,
+        credits_balance=org.credits_balance,
+        credits_monthly_limit=org.credits_monthly_limit,
+        workspace_kind=wk,
+        organization_company_summary=org_summary,
+        organization_industry_or_area=org_industry,
     )
 
 
@@ -238,13 +258,22 @@ def register_user(
             detail="Ya existe una cuenta con este email. Prueba a iniciar sesión.",
         )
 
-    slug = allocate_org_slug(db, body.company_name)
+    if body.workspace_kind == "personal":
+        slug = allocate_org_slug(db, email_norm)
+        org_settings: dict = {"workspace_kind": "personal"}
+        org_name = ORG_NAME_PERSONAL_PLACEHOLDER
+    else:
+        slug = allocate_org_slug(db, body.company_name or "")
+        org_settings = {"workspace_kind": "work"}
+        org_name = (body.company_name or "").strip()[:255]
+
     credits_balance, credits_monthly_limit = _signup_org_credits()
     org = Organization(
-        name=body.company_name.strip()[:255],
+        name=org_name,
         slug=slug,
         credits_balance=credits_balance,
         credits_monthly_limit=credits_monthly_limit,
+        settings=org_settings,
     )
     user = User(
         email=email_norm,
@@ -283,14 +312,7 @@ def register_user(
     )
     return TokenResponse(
         access_token=token,
-        user=UserPublic(
-            id=user.id,
-            email=user.email,
-            full_name=user.full_name or "",
-            company_name=org.name,
-            organization_id=org.id,
-            role=membership.role,
-        ),
+        user=build_user_public(db, user),
     )
 
 
@@ -326,14 +348,7 @@ def login_user(body: LoginRequest, db: Session = Depends(get_db_if_configured)) 
     )
     return TokenResponse(
         access_token=token,
-        user=UserPublic(
-            id=user.id,
-            email=user.email,
-            full_name=user.full_name or "",
-            company_name=org.name,
-            organization_id=org.id,
-            role=membership.role,
-        ),
+        user=build_user_public(db, user),
     )
 
 
@@ -342,4 +357,64 @@ def read_current_user(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db_if_configured),
 ) -> UserPublic:
+    return build_user_public(db, user)
+
+
+@router.patch("/organization/plan", response_model=UserPublic)
+def patch_organization_plan(
+    body: OrganizationPlanPatch,
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    db: Session = Depends(get_db_if_configured),
+) -> UserPublic:
+    user, org = user_org
+    m = db.execute(
+        select(OrgMembership).where(
+            OrgMembership.user_id == user.id,
+            OrgMembership.organization_id == org.id,
+        )
+    ).scalar_one_or_none()
+    if m is None or m.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Solo un administrador de la organización puede cambiar el plan.",
+        )
+    try:
+        apply_plan_to_organization(org, body.plan)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    db.add(org)
+    db.commit()
+    db.refresh(org)
+    db.refresh(user)
+    return build_user_public(db, user)
+
+
+@router.patch("/organization/dossier-context", response_model=UserPublic)
+def patch_organization_dossier_context(
+    body: OrganizationDossierContextPatch,
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    db: Session = Depends(get_db_if_configured),
+) -> UserPublic:
+    """Guarda texto libre sobre la empresa del tenant (para prompts de dossiers)."""
+    user, org = user_org
+    m = db.execute(
+        select(OrgMembership).where(
+            OrgMembership.user_id == user.id,
+            OrgMembership.organization_id == org.id,
+        )
+    ).scalar_one_or_none()
+    if m is None or m.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Solo un administrador de la organización puede editar el contexto de empresa.",
+        )
+    apply_dossier_context_patch(
+        org,
+        company_summary=body.company_summary,
+        industry_or_area=body.industry_or_area,
+    )
+    db.add(org)
+    db.commit()
+    db.refresh(org)
+    db.refresh(user)
     return build_user_public(db, user)
