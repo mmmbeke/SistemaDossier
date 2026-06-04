@@ -74,6 +74,17 @@ const navItems: NavItem[] = [
   },
 ];
 
+const adminNavItem: NavItem = {
+  href: "/dashboard/admin",
+  labelKey: "nav.admin",
+  icon: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
+};
+
 function initialsFromProfile(fullName: string, email: string): string {
   const n = fullName.trim();
   if (n.length >= 1) {
@@ -104,44 +115,71 @@ export default function Sidebar() {
   const { t } = useTranslation();
   const [footer, setFooter] = useState<FooterProfile | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      const preview = readDossierUserPreview();
-      if (preview) {
-        const initials = initialsFromProfile(preview.full_name, preview.email);
-        const name = preview.full_name.trim() || preview.email;
-        const detail = preview.company_name?.trim() || preview.email;
-        if (!cancelled) setFooter({ initials, name, detail });
-        return;
-      }
-
       const token = getStoredAccessToken();
       if (token) {
         try {
           const me = await fetchAuthMe();
+          if (cancelled) return;
+          setIsPlatformAdmin(!!me.is_platform_admin);
           writeDossierUserPreview(
             {
               email: me.email,
               full_name: me.full_name,
               company_name: me.company_name,
+              workspace_kind: me.workspace_kind,
+              is_platform_admin: !!me.is_platform_admin,
             },
             getAuthTokenStorageMode()
           );
           const initials = initialsFromProfile(me.full_name, me.email);
           const name = me.full_name.trim() || me.email;
-          const detail = me.company_name?.trim() || me.email;
-          if (!cancelled) setFooter({ initials, name, detail });
+          const detail =
+            me.workspace_kind === "personal"
+              ? t("workspace.personal")
+              : me.company_name?.trim() || me.email;
+          setFooter({ initials, name, detail });
         } catch {
-          if (!cancelled)
+          if (cancelled) return;
+          setIsPlatformAdmin(false);
+          const preview = readDossierUserPreview();
+          if (preview) {
+            setIsPlatformAdmin(!!preview.is_platform_admin);
+            const initials = initialsFromProfile(preview.full_name, preview.email);
+            const name = preview.full_name.trim() || preview.email;
+            const detail =
+              preview.workspace_kind === "personal"
+                ? t("workspace.personal")
+                : preview.company_name?.trim() || preview.email;
+            setFooter({ initials, name, detail });
+          } else {
             setFooter({
               initials: "?",
               name: t("auth.error.server"),
               detail: t("user.plan"),
             });
+          }
+        }
+        return;
+      }
+
+      const preview = readDossierUserPreview();
+      if (preview) {
+        if (!cancelled) {
+          setIsPlatformAdmin(!!preview.is_platform_admin);
+          const initials = initialsFromProfile(preview.full_name, preview.email);
+          const name = preview.full_name.trim() || preview.email;
+          const detail =
+            preview.workspace_kind === "personal"
+              ? t("workspace.personal")
+              : preview.company_name?.trim() || preview.email;
+          setFooter({ initials, name, detail });
         }
         return;
       }
@@ -173,6 +211,7 @@ export default function Sidebar() {
   function handleLogout() {
     clearAuthSession();
     setMenuOpen(false);
+    setIsPlatformAdmin(false);
     setFooter({ ...DEMO_FOOTER, detail: t("user.plan") });
     router.push("/login");
     router.refresh();
@@ -205,7 +244,7 @@ export default function Sidebar() {
 
       <nav className="flex-1 px-3 py-4">
         <ul className="flex flex-col gap-1">
-          {navItems.map((item) => {
+          {[...navItems, ...(isPlatformAdmin ? [adminNavItem] : [])].map((item) => {
             const active = isActive(item.href);
             return (
               <li key={item.href}>

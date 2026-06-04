@@ -126,6 +126,9 @@ CREATE TABLE users (
     is_active           BOOLEAN         NOT NULL DEFAULT TRUE,
     -- Soft-delete de usuario sin eliminar su historial.
 
+    is_platform_admin BOOLEAN         NOT NULL DEFAULT FALSE,
+    -- Administrador de plataforma: acceso al panel `/admin` y métricas globales (no ligado a un tenant).
+
     created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
@@ -1176,6 +1179,16 @@ COMMENT ON VIEW v_critical_alerts IS 'Alertas críticas activas no reconocidas. 
 -- CREATE ROLE readonly_user LOGIN PASSWORD 'secure_password';
 -- GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_user;
 -- REVOKE SELECT ON audit_logs FROM readonly_user; -- Logs de auditoría: acceso restringido
+
+
+-- =============================================================================
+-- MIGRACIÓN INCREMENTAL: administrador de plataforma (usuarios existentes)
+-- Ejecutar una vez si la tabla `users` ya existía sin la columna siguiente.
+-- =============================================================================
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_platform_admin BOOLEAN NOT NULL DEFAULT FALSE;
+-- Opcional: otorgar panel de admin a un usuario concreto:
+-- UPDATE users SET is_platform_admin = TRUE WHERE lower(email) = lower('tu-admin@dominio.com');
 
 
 -- =============================================================================
