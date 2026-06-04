@@ -618,6 +618,8 @@ export type PersonResearchPayload = {
   start?: number;
   max_profiles?: number;
   include_posts?: boolean;
+  /** `gemini_web` = solo IA + Google Search; `netrows` = API Netrows + análisis Gemini. */
+  research_source?: "gemini_web" | "netrows";
 };
 
 export type PersonResearchApiResponse = {
@@ -627,6 +629,8 @@ export type PersonResearchApiResponse = {
   profiles: unknown[];
   posts_by_url: Record<string, unknown>;
   gemini_analysis_markdown: string | null;
+  /** True si el informe salió de Gemini + Google Search (sin JSON de Netrows). */
+  gemini_google_search_used?: boolean;
   warnings: string[];
 };
 

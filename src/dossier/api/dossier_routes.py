@@ -53,9 +53,8 @@ def person_professional_research(
     user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
 ):
     """
-    Búsqueda de persona vía Netrows (`/people/search` + `/people/profile`) y análisis
-    narrativo con Gemini a partir del JSON devuelto. Requiere `NETROWS_API_KEY` y, para
-    el informe de IA, `GEMINI_API_KEY` (o `GOOGLE_API_KEY`).
+    Investigación de persona: elige `research_source` en el cuerpo JSON.
+    `gemini_web`: solo Gemini + Google Search. `netrows`: API Netrows + análisis Gemini (requiere NETROWS_API_KEY).
     """
     _user, org = user_org
     try:

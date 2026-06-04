@@ -2,7 +2,7 @@
 
 Esta carpeta sirve para **validar la integración HTTP** con [Netrows](https://www.netrows.com/) antes de conectarla al backend del proyecto.
 
-La **app productiva** expone `POST /dossiers/person/research` (JWT + misma `NETROWS_API_KEY` y `GEMINI_API_KEY` en `.env` de la raíz), consumida por el dashboard en **Personas (Netrows)** (`/dashboard/person-research`).
+La **app productiva** expone `POST /dossiers/person/research` (JWT + `GEMINI_API_KEY` en `.env`; Netrows opcional con `research_source: "netrows"` y `NETROWS_API_KEY`), consumida por el dashboard en **Personas** (`/dashboard/person-research`).
 
 ## Seguridad y RGPD
 
