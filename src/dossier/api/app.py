@@ -1,7 +1,9 @@
 """Aplicación FastAPI (rutas HTTP). El punto de entrada del servidor está en `main.py` en la raíz."""
 from __future__ import annotations
 
+import logging
 import os
+import re
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -26,6 +28,21 @@ from dossier.services import (
 
 load_env()
 
+logger = logging.getLogger(__name__)
+
+
+def _parse_cors_origins(raw: str) -> list[str]:
+    """
+    Normaliza CORS_ORIGINS: quita BOM/espacios y barra final.
+    El navegador envía Origin sin barra final; si en Railway dejaste una, no coincidía.
+    """
+    out: list[str] = []
+    for part in raw.split(","):
+        o = part.strip().strip("\ufeff").rstrip("/")
+        if o:
+            out.append(o)
+    return out
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,6 +64,11 @@ async def lifespan(app: FastAPI):
 
             engine = get_engine()
             Base.metadata.create_all(bind=engine)
+    logger.info(
+        "CORS: allow_origin_regex=%s, origins=%s",
+        "on" if _cors_origin_regex else "off",
+        _cors_origins,
+    )
     yield
 
 
@@ -62,15 +84,23 @@ _cors_raw = os.getenv(
     "CORS_ORIGINS",
     "http://localhost:3000,http://127.0.0.1:3000,http://[::1]:3000",
 )
-_cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
-# Cada preview en Vercel tiene un subdominio distinto; con regex no hace falta listarlos todos.
-# Desactivar en producción estricta: CORS_ALLOW_VERCEL_APP_REGEX=0
+_cors_origins = _parse_cors_origins(_cors_raw)
+# Cada preview en Vercel tiene un subdominio distinto (hash, rama, equipo).
+# fullmatch() sobre el header Origin (sin path). Desactivar: CORS_ALLOW_VERCEL_APP_REGEX=0
 _cors_vercel_re = os.getenv("CORS_ALLOW_VERCEL_APP_REGEX", "1").strip().lower()
-_cors_origin_regex: str | None = (
-    r"https://[a-zA-Z0-9][a-zA-Z0-9._-]*\.vercel\.app"
-    if _cors_vercel_re not in ("0", "false", "no")
-    else None
-)
+_cors_origin_regex: str | None = None
+if _cors_vercel_re not in ("0", "false", "no"):
+    _custom = (os.getenv("CORS_VERCEL_ORIGIN_REGEX") or "").strip()
+    if _custom:
+        try:
+            re.compile(_custom)
+        except re.error:
+            logger.warning("CORS_VERCEL_ORIGIN_REGEX inválida; se usa el patrón por defecto.")
+        else:
+            _cors_origin_regex = _custom
+    if _cors_origin_regex is None:
+        # Amplio pero solo host *.vercel.app (Origin nunca incluye path).
+        _cors_origin_regex = r"https://.+\.vercel\.app"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
