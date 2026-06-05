@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
 
+from dossier.api.admin_routes import router as admin_router
 from dossier.api.auth_routes import router as auth_router
 from dossier.api.dossier_routes import router as dossiers_router
 from dossier.api.google_calendar import router as google_calendar_router
@@ -80,6 +81,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(dossiers_router)
 app.include_router(google_calendar_router)
 

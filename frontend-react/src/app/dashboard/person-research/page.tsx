@@ -17,8 +17,11 @@ import { useTranslation } from "@/providers/PreferencesProvider";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+type ResearchSourceUi = "gemini_web" | "netrows";
+
 export default function PersonResearchPage() {
   const { t } = useTranslation();
+  const [researchSource, setResearchSource] = useState<ResearchSourceUi>("gemini_web");
   const [fullName, setFullName] = useState("");
   const [jobArea, setJobArea] = useState("");
   const [company, setCompany] = useState("");
@@ -48,8 +51,10 @@ export default function PersonResearchPage() {
 
     const payload: PersonResearchPayload = {
       full_name: name,
-      max_profiles: Math.min(5, Math.max(1, maxProfiles)),
-      include_posts: includePosts,
+      research_source: researchSource,
+      max_profiles:
+        researchSource === "netrows" ? Math.min(5, Math.max(1, maxProfiles)) : 1,
+      include_posts: researchSource === "netrows" ? includePosts : false,
     };
     const ja = jobArea.trim();
     const co = company.trim();
@@ -97,6 +102,42 @@ export default function PersonResearchPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <DashboardCard title={t("person_research.section_filters")}>
           <form className="flex flex-col gap-4" onSubmit={(e) => void handleSubmit(e)}>
+            <fieldset className="flex flex-col gap-2 rounded-lg border p-3 text-sm" style={{ borderColor: "var(--border-default)" }}>
+              <legend className="px-1 font-medium" style={{ color: "var(--text-secondary)" }}>
+                {t("person_research.source_label")}
+              </legend>
+              <label className="flex cursor-pointer items-start gap-2" style={{ color: "var(--text-primary)" }}>
+                <input
+                  type="radio"
+                  name="research_source"
+                  checked={researchSource === "gemini_web"}
+                  onChange={() => setResearchSource("gemini_web")}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-medium">{t("person_research.source_gemini")}</span>
+                  <span className="mt-0.5 block text-xs" style={{ color: "var(--text-muted)" }}>
+                    {t("person_research.source_gemini_hint")}
+                  </span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2" style={{ color: "var(--text-primary)" }}>
+                <input
+                  type="radio"
+                  name="research_source"
+                  checked={researchSource === "netrows"}
+                  onChange={() => setResearchSource("netrows")}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-medium">{t("person_research.source_netrows")}</span>
+                  <span className="mt-0.5 block text-xs" style={{ color: "var(--text-muted)" }}>
+                    {t("person_research.source_netrows_hint")}
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+
             <FormField
               label={t("person_research.full_name")}
               name="full_name"
@@ -141,32 +182,35 @@ export default function PersonResearchPage() {
               onChange={(e) => setExtraKeywords(e.target.value)}
             />
 
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                {t("person_research.max_profiles")}
-              </label>
-              <input
-                type="number"
-                name="max_profiles"
-                min={1}
-                max={5}
-                className="w-24 rounded-lg border px-3 py-2 text-sm"
-                style={{ borderColor: "var(--border-default)", color: "var(--text-primary)" }}
-                value={maxProfiles}
-                onChange={(e) => setMaxProfiles(Number(e.target.value))}
-              />
-            </div>
-
-            <label className="flex cursor-pointer items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-              <input
-                type="checkbox"
-                checked={includePosts}
-                onChange={(e) => setIncludePosts(e.target.checked)}
-                className="rounded border"
-                style={{ borderColor: "var(--border-default)" }}
-              />
-              {t("person_research.include_posts")}
-            </label>
+            {researchSource === "netrows" ? (
+              <>
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                    {t("person_research.max_profiles")}
+                  </label>
+                  <input
+                    type="number"
+                    name="max_profiles"
+                    min={1}
+                    max={5}
+                    className="w-24 rounded-lg border px-3 py-2 text-sm"
+                    style={{ borderColor: "var(--border-default)", color: "var(--text-primary)" }}
+                    value={maxProfiles}
+                    onChange={(e) => setMaxProfiles(Number(e.target.value))}
+                  />
+                </div>
+                <label className="flex cursor-pointer items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  <input
+                    type="checkbox"
+                    checked={includePosts}
+                    onChange={(e) => setIncludePosts(e.target.checked)}
+                    className="rounded border"
+                    style={{ borderColor: "var(--border-default)" }}
+                  />
+                  {t("person_research.include_posts")}
+                </label>
+              </>
+            ) : null}
 
             {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
@@ -193,6 +237,11 @@ export default function PersonResearchPage() {
 
           {result?.gemini_analysis_markdown ? (
             <DashboardCard title={t("person_research.section_analysis")}>
+              {result.gemini_google_search_used ? (
+                <p className="mb-3 text-xs leading-relaxed" style={{ color: "var(--accent-from)" }}>
+                  {t("person_research.analysis_web_badge")}
+                </p>
+              ) : null}
               <div
                 className="api-md max-w-none text-sm leading-relaxed"
                 style={{ color: "var(--text-primary)" }}
@@ -210,7 +259,10 @@ export default function PersonResearchPage() {
             </DashboardCard>
           ) : null}
 
-          {result ? (
+          {result &&
+          (result.filters_applied?.research_source === "netrows" ||
+            (Array.isArray(result.search_attempts) && result.search_attempts.length > 0) ||
+            (Array.isArray(result.profile_urls) && result.profile_urls.length > 0)) ? (
             <DashboardCard title={t("person_research.section_raw")}>
               <button
                 type="button"

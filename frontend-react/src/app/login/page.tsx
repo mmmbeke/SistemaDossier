@@ -61,6 +61,8 @@ export default function LoginPage() {
           email: data.user.email,
           full_name: data.user.full_name,
           company_name: data.user.company_name,
+          workspace_kind: data.user.workspace_kind,
+          is_platform_admin: !!data.user.is_platform_admin,
         },
         remember ? "local" : "session"
       );

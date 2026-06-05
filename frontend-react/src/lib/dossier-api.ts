@@ -21,8 +21,19 @@ export type AuthUser = {
   email: string;
   full_name: string;
   company_name: string;
+  /** `personal` = espacio sin nombre de empresa comercial (solo tú). */
+  workspace_kind?: "personal" | "work";
   organization_id?: string;
   role?: string;
+  is_platform_admin?: boolean;
+  /** Plan de la organización activa (`organizations.plan`). */
+  organization_plan?: string;
+  credits_balance?: number;
+  credits_monthly_limit?: number;
+  /** Texto libre: qué es la empresa (personaliza prompts de dossiers). */
+  organization_company_summary?: string | null;
+  /** Sector o área de negocio. */
+  organization_industry_or_area?: string | null;
 };
 
 /** Fila devuelta por `GET /dossiers` (tabla `dossiers` en PostgreSQL). */
@@ -74,6 +85,8 @@ export type DossierUserPreview = {
   email: string;
   full_name: string;
   company_name?: string;
+  workspace_kind?: "personal" | "work";
+  is_platform_admin?: boolean;
 };
 
 export const DOSSIER_USER_PREVIEW_KEY = "dossier_user_preview";
@@ -91,6 +104,11 @@ export function readDossierUserPreview(): DossierUserPreview | null {
       email: o.email,
       full_name: o.full_name,
       company_name: typeof o.company_name === "string" ? o.company_name : undefined,
+      workspace_kind:
+        o.workspace_kind === "personal" || o.workspace_kind === "work"
+          ? o.workspace_kind
+          : undefined,
+      is_platform_admin: typeof o.is_platform_admin === "boolean" ? o.is_platform_admin : undefined,
     };
   } catch {
     return null;
@@ -211,7 +229,8 @@ export async function authRegister(payload: {
   email: string;
   password: string;
   full_name: string;
-  company_name: string;
+  company_name?: string | null;
+  workspace_kind?: "personal" | "work";
 }): Promise<AuthSuccessResponse> {
   const data = await postJson<AuthSuccessResponse>("/auth/register", payload);
   assertAuthSuccessResponse(data);
@@ -257,6 +276,176 @@ export async function fetchAuthMe(): Promise<AuthUser> {
     throw new DossierApiError(502, "Respuesta inválida de /auth/me.", parsed);
   }
   return parsed as AuthUser;
+}
+
+export type AdminOverview = {
+  users_total: number;
+  organizations_total: number;
+  dossiers_total: number;
+};
+
+export type AdminUserRow = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  is_active: boolean;
+  is_platform_admin: boolean;
+  created_at: string | null;
+  organization_id: string | null;
+  organization_name: string | null;
+  workspace_kind?: "personal" | "work" | null;
+  plan: string | null;
+  credits_balance: number | null;
+  credits_monthly_limit: number | null;
+  dossiers_count: number;
+};
+
+export type AdminUsersResponse = { total: number; items: AdminUserRow[] };
+
+export type AdminOrgRow = {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  credits_balance: number;
+  credits_monthly_limit: number;
+  is_active: boolean;
+  members_count: number;
+  dossiers_count: number;
+  created_at: string | null;
+  workspace_kind?: "personal" | "work";
+};
+
+export type AdminOrgsResponse = { total: number; items: AdminOrgRow[] };
+
+export type AdminDossierRow = {
+  id: string;
+  organization_id: string;
+  organization_name: string;
+  workspace_kind?: "personal" | "work";
+  requested_by_user_id: string;
+  requested_by_email: string;
+  subject_name: string | null;
+  subject_email: string | null;
+  status: string;
+  credits_consumed: number;
+  created_at: string | null;
+};
+
+export type AdminDossiersResponse = { total: number; items: AdminDossierRow[] };
+
+async function getJsonWithAuth<T>(path: string): Promise<T> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throw new DossierApiError(0, "NETWORK");
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as T;
+}
+
+async function patchJsonWithAuth<T>(path: string, body: unknown): Promise<T> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new DossierApiError(0, "NETWORK");
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as T;
+}
+
+export async function fetchAdminOverview(): Promise<AdminOverview> {
+  return getJsonWithAuth<AdminOverview>("/admin/overview");
+}
+
+export async function fetchAdminUsers(limit = 50, offset = 0): Promise<AdminUsersResponse> {
+  const q = `limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`;
+  return getJsonWithAuth<AdminUsersResponse>(`/admin/users?${q}`);
+}
+
+export async function fetchAdminOrganizations(limit = 50, offset = 0): Promise<AdminOrgsResponse> {
+  const q = `limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`;
+  return getJsonWithAuth<AdminOrgsResponse>(`/admin/organizations?${q}`);
+}
+
+export async function fetchAdminDossiers(limit = 50, offset = 0): Promise<AdminDossiersResponse> {
+  const q = `limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`;
+  return getJsonWithAuth<AdminDossiersResponse>(`/admin/dossiers?${q}`);
+}
+
+export type AdminUserRolesPatchBody = {
+  is_platform_admin: boolean;
+};
+
+/** Actualiza solo el rol de administrador de plataforma (`PATCH /admin/users/{id}`). */
+export async function patchAdminUserRoles(
+  userId: string,
+  body: AdminUserRolesPatchBody
+): Promise<AdminUserRow> {
+  return patchJsonWithAuth<AdminUserRow>(`/admin/users/${encodeURIComponent(userId)}`, body);
+}
+
+export type OrganizationPlanPatchBody = {
+  plan: "free" | "pro" | "enterprise";
+};
+
+/** Cambia el plan de la organización del JWT (solo rol `admin` en la org). */
+export async function patchOrganizationPlan(body: OrganizationPlanPatchBody): Promise<AuthUser> {
+  return patchJsonWithAuth<AuthUser>("/auth/organization/plan", body);
+}
+
+export type OrganizationDossierContextPatchBody = {
+  company_summary: string;
+  industry_or_area: string;
+};
+
+/** Contexto de empresa para prompts (solo rol `admin` en la org). */
+export async function patchOrganizationDossierContext(
+  body: OrganizationDossierContextPatchBody
+): Promise<AuthUser> {
+  return patchJsonWithAuth<AuthUser>("/auth/organization/dossier-context", body);
 }
 
 /**
@@ -429,6 +618,8 @@ export type PersonResearchPayload = {
   start?: number;
   max_profiles?: number;
   include_posts?: boolean;
+  /** `gemini_web` = solo IA + Google Search; `netrows` = API Netrows + análisis Gemini. */
+  research_source?: "gemini_web" | "netrows";
 };
 
 export type PersonResearchApiResponse = {
@@ -438,6 +629,8 @@ export type PersonResearchApiResponse = {
   profiles: unknown[];
   posts_by_url: Record<string, unknown>;
   gemini_analysis_markdown: string | null;
+  /** True si el informe salió de Gemini + Google Search (sin JSON de Netrows). */
+  gemini_google_search_used?: boolean;
   warnings: string[];
 };
 

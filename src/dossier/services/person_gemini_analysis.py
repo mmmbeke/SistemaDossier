@@ -21,7 +21,9 @@ otra fuente disponible a través de la API Netrows.
 Límite de evidencia: si un hecho concreto (URL, juicio, sanción, PEP, red social, etc.)
 no aparece en el JSON que recibirás en el mensaje de usuario, indícalo explícitamente
 como «No consta en los datos de Netrows» en esa subsección. No inventes datos que no
-estén respaldados por ese corpus."""
+estén respaldados por ese corpus.
+Si falta LinkedIn u otra red en el JSON, no interpretes eso como «la persona no tiene
+perfil» en la vida real: solo informa la ausencia en el corpus Netrows."""
 
 
 def _truncate_json(payload: Any, max_chars: int) -> str:

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from dossier.api.auth_routes import get_current_user_and_org, get_db_if_configured
 from dossier.db.models import Dossier, Organization, User
+from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.graphs.corporate_dossier_graph import (
     JurisdictionScope,
     run_corporate_dossier_langgraph,
@@ -52,13 +53,15 @@ def person_professional_research(
     user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
 ):
     """
-    Búsqueda de persona vía Netrows (`/people/search` + `/people/profile`) y análisis
-    narrativo con Gemini a partir del JSON devuelto. Requiere `NETROWS_API_KEY` y, para
-    el informe de IA, `GEMINI_API_KEY` (o `GOOGLE_API_KEY`).
+    Investigación de persona: elige `research_source` en el cuerpo JSON.
+    `gemini_web`: solo Gemini + Google Search. `netrows`: API Netrows + análisis Gemini (requiere NETROWS_API_KEY).
     """
-    _user, _org = user_org
+    _user, org = user_org
     try:
-        return run_person_research(body)
+        return run_person_research(
+            body,
+            organization_context_block=format_dossier_context_for_prompt(org),
+        )
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
 
@@ -91,6 +94,9 @@ def generate_corporate_dossier(
     descripcion_parts: list[str] = []
     if body.subject_email:
         descripcion_parts.append(f"Email participante: {body.subject_email}")
+    org_ctx = format_dossier_context_for_prompt(org)
+    if org_ctx:
+        descripcion_parts.append(org_ctx)
     descripcion = "\n".join(descripcion_parts)
 
     participantes, subject_display = build_corporate_generation_strings(body)
@@ -117,14 +123,14 @@ def generate_corporate_dossier(
 
     dossier_id = uuid.uuid4()
     dossier_data_body: dict = {
-            "format": "markdown",
-            "body": markdown,
-            "pipeline": "langgraph_corporate",
-            "depth_requested": body.depth,
-            "success": not is_err,
-            # Consumido por el trigger `fn_debit_credits_on_dossier` (Migración): sin débito si es "none".
-            "billing": "none" if cost == 0 else "charged",
-        }
+        "format": "markdown",
+        "body": markdown,
+        "pipeline": "langgraph_corporate",
+        "depth_requested": body.depth,
+        "success": not is_err,
+        # Consumido por el trigger `fn_debit_credits_on_dossier` (Migración): sin débito si es "none".
+        "billing": "none" if cost == 0 else "charged",
+    }
     if body.resolution is not None:
         dossier_data_body["resolution"] = body.resolution.model_dump(mode="json")
 

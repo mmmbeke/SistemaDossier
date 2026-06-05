@@ -237,9 +237,6 @@ export default function RegisterPage() {
     return next;
   }
 
-  const orgDisplayName =
-    accountKind === "work" ? company.trim() : fullName;
-
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const v = validate();
@@ -257,7 +254,7 @@ export default function RegisterPage() {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           full_name: fullName,
-          company_name: orgDisplayName,
+          company_name: accountKind === "work" ? company.trim() : "",
           organization_slug: finalSlug,
           organization_slug_input:
             accountKind === "work" ? orgSlug.trim().toLowerCase() : "",
@@ -273,7 +270,8 @@ export default function RegisterPage() {
         email: email.trim().toLowerCase(),
         password,
         full_name: fullName,
-        company_name: orgDisplayName,
+        workspace_kind: accountKind,
+        ...(accountKind === "work" ? { company_name: company.trim() } : {}),
       });
       // Tras crear cuenta dejamos sesión iniciada (misma UX que "recuérdame" en login).
       persistAuthToken(data.access_token, true);
@@ -282,6 +280,8 @@ export default function RegisterPage() {
           email: data.user.email,
           full_name: data.user.full_name,
           company_name: data.user.company_name,
+          workspace_kind: data.user.workspace_kind,
+          is_platform_admin: !!data.user.is_platform_admin,
         },
         "local"
       );
