@@ -62,9 +62,18 @@ _cors_raw = os.getenv(
     "http://localhost:3000,http://127.0.0.1:3000,http://[::1]:3000",
 )
 _cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+# Cada preview en Vercel tiene un subdominio distinto; con regex no hace falta listarlos todos.
+# Desactivar en producción estricta: CORS_ALLOW_VERCEL_APP_REGEX=0
+_cors_vercel_re = os.getenv("CORS_ALLOW_VERCEL_APP_REGEX", "1").strip().lower()
+_cors_origin_regex: str | None = (
+    r"https://[a-zA-Z0-9][a-zA-Z0-9._-]*\.vercel\.app"
+    if _cors_vercel_re not in ("0", "false", "no")
+    else None
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_origin_regex=_cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
