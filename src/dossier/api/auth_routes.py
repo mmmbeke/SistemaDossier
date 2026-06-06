@@ -51,7 +51,7 @@ def _signup_org_credits() -> tuple[int, int]:
     Créditos iniciales de la organización al registrarse (`/auth/register`).
 
     Variables opcionales en `.env`:
-    - `ORG_SIGNUP_CREDITS` — saldo inicial (≥ 0). Por defecto 500.
+    - `ORG_SIGNUP_CREDITS` — saldo inicial (≥ 0). Por defecto **10** (tier Free del informe).
     - `ORG_SIGNUP_CREDITS_MONTHLY_LIMIT` — tope mensual; si no se define, igual al saldo.
     """
 
@@ -65,7 +65,7 @@ def _signup_org_credits() -> tuple[int, int]:
             return default
         return max(0, v)
 
-    balance = _parse("ORG_SIGNUP_CREDITS", 500)
+    balance = _parse("ORG_SIGNUP_CREDITS", 10)
     lim_raw = os.getenv("ORG_SIGNUP_CREDITS_MONTHLY_LIMIT")
     if lim_raw is not None and str(lim_raw).strip():
         limit = _parse("ORG_SIGNUP_CREDITS_MONTHLY_LIMIT", balance)

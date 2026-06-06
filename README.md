@@ -64,6 +64,8 @@ python scripts/sec_edgar.py
 | `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | Caducidad del token (por defecto 7 días) |
 | `CORS_ORIGINS` | Orígenes permitidos para el Next.js (lista separada por comas) |
 | `DATABASE_AUTO_CREATE_TABLES` | `0` para no ejecutar `create_all` al arrancar (si ya aplicaste el SQL de migración) |
+| `ORG_SIGNUP_CREDITS` / `ORG_SIGNUP_CREDITS_MONTHLY_LIMIT` | Saldo y tope al registrar una org (por defecto **10**; informe tier Free) |
+| `DOSSIER_CHARGE_CREDITS` | `true` (defecto): descuenta 1/3/5 créditos por dossier corporativo según profundidad (trigger en PostgreSQL). `0`/`false` desactiva el cobro en demos |
 
 Más: [.env.example](.env.example) y [docs/postgresql.md](docs/postgresql.md).
 

@@ -145,32 +145,7 @@ function DomainTags({
 export default function AutomationPage() {
   const { t } = useTranslation();
 
-  const [calendars, setCalendars] = useState<CalendarAccount[]>([
-    {
-      id: "g-work",
-      provider: "google",
-      nameKey: "calendar.work",
-      email: "john.doe@company.com",
-      connected: true,
-      autoGenerate: true,
-    },
-    {
-      id: "g-personal",
-      provider: "google",
-      nameKey: "calendar.personal",
-      email: "johndoe@gmail.com",
-      connected: true,
-      autoGenerate: false,
-    },
-    {
-      id: "o-work",
-      provider: "outlook",
-      nameKey: "calendar.outlook_work",
-      email: "j.doe@enterprise.com",
-      connected: false,
-      autoGenerate: false,
-    },
-  ]);
+  const [calendars, setCalendars] = useState<CalendarAccount[]>([]);
 
   const [beforeMinutes, setBeforeMinutes] = useState("30");
   const [defaultDepth, setDefaultDepth] = useState("standard");
@@ -178,14 +153,8 @@ export default function AutomationPage() {
   const [skipInternal, setSkipInternal] = useState(true);
   const [skipRecurring, setSkipRecurring] = useState(false);
 
-  const [alwaysDomains, setAlwaysDomains] = useState([
-    "sequoia.com",
-    "a16z.com",
-  ]);
-  const [neverDomains, setNeverDomains] = useState([
-    "company.com",
-    "personal.com",
-  ]);
+  const [alwaysDomains, setAlwaysDomains] = useState<string[]>([]);
+  const [neverDomains, setNeverDomains] = useState<string[]>([]);
 
   const [emailProvider, setEmailProvider] = useState("gmail");
   const [sendBeforeMeeting, setSendBeforeMeeting] = useState(true);
@@ -231,7 +200,12 @@ export default function AutomationPage() {
           }
         >
           <ul className="flex flex-col gap-3">
-            {calendars.map((cal) => (
+            {calendars.length === 0 ? (
+              <li className="rounded-xl border px-4 py-6 text-sm" style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}>
+                {t("automation.calendars_empty")}
+              </li>
+            ) : (
+              calendars.map((cal) => (
               <li
                 key={cal.id}
                 className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center"
@@ -290,7 +264,8 @@ export default function AutomationPage() {
                   onChange={(v) => toggleCalendarAuto(cal.id, v)}
                 />
               </li>
-            ))}
+              ))
+            )}
           </ul>
         </DashboardCard>
 
