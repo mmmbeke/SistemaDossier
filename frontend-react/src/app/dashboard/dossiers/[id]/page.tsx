@@ -4,9 +4,7 @@ import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import CorporateDossierDetailView from "./CorporateDossierDetailView";
-import DossierDetailView from "./DossierDetailView";
 import { fetchDossierById, type DossierDetailResponse } from "@/lib/dossier-api";
-import { getDossierById } from "@/lib/mock-dossiers";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -68,12 +66,7 @@ function PostgresDossierDetail({ id }: { id: string }) {
 export default function DossierDetailPage() {
   const params = useParams();
   const id = typeof params?.id === "string" ? params.id : "";
-  const mock = id ? getDossierById(id) : undefined;
   const isUuid = Boolean(id && UUID_RE.test(id));
-
-  if (mock) {
-    return <DossierDetailView dossier={mock} />;
-  }
 
   if (!id || !isUuid) {
     notFound();

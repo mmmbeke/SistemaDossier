@@ -1,6 +1,7 @@
 """Listado y generación de dossiers persistidos en PostgreSQL (tabla `dossiers` del schema migrado)."""
 from __future__ import annotations
 
+import os
 import time
 import uuid
 from datetime import datetime, timezone
@@ -29,9 +30,24 @@ from dossier.services.person_research_service import run_person_research
 
 router = APIRouter(tags=["Dossiers"])
 
-# Temporal: sin comprobación de saldo ni descuento al generar dossiers corporativos.
-# Pon en True cuando quieras volver a cobrar según `DEPTH_CREDITS`.
-_CHARGE_CREDITS_FOR_CORPORATE_DOSSIER = False
+
+def _corporate_credit_charging_enabled() -> bool:
+    """
+    Cobro por generación corporativa (profundidad → créditos vía `DEPTH_CREDITS`).
+
+    El descuento de saldo lo hace el trigger PostgreSQL `fn_debit_credits_on_dossier`
+    (Migración) cuando `dossier_data->>'billing' != 'none'`. No duplicar descuento en Python.
+
+    Desactivar cobro (p. ej. demos): `DOSSIER_CHARGE_CREDITS=0` en `.env`.
+    """
+
+    raw = os.getenv("DOSSIER_CHARGE_CREDITS", "true")
+    return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _enterprise_effectively_unlimited(org: Organization) -> bool:
+    """Plan Enterprise: sin bloqueo por saldo bajo (informe: créditos ilimitados)."""
+    return (org.plan or "").strip().lower() == "enterprise"
 
 
 # Ruta bajo `/dossiers/corporate/...` para no colisionar con `GET /dossiers/{dossier_id}` (un solo segmento).
@@ -76,13 +92,21 @@ def generate_corporate_dossier(
     Genera un dossier con el **agente corporativo** (LangGraph: UK + USA en paralelo,
     síntesis Gemini) y lo guarda en `dossiers`.
 
-    El cobro de créditos está gobernado por `_CHARGE_CREDITS_FOR_CORPORATE_DOSSIER`
-    (por defecto desactivado).
+    Créditos (informe de producto): basic=1, standard=3, deep=5.
+    El saldo se descuenta en PostgreSQL (trigger) salvo `billing: none` o cobro desactivado
+    (`DOSSIER_CHARGE_CREDITS=0`). Si el pipeline devuelve error, no se cobra.
     """
     user, org = user_org
-    cost = DEPTH_CREDITS[body.depth] if _CHARGE_CREDITS_FOR_CORPORATE_DOSSIER else 0
+    charge = _corporate_credit_charging_enabled()
+    cost = DEPTH_CREDITS[body.depth] if charge else 0
 
-    if _CHARGE_CREDITS_FOR_CORPORATE_DOSSIER and org.credits_balance < cost:
+    db.refresh(org)
+    if (
+        charge
+        and cost > 0
+        and not _enterprise_effectively_unlimited(org)
+        and org.credits_balance < cost
+    ):
         raise HTTPException(
             status_code=402,
             detail=(
@@ -121,6 +145,8 @@ def generate_corporate_dossier(
     # Alineado con CHECK dossiers_status en Migración: complete | partial | failed | …
     status = "failed" if is_err else "complete"
 
+    will_charge = charge and cost > 0 and not is_err
+
     dossier_id = uuid.uuid4()
     dossier_data_body: dict = {
         "format": "markdown",
@@ -128,8 +154,8 @@ def generate_corporate_dossier(
         "pipeline": "langgraph_corporate",
         "depth_requested": body.depth,
         "success": not is_err,
-        # Consumido por el trigger `fn_debit_credits_on_dossier` (Migración): sin débito si es "none".
-        "billing": "none" if cost == 0 else "charged",
+        # Trigger `fn_debit_credits_on_dossier`: solo cobra si billing != 'none' (p. ej. fallo → no cobro).
+        "billing": "charged" if will_charge else "none",
     }
     if body.resolution is not None:
         dossier_data_body["resolution"] = body.resolution.model_dump(mode="json")
@@ -145,7 +171,7 @@ def generate_corporate_dossier(
         module_corporate=True,
         module_media=False,
         depth_level=body.depth,
-        credits_consumed=cost,
+        credits_consumed=cost if will_charge else 0,
         status=status,
         status_message="Error en síntesis o en el pipeline." if is_err else None,
         dossier_data=dossier_data_body,
@@ -158,15 +184,10 @@ def generate_corporate_dossier(
         trigger_source="manual",
     )
 
-    if _CHARGE_CREDITS_FOR_CORPORATE_DOSSIER and cost > 0:
-        org.credits_balance = org.credits_balance - cost
-        db.add(org)
-
     db.add(dossier)
     db.commit()
     db.refresh(dossier)
-    if _CHARGE_CREDITS_FOR_CORPORATE_DOSSIER and cost > 0:
-        db.refresh(org)
+    db.refresh(org)
 
     return {
         "id": str(dossier.id),

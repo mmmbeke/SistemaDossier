@@ -456,6 +456,7 @@ export default function RegisterPage() {
             label={t("auth.login.password")}
             name="password"
             type="password"
+            passwordToggle
             placeholder={t("auth.register.password_placeholder")}
             autoComplete="new-password"
             value={password}
@@ -466,6 +467,7 @@ export default function RegisterPage() {
             label={t("auth.register.confirm_password")}
             name="confirmPassword"
             type="password"
+            passwordToggle
             placeholder={t("auth.register.password_placeholder")}
             autoComplete="new-password"
             value={confirmPassword}

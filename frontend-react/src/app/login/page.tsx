@@ -119,6 +119,7 @@ export default function LoginPage() {
           label={t("auth.login.password")}
           name="password"
           type="password"
+          passwordToggle
           placeholder="••••••••"
           autoComplete="current-password"
           value={password}

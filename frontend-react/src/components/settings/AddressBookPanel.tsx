@@ -4,7 +4,7 @@ import { useState } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
-import { CONTACT_GROUPS, type ContactGroup } from "@/lib/mock-addressbook";
+import type { ContactGroup } from "@/lib/mock-addressbook";
 
 const GROUP_NAME_KEYS: Record<string, TranslationKey> = {
   vip: "group.vip",
@@ -21,7 +21,7 @@ const IMPORT_OPTIONS: { labelKey: TranslationKey; icon: string }[] = [
 
 export default function AddressBookPanel() {
   const { t } = useTranslation();
-  const [groups, setGroups] = useState<ContactGroup[]>(CONTACT_GROUPS);
+  const [groups, setGroups] = useState<ContactGroup[]>([]);
   const [newGroupName, setNewGroupName] = useState("");
 
   function groupLabel(group: ContactGroup): string {
@@ -76,42 +76,48 @@ export default function AddressBookPanel() {
         </button>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {groups.map((group) => (
-          <div
-            key={group.id}
-            className="flex items-center gap-3 rounded-xl border p-4 transition hover:opacity-95"
-            style={{
-              borderColor: "var(--border-default)",
-              backgroundColor: "var(--bg-surface)",
-            }}
-          >
+      {groups.length === 0 ? (
+        <p className="mb-6 text-sm" style={{ color: "var(--text-muted)" }}>
+          {t("addressbook.groups_empty")}
+        </p>
+      ) : (
+        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {groups.map((group) => (
             <div
-              className="flex h-10 w-10 items-center justify-center rounded-lg"
+              key={group.id}
+              className="flex items-center gap-3 rounded-xl border p-4 transition hover:opacity-95"
               style={{
-                backgroundColor: "var(--bg-surface-strong)",
-                color: "var(--accent-from)",
+                borderColor: "var(--border-default)",
+                backgroundColor: "var(--bg-surface)",
               }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-            </div>
-            <div className="flex flex-col">
-              <span
-                className="text-sm font-semibold"
-                style={{ color: "var(--text-primary)" }}
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-lg"
+                style={{
+                  backgroundColor: "var(--bg-surface-strong)",
+                  color: "var(--accent-from)",
+                }}
               >
-                {groupLabel(group)}
-              </span>
-              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {t("addressbook.contacts_count", { count: group.contactCount })}
-              </span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </div>
+              <div className="flex flex-col">
+                <span
+                  className="text-sm font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {groupLabel(group)}
+                </span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {t("addressbook.contacts_count", { count: group.contactCount })}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <h4
         className="mb-3 text-sm font-semibold"
