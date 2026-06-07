@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import DossierCard from "@/components/dossier/DossierCard";
 import FilterTabs, { type FilterValue } from "@/components/dossier/FilterTabs";
 import TopBar from "@/components/dashboard/TopBar";
 import NewDossierButton from "@/components/dossier/NewDossierButton";
@@ -13,7 +12,6 @@ import {
   getStoredAccessToken,
   type DossierListItem,
 } from "@/lib/dossier-api";
-import { dossiers } from "@/lib/mock-dossiers";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 type DbLoadState = "idle" | "loading" | "ready" | "error";
@@ -36,24 +34,33 @@ export default function DossiersPage() {
 
   /** Si hay JWT, cargamos filas reales de `GET /dossiers` (PostgreSQL). */
   useEffect(() => {
-    if (!getStoredAccessToken()) {
-      setDbLoad("idle");
-      setDbItems([]);
-      setDbError(null);
-      return;
-    }
-    setDbLoad("loading");
-    setDbError(null);
-    fetchDossiersFromApi(100)
-      .then((res) => {
-        setDbItems(res.items);
-        setDbLoad("ready");
-      })
-      .catch((e) => {
-        setDbLoad("error");
-        setDbError(e instanceof DossierApiError ? e.message : String(e));
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      if (!getStoredAccessToken()) {
+        setDbLoad("idle");
         setDbItems([]);
-      });
+        setDbError(null);
+        return;
+      }
+      setDbLoad("loading");
+      setDbError(null);
+      void fetchDossiersFromApi(100)
+        .then((res) => {
+          if (cancelled) return;
+          setDbItems(res.items);
+          setDbLoad("ready");
+        })
+        .catch((e) => {
+          if (cancelled) return;
+          setDbLoad("error");
+          setDbError(e instanceof DossierApiError ? e.message : String(e));
+          setDbItems([]);
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const filteredDb = useMemo(() => {
@@ -66,25 +73,8 @@ export default function DossiersPage() {
     });
   }, [dbItems, query, filter]);
 
-  const filteredMock = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return dossiers.filter((d) => {
-      const matchesQuery =
-        q === "" ||
-        d.identity.name.toLowerCase().includes(q) ||
-        d.identity.company.toLowerCase().includes(q) ||
-        d.identity.current_role.toLowerCase().includes(q);
-      const matchesFilter =
-        filter === "all" ||
-        (filter === "complete" && d.freshness === "up_to_date") ||
-        (filter === "needs_update" && d.freshness === "needs_update");
-      return matchesQuery && matchesFilter;
-    });
-  }, [query, filter]);
-
   const useLiveDb = dbLoad === "ready";
-  /** Mientras carga o sin BD, seguimos mostrando los dossiers mock debajo (o solo mock). */
-  const showMock = dbLoad === "idle" || dbLoad === "error" || dbLoad === "loading";
+  const hasSession = Boolean(getStoredAccessToken());
 
   const counts = useMemo(() => {
     if (useLiveDb) {
@@ -94,11 +84,7 @@ export default function DossiersPage() {
         needs_update: dbItems.filter((d) => d.status !== "complete").length,
       };
     }
-    return {
-      all: dossiers.length,
-      complete: dossiers.filter((d) => d.freshness === "up_to_date").length,
-      needs_update: dossiers.filter((d) => d.freshness === "needs_update").length,
-    };
+    return { all: 0, complete: 0, needs_update: 0 };
   }, [useLiveDb, dbItems]);
 
   const filterAllLabel = t("dossiers.filter_all").replace(/\s*\(\d+\)/, ` (${counts.all})`);
@@ -138,6 +124,28 @@ export default function DossiersPage() {
           role="alert"
         >
           {t("dossiers.database_error")}: {dbError}
+        </div>
+      )}
+
+      {!hasSession && (
+        <div
+          className="mb-6 rounded-xl border px-4 py-4 text-sm"
+          style={{
+            borderColor: "var(--border-default)",
+            backgroundColor: "var(--bg-surface)",
+            color: "var(--text-muted)",
+          }}
+        >
+          <p className="mb-2" style={{ color: "var(--text-primary)" }}>
+            {t("dossiers.login_required")}
+          </p>
+          <Link
+            href="/login"
+            className="font-medium underline"
+            style={{ color: "var(--accent-from)" }}
+          >
+            {t("dossiers.login_required_cta")}
+          </Link>
         </div>
       )}
 
@@ -263,40 +271,6 @@ export default function DossiersPage() {
                     {deletingId === row.id ? t("dossiers.deleting") : t("dossiers.delete")}
                   </button>
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {showMock && (
-        <section>
-          <h3 className="mb-3 text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-            {t("dossiers.demo_section")}
-          </h3>
-
-          {filteredMock.length === 0 ? (
-            <div
-              className="flex flex-col items-center justify-center gap-2 rounded-xl border px-6 py-20 text-center"
-              style={{
-                borderColor: "var(--border-default)",
-                backgroundColor: "var(--bg-surface)",
-              }}
-            >
-              <h3
-                className="text-lg font-semibold"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {t("dossiers.no_results")}
-              </h3>
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                {t("dossiers.no_results_hint")}
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredMock.map((dossier) => (
-                <DossierCard key={dossier.id} dossier={dossier} />
               ))}
             </div>
           )}

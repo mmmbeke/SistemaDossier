@@ -1,4 +1,3 @@
-import { dossiers } from "@/lib/mock-dossiers";
 import type { TranslationKey } from "@/i18n/types";
 
 export type DossierDepth = "basic" | "standard" | "deep";
@@ -77,17 +76,9 @@ export function stepsForDepth(depth: DossierDepth): GenerationStep[] {
   }
 }
 
+/** Reservado para enlazar búsquedas con IDs reales de la API; ya no usa datos demo. */
 export function resolveDossierId(query: string): string {
-  const q = query.trim().toLowerCase();
-  if (!q) return dossiers[0].id;
-
-  const match = dossiers.find(
-    (d) =>
-      d.identity.name.toLowerCase().includes(q) ||
-      d.identity.company.toLowerCase().includes(q) ||
-      d.id.includes(q.replace(/\s+/g, "-"))
-  );
-  return match?.id ?? dossiers[0].id;
+  return query.trim();
 }
 
 export async function simulateGeneration(

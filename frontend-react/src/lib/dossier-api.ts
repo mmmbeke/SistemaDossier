@@ -246,6 +246,16 @@ export async function authLogin(payload: {
   return data;
 }
 
+/** Respuesta de POST /auth/forgot-password (siempre la misma si HTTP 200). */
+export type ForgotPasswordResponse = { ok: true };
+
+/** Solicitud de recuperación de contraseña (el backend no revela si el correo existe). */
+export async function authForgotPassword(payload: {
+  email: string;
+}): Promise<ForgotPasswordResponse> {
+  return postJson<ForgotPasswordResponse>("/auth/forgot-password", payload);
+}
+
 /** Perfil del usuario autenticado (JWT). */
 export async function fetchAuthMe(): Promise<AuthUser> {
   const token = getStoredAccessToken();

@@ -1,47 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import StatCard from "@/components/dashboard/StatCard";
 import TopBar from "@/components/dashboard/TopBar";
 import NewDossierButton from "@/components/dossier/NewDossierButton";
 import {
+  DossierApiError,
   fetchAuthMe,
+  fetchDossiersFromApi,
   getStoredAccessToken,
   readDossierUserPreview,
+  type AuthUser,
+  type DossierListItem,
 } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
-
-type ActivityType = "created" | "updated" | "alert";
-
-type Activity = {
-  id: number;
-  name: string;
-  type: ActivityType;
-  timeKey: TranslationKey;
-  messageKey?: TranslationKey;
-};
-
-const activities: Activity[] = [
-  { id: 1, name: "Sarah Mitchell", type: "created", timeKey: "time.2_hours_ago" },
-  { id: 2, name: "James Chen", type: "updated", timeKey: "time.5_hours_ago" },
-  {
-    id: 3,
-    name: "Michael Foster",
-    type: "alert",
-    timeKey: "time.1_day_ago",
-    messageKey: "activity.alert_company",
-  },
-  { id: 4, name: "Emma Rodriguez", type: "created", timeKey: "time.2_days_ago" },
-];
 
 const quickActions: {
   href: string;
   labelKey: TranslationKey;
   descKey: TranslationKey;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }[] = [
   {
     href: "/dashboard/automation",
@@ -89,46 +70,18 @@ const quickActions: {
   },
 ];
 
-function ActivityIcon({ type }: { type: ActivityType }) {
-  const isAlert = type === "alert";
-  return (
-    <div
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-      style={{
-        backgroundColor: isAlert
-          ? "rgba(251, 191, 36, 0.12)"
-          : "var(--bg-surface-strong)",
-        color: isAlert ? "#fbbf24" : "var(--text-muted)",
-      }}
-    >
-      {type === "created" && (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-      )}
-      {type === "updated" && (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-          <polyline points="23 4 23 10 17 10" />
-          <polyline points="1 20 1 14 7 14" />
-          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-        </svg>
-      )}
-      {type === "alert" && (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
-      )}
-    </div>
-  );
-}
-
 function firstDisplayName(fullName: string, email: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts[0]) return parts[0];
   const local = email.split("@")[0]?.trim();
   return local || email;
+}
+
+function formatActivityDate(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export default function OverviewPage() {
@@ -139,10 +92,15 @@ export default function OverviewPage() {
     return p ? firstDisplayName(p.full_name, p.email) : "";
   });
 
+  const [me, setMe] = useState<AuthUser | null>(null);
+  const [dossierRows, setDossierRows] = useState<DossierListItem[]>([]);
+  const [dashError, setDashError] = useState<string | null>(null);
+  const [dashLoad, setDashLoad] = useState<"idle" | "loading" | "ready">("idle");
+
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
+    async function loadWelcome() {
       const preview = readDossierUserPreview();
       if (preview) {
         if (!cancelled) setWelcomeName(firstDisplayName(preview.full_name, preview.email));
@@ -151,23 +109,88 @@ export default function OverviewPage() {
       const token = getStoredAccessToken();
       if (token) {
         try {
-          const me = await fetchAuthMe();
-          if (!cancelled) setWelcomeName(firstDisplayName(me.full_name, me.email));
+          const u = await fetchAuthMe();
+          if (!cancelled) setWelcomeName(firstDisplayName(u.full_name, u.email));
         } catch {
           if (!cancelled) setWelcomeName(t("overview.anonymous"));
         }
         return;
       }
-      if (!cancelled) setWelcomeName("John");
+      if (!cancelled) setWelcomeName(t("overview.anonymous"));
     }
 
-    void load();
+    void loadWelcome();
     return () => {
       cancelled = true;
     };
   }, [t]);
 
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const token = getStoredAccessToken();
+      if (!token) {
+        setMe(null);
+        setDossierRows([]);
+        setDashLoad("idle");
+        setDashError(null);
+        return;
+      }
+      setDashLoad("loading");
+      setDashError(null);
+      void Promise.all([fetchAuthMe(), fetchDossiersFromApi(80)])
+        .then(([user, list]) => {
+          if (cancelled) return;
+          setMe(user);
+          setDossierRows(list.items);
+          setDashLoad("ready");
+        })
+        .catch((e) => {
+          if (cancelled) return;
+          setMe(null);
+          setDossierRows([]);
+          setDashError(e instanceof DossierApiError ? e.message : t("overview.dashboard_load_error"));
+          setDashLoad("ready");
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  const stats = useMemo(() => {
+    const total = dossierRows.length;
+    const complete = dossierRows.filter((r) => r.status === "complete").length;
+    const pending = dossierRows.filter((r) => r.status !== "complete").length;
+    return { total, complete, pending };
+  }, [dossierRows]);
+
+  const activityItems = useMemo(() => {
+    return [...dossierRows]
+      .sort((a, b) => {
+        const ta = new Date(a.updated_at || a.created_at || 0).getTime();
+        const tb = new Date(b.updated_at || b.created_at || 0).getTime();
+        return tb - ta;
+      })
+      .slice(0, 6)
+      .map((row) => ({
+        id: row.id,
+        title: row.subject_name || row.subject_email || "—",
+        subtitle: row.status,
+        dateLabel: formatActivityDate(row.updated_at || row.created_at),
+        href: `/dashboard/dossiers/${row.id}`,
+      }));
+  }, [dossierRows]);
+
   const titleName = welcomeName || t("overview.anonymous");
+  const creditsBalance = me?.credits_balance;
+  const monthlyLimit = me?.credits_monthly_limit;
+  const creditsTrend =
+    dashLoad === "ready" && me && typeof monthlyLimit === "number" && monthlyLimit > 0
+      ? t("stat.credits_monthly_hint", { limit: monthlyLimit })
+      : undefined;
+
   return (
     <>
       <TopBar
@@ -176,66 +199,84 @@ export default function OverviewPage() {
         action={<NewDossierButton />}
       />
 
+      {dashError && (
+        <div
+          className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100"
+          role="alert"
+        >
+          {dashError}
+        </div>
+      )}
+
       <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard value={dashLoad === "ready" ? stats.total : "—"} label={t("stat.total_dossiers")} />
+        <StatCard value={dashLoad === "ready" ? stats.complete : "—"} label={t("stat.completed_dossiers")} />
         <StatCard
-          value="47"
-          label={t("stat.total_dossiers")}
-          trend={t("stat.total_trend")}
-          trendVariant="positive"
-        />
-        <StatCard
-          value="23"
-          label={t("stat.auto_generated")}
-          trend={t("stat.auto_trend")}
-        />
-        <StatCard
-          value="8"
+          value={dashLoad === "ready" ? stats.pending : "—"}
           label={t("stat.needs_update")}
-          trend={t("stat.needs_trend")}
-          trendVariant="warning"
+          trendVariant={stats.pending > 0 ? "warning" : "default"}
         />
         <StatCard
-          value="156"
-          label={t("stat.credits_used")}
-          trend={t("stat.credits_trend")}
+          value={dashLoad === "ready" && creditsBalance != null ? creditsBalance : "—"}
+          label={t("stat.credits_balance")}
+          trend={creditsTrend}
         />
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <DashboardCard title={t("activity.title")}>
-          <ul className="flex flex-col gap-3">
-            {activities.map((activity) => (
-              <li
-                key={activity.id}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5"
-                style={{ backgroundColor: "var(--bg-surface)" }}
-              >
-                <ActivityIcon type={activity.type} />
-                <div className="flex flex-1 flex-col">
-                  <span
-                    className="text-sm font-medium"
-                    style={{ color: "var(--text-primary)" }}
+          {dashLoad === "loading" ? (
+            <p className="px-3 py-6 text-sm" style={{ color: "var(--text-muted)" }}>
+              {t("dossiers.database_loading")}
+            </p>
+          ) : !getStoredAccessToken() ? (
+            <p className="px-3 py-6 text-sm" style={{ color: "var(--text-muted)" }}>
+              {t("overview.activity_login_hint")}
+            </p>
+          ) : activityItems.length === 0 ? (
+            <p className="px-3 py-6 text-sm" style={{ color: "var(--text-muted)" }}>
+              {t("overview.activity_empty")}
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {activityItems.map((item) => (
+                <li key={item.id}>
+                  <Link
+                    href={item.href}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition hover:opacity-95"
+                    style={{ backgroundColor: "var(--bg-surface)" }}
                   >
-                    {activity.name}
-                  </span>
-                  {activity.messageKey && (
-                    <span
-                      className="text-xs font-medium"
-                      style={{ color: "#fbbf24" }}
+                    <div
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                      style={{
+                        backgroundColor: "var(--bg-surface-strong)",
+                        color: "var(--text-muted)",
+                      }}
                     >
-                      {t(activity.messageKey)}
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                        <polyline points="10 9 9 9 8 9" />
+                      </svg>
+                    </div>
+                    <div className="flex flex-1 flex-col min-w-0">
+                      <span className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                        {item.title}
+                      </span>
+                      <span className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>
+                        {item.subtitle}
+                      </span>
+                    </div>
+                    <span className="text-xs shrink-0" style={{ color: "var(--text-subtle)" }}>
+                      {item.dateLabel}
                     </span>
-                  )}
-                </div>
-                <span
-                  className="text-xs"
-                  style={{ color: "var(--text-subtle)" }}
-                >
-                  {t(activity.timeKey)}
-                </span>
-              </li>
-            ))}
-          </ul>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </DashboardCard>
 
         <DashboardCard title={t("quick.title")}>
@@ -260,16 +301,10 @@ export default function OverviewPage() {
                     {action.icon}
                   </span>
                   <div className="flex flex-1 flex-col">
-                    <span
-                      className="text-sm font-semibold"
-                      style={{ color: "var(--text-primary)" }}
-                    >
+                    <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                       {t(action.labelKey)}
                     </span>
-                    <span
-                      className="text-xs"
-                      style={{ color: "var(--text-muted)" }}
-                    >
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                       {t(action.descKey)}
                     </span>
                   </div>

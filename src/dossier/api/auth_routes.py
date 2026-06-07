@@ -33,6 +33,8 @@ from dossier.db.session import get_db
 from dossier.org_dossier_context import apply_dossier_context_patch, read_dossier_context
 from dossier.org_workspace import ORG_NAME_PERSONAL_PLACEHOLDER, read_workspace_kind
 from dossier.schemas.auth import (
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
     LoginRequest,
     OrganizationDossierContextPatch,
     OrganizationPlanPatch,
@@ -51,7 +53,7 @@ def _signup_org_credits() -> tuple[int, int]:
     Créditos iniciales de la organización al registrarse (`/auth/register`).
 
     Variables opcionales en `.env`:
-    - `ORG_SIGNUP_CREDITS` — saldo inicial (≥ 0). Por defecto 500.
+    - `ORG_SIGNUP_CREDITS` — saldo inicial (≥ 0). Por defecto **10** (tier Free del informe).
     - `ORG_SIGNUP_CREDITS_MONTHLY_LIMIT` — tope mensual; si no se define, igual al saldo.
     """
 
@@ -65,7 +67,7 @@ def _signup_org_credits() -> tuple[int, int]:
             return default
         return max(0, v)
 
-    balance = _parse("ORG_SIGNUP_CREDITS", 500)
+    balance = _parse("ORG_SIGNUP_CREDITS", 10)
     lim_raw = os.getenv("ORG_SIGNUP_CREDITS_MONTHLY_LIMIT")
     if lim_raw is not None and str(lim_raw).strip():
         limit = _parse("ORG_SIGNUP_CREDITS_MONTHLY_LIMIT", balance)
@@ -350,6 +352,25 @@ def login_user(body: LoginRequest, db: Session = Depends(get_db_if_configured)) 
         access_token=token,
         user=build_user_public(db, user),
     )
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+def forgot_password(
+    body: ForgotPasswordRequest,
+    db: Session = Depends(get_db_if_configured),
+) -> ForgotPasswordResponse:
+    """
+    Solicitud de recuperación de contraseña.
+
+    Siempre devuelve 200 con el mismo cuerpo para no filtrar si el correo existe en la BD.
+    Cuando haya proveedor de correo, aquí se encolará el envío del enlace con token de un solo uso.
+    """
+    email_norm = body.email.lower().strip()
+    user = db.execute(select(User).where(User.email == email_norm)).scalar_one_or_none()
+    if user is not None and user.password_hash:
+        # Reservado: generar token, guardar expiración y enviar email.
+        pass
+    return ForgotPasswordResponse()
 
 
 @router.get("/me", response_model=UserPublic)

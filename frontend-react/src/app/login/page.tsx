@@ -2,17 +2,29 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import AuthShell from "@/components/AuthShell";
 import FormField from "@/components/FormField";
 import PrimaryButton from "@/components/PrimaryButton";
 import {
   authLogin,
   DossierApiError,
+  getStoredAccessToken,
   persistAuthToken,
   writeDossierUserPreview,
 } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
+
+const REMEMBER_PREF_KEY = "dossier_login_remember";
+const LAST_EMAIL_KEY = "dossier_last_login_email";
+
+/** Ruta interna segura tras login (misma regla que al enviar el formulario). */
+function resolvePostLoginRedirect(): string {
+  if (typeof window === "undefined") return "/dashboard";
+  const raw = new URLSearchParams(window.location.search).get("next");
+  if (raw && raw.startsWith("/") && !raw.startsWith("//")) return raw;
+  return "/dashboard";
+}
 
 type Errors = {
   email?: string;
@@ -29,6 +41,25 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   /** Error global devuelto por la API (credenciales, red, servidor no configurado, etc.). */
   const [formError, setFormError] = useState<string | null>(null);
+
+  /**
+   * Si ya hay JWT (p. ej. “Recuérdame”), no mostramos el formulario: vamos al dashboard o a `?next=`.
+   * Si no hay sesión, restauramos checkbox y último email desde localStorage.
+   */
+  useEffect(() => {
+    const token = getStoredAccessToken();
+    if (token) {
+      router.replace(resolvePostLoginRedirect());
+      return;
+    }
+    const pref = localStorage.getItem(REMEMBER_PREF_KEY);
+    const rememberOn = pref !== "0";
+    setRemember(rememberOn);
+    if (rememberOn) {
+      const last = localStorage.getItem(LAST_EMAIL_KEY);
+      if (last) setEmail(last);
+    }
+  }, [router]);
 
   function validate(): Errors {
     const next: Errors = {};
@@ -66,7 +97,17 @@ export default function LoginPage() {
         },
         remember ? "local" : "session"
       );
-      router.push("/dashboard");
+      try {
+        localStorage.setItem(REMEMBER_PREF_KEY, remember ? "1" : "0");
+        if (remember) {
+          localStorage.setItem(LAST_EMAIL_KEY, email.trim());
+        } else {
+          localStorage.removeItem(LAST_EMAIL_KEY);
+        }
+      } catch {
+        /* private mode / quota */
+      }
+      router.push(resolvePostLoginRedirect());
     } catch (e) {
       if (e instanceof DossierApiError) {
         if (e.isNetworkError()) setFormError(t("auth.error.network"));
@@ -119,6 +160,7 @@ export default function LoginPage() {
           label={t("auth.login.password")}
           name="password"
           type="password"
+          passwordToggle
           placeholder="••••••••"
           autoComplete="current-password"
           value={password}
@@ -131,7 +173,18 @@ export default function LoginPage() {
             <input
               type="checkbox"
               checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setRemember(checked);
+                try {
+                  localStorage.setItem(REMEMBER_PREF_KEY, checked ? "1" : "0");
+                  if (!checked) {
+                    localStorage.removeItem(LAST_EMAIL_KEY);
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }}
               className="h-4 w-4 rounded border border-zinc-700"
             />
             {t("auth.login.remember")}
