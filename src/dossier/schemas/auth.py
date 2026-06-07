@@ -75,6 +75,18 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class ForgotPasswordRequest(BaseModel):
+    """Cuerpo POST /auth/forgot-password — solo correo (misma forma que login)."""
+
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    """Respuesta siempre idéntica para no revelar si el email está registrado."""
+
+    ok: Literal[True] = True
+
+
 class UserPublic(BaseModel):
     """Perfil público + tenant activo (organización primaria)."""
 
