@@ -68,11 +68,15 @@ def obtener_eventos_proximos(
     return _get_graph(GRAPH_CALENDAR_VIEW_URL, access_token, params)
 
 
-def obtener_todos_los_eventos(access_token: str, top: int = 10) -> dict:
-    """Lista eventos sin filtro de fecha (útil para depurar calendarios vacíos)."""
+def obtener_todos_los_eventos(access_token: str, top: int = 50) -> dict:
+    """Lista eventos sin filtro de fecha (útil para depurar calendarios vacíos).
+
+    Orden por ``createdDateTime`` para que reuniones recién creadas aparezcan
+    primero (con ``start`` desc un evento futuro lejano podía quedar fuera del top).
+    """
     params = {
         "$top": top,
-        "$orderby": "start/dateTime desc",
+        "$orderby": "createdDateTime desc",
         "$select": _SELECT,
     }
     return _get_graph(GRAPH_EVENTS_URL, access_token, params)
@@ -114,6 +118,83 @@ def normalizar_evento(evento: dict) -> dict:
     }
 
 
+def diagnostico_microsoft_calendar(access_token: str) -> dict:
+    """
+    Resumen no sensible: qué usuario ve Graph y si hay eventos en el calendario
+    predeterminado (útil si /calendario/eventos devuelve vacío).
+    """
+    resultado: dict = {
+        "me": None,
+        "calendars": None,
+        "events_raw_count": None,
+        "events_preview": None,
+        "errors": [],
+    }
+    url_me = "https://graph.microsoft.com/v1.0/me"
+    url_cals = "https://graph.microsoft.com/v1.0/me/calendars"
+
+    try:
+        r = requests.get(url_me, headers=_headers(access_token), timeout=30)
+        if r.ok:
+            j = r.json()
+            resultado["me"] = {
+                "displayName": j.get("displayName"),
+                "mail": j.get("mail"),
+                "userPrincipalName": j.get("userPrincipalName"),
+                "id": j.get("id"),
+            }
+        else:
+            resultado["errors"].append(f"GET /me → {r.status_code}: {r.text[:300]}")
+    except requests.RequestException as e:
+        resultado["errors"].append(f"GET /me → {e}")
+
+    try:
+        r = requests.get(url_cals, headers=_headers(access_token), timeout=30)
+        if r.ok:
+            j = r.json()
+            vals = j.get("value", [])
+            resultado["calendars"] = {
+                "count": len(vals),
+                "names": [c.get("name") for c in vals[:15]],
+            }
+        else:
+            resultado["errors"].append(f"GET /me/calendars → {r.status_code}: {r.text[:300]}")
+    except requests.RequestException as e:
+        resultado["errors"].append(f"GET /me/calendars → {e}")
+
+    try:
+        r = requests.get(
+            GRAPH_EVENTS_URL,
+            headers=_headers(access_token),
+            params={
+                "$top": 10,
+                "$orderby": "createdDateTime desc",
+                "$select": "id,subject,start,createdDateTime",
+            },
+            timeout=30,
+        )
+        if r.ok:
+            j = r.json()
+            vals = j.get("value", [])
+            resultado["events_raw_count"] = len(vals)
+            resultado["events_preview"] = [
+                {
+                    "subject": v.get("subject"),
+                    "start": (v.get("start") or {}).get("dateTime"),
+                    "createdDateTime": v.get("createdDateTime"),
+                }
+                for v in vals
+            ]
+        else:
+            resultado["errors"].append(
+                f"GET /me/calendar/events → {r.status_code}: {r.text[:300]}"
+            )
+    except requests.RequestException as e:
+        resultado["errors"].append(f"GET /me/calendar/events → {e}")
+
+    return resultado
+
+
 def listar_reuniones(
     access_token: str,
     top: int = 10,
@@ -126,7 +207,8 @@ def listar_reuniones(
     Con incluir_pasadas=True: cualquier evento reciente del calendario.
     """
     if incluir_pasadas:
-        datos = obtener_todos_los_eventos(access_token, top=top)
+        # Más filas: con pocos slots, eventos nuevos podían quedar fuera del top.
+        datos = obtener_todos_los_eventos(access_token, top=max(top, 50))
     else:
         datos = obtener_eventos_proximos(
             access_token, top=top, dias_adelante=dias_adelante

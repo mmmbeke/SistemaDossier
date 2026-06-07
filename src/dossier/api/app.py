@@ -12,6 +12,8 @@ from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from starlette.requests import Request
 
 from dossier.api.admin_routes import router as admin_router
 from dossier.api.auth_routes import router as auth_router
@@ -25,6 +27,7 @@ from dossier.services import (
     listar_reuniones,
     obtener_reunion_por_id,
 )
+from dossier.services.graph_calendar import diagnostico_microsoft_calendar
 
 load_env()
 
@@ -33,12 +36,27 @@ logger = logging.getLogger(__name__)
 
 def _parse_cors_origins(raw: str) -> list[str]:
     """
-    Normaliza CORS_ORIGINS: quita BOM/espacios y barra final.
+    Normaliza CORS_ORIGINS: quita BOM/espacios, comillas (ASCII/tipográficas) y barra final.
     El navegador envía Origin sin barra final; si en Railway dejaste una, no coincidía.
     """
+    # Comillas “curvas” típicas al copiar desde Word/Slack
+    t = (
+        raw.strip()
+        .strip("\ufeff")
+        .translate(
+            str.maketrans(
+                {
+                    "\u201c": '"',
+                    "\u201d": '"',
+                    "\u2018": "'",
+                    "\u2019": "'",
+                }
+            )
+        )
+    )
     out: list[str] = []
-    for part in raw.split(","):
-        o = part.strip().strip("\ufeff").rstrip("/")
+    for part in t.split(","):
+        o = part.strip().strip('"').strip("'").rstrip("/")
         if o:
             out.append(o)
     return out
@@ -251,6 +269,22 @@ def api_listar_eventos_calendario(
     return {"total": len(reuniones), "reuniones": reuniones, "mensaje": mensaje}
 
 
+@app.get("/calendario/diagnostico-microsoft", tags=["Calendario"])
+def api_diagnostico_microsoft_calendario(
+    access_token: Optional[str] = Query(None, description="Token de /callback"),
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Quién es ``/me`` en Graph, cuántos calendarios hay y si existen eventos
+    en el calendario predeterminado (si /calendario/eventos viene vacío).
+    """
+    token = _resolver_access_token(authorization, access_token)
+    try:
+        return diagnostico_microsoft_calendar(token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 @app.get("/calendario/generar-dossiers", tags=["Calendario"])
 def api_generar_dossiers_desde_calendario(
     top: int = Query(5, ge=1, le=10, description="Máximo de reuniones a procesar con IA"),
@@ -354,4 +388,31 @@ def db_health():
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "0.2.0"}
+    """Incluye resumen CORS para comprobar en producción qué cargó el proceso (sin secretos)."""
+    return {
+        "status": "ok",
+        "version": "0.2.0",
+        "cors": {
+            "vercel_origin_regex": bool(_cors_origin_regex),
+            "allowed_origins": _cors_origins,
+        },
+    }
+
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(_request: Request, exc: SQLAlchemyError) -> JSONResponse:
+    """
+    Errores de BD (p. ej. columna inexistente si no corriste la migración) devuelven JSON
+    en lugar de ``text/plain`` de uvicorn, y el CORS del middleware aplica al JSON.
+    """
+    logger.exception("Error SQLAlchemy: %s", exc)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": (
+                "Error al consultar la base de datos. Suele deberse a que el esquema PostgreSQL "
+                "no coincide con el código (falta ejecutar el SQL de migración en Railway)."
+            ),
+            "error_type": type(exc).__name__,
+        },
+    )
