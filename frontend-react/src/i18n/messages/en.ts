@@ -1,4 +1,5 @@
 const messages = {
+  "auth.gate_checking": "Checking session…",
   "auth.login.title": "Welcome back",
   "auth.login.subtitle": "Sign in to access your dossiers.",
   "auth.login.email": "Email",
@@ -21,7 +22,7 @@ const messages = {
   "auth.register.company": "Company",
   "auth.register.email_corporate": "Work email",
   "auth.register.password_placeholder": "Minimum 8 characters",
-  "auth.register.create_free": "Create free account",
+  "auth.register.create_free": "Create account",
   "auth.register.subtitle_credits": "Start with 10 free credits per month. No credit card required.",
   "auth.register.account_mode": "How will you use Project Dossier?",
   "auth.register.mode_work": "Team / company",
@@ -256,6 +257,7 @@ const messages = {
   "detail.delete": "Delete dossier",
   "detail.delete_error": "Could not delete the dossier.",
   "common.clear": "Clear",
+  "common.loading": "Loading…",
   "common.at_company": "at",
   "common.view_dossier": "View dossier →",
   "common.has_alerts": "Has active alerts",

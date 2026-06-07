@@ -19,7 +19,7 @@ const messages = {
   "auth.register.company": "Company",
   "auth.register.email_corporate": "Work email",
   "auth.register.password_placeholder": "Minimum 8 characters",
-  "auth.register.create_free": "Create free account",
+  "auth.register.create_free": "Create account",
   "auth.register.subtitle_credits": "Start with 10 free credits per month. No credit card required.",
   "auth.register.account_mode": "Comment utiliserez-vous Project Dossier ?",
   "auth.register.mode_work": "Entreprise / équipe",

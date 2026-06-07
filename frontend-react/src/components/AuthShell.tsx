@@ -71,7 +71,7 @@ export default function AuthShell({
         </div>
 
         <div className="relative z-10 text-xs" style={{ color: "var(--text-subtle)" }}>
-          © 2026 Alloxentric · Tecnología con propósito humano
+          © 2026 Alloxentric · Universidad Tecnologica Metropolitana
         </div>
       </aside>
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import DashboardAuthGate from "./DashboardAuthGate";
 import Sidebar from "@/components/dashboard/Sidebar";
 
 export default function DashboardLayout({
@@ -7,13 +8,15 @@ export default function DashboardLayout({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen" style={{ backgroundColor: "var(--bg-page)" }}>
-      <Sidebar />
-      <main className="ml-64 flex-1">
-        <div className="mx-auto max-w-7xl px-6 py-10 lg:px-10">
-          {children}
-        </div>
-      </main>
-    </div>
+    <DashboardAuthGate>
+      <div className="flex min-h-screen" style={{ backgroundColor: "var(--bg-page)" }}>
+        <Sidebar />
+        <main className="ml-64 flex-1">
+          <div className="mx-auto max-w-7xl px-6 py-10 lg:px-10">
+            {children}
+          </div>
+        </main>
+      </div>
+    </DashboardAuthGate>
   );
 }
