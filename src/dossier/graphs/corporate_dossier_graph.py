@@ -18,6 +18,30 @@ logger = logging.getLogger(__name__)
 
 JurisdictionScope = Literal["uk_only", "us_only", "dual"]
 
+# Instrucciones de tono: el Markdown final va a clientes; no deben aparecer metadatos de ingeniería.
+_CLIENT_EXECUTIVE_STYLE = (
+    "Audiencia: cliente ejecutivo (riesgo, M&A, banca). **No** menciones marcas de productos de IA, APIs, "
+    "protocolos técnicos de datos (p. ej. XBRL), «fragmentos» del archivo, ni limitaciones del software "
+    "o del pipeline de generación. "
+    "Si falta información, formuladlo como vacío de negocio o pregunta a la contraparte (p. ej. solicitar "
+    "DEF 14A, notas completas o documentación en data room), sin meta-comentarios sobre el origen técnico del dossier."
+)
+
+# Estilo del dossier final: brevedad + estructura fija (UK, US y dual).
+_BRIEF_DOSSIER_DELIVERY = """
+**Estilo:** redacción **breve y escaneable** (el cliente no debe aburrirse leyendo). Prioriza bullets y párrafos cortos; evita texto denso, repeticiones y subapartados innecesarios. Si un punto no aporta valor, omítelo.
+
+**Estructura obligatoria del Markdown:**
+
+1. **Resumen ejecutivo** — solo lo esencial (pocas viñetas o un párrafo corto).
+2. **Riesgos o vacíos** — conciso; solo riesgos de negocio / cumplimiento (no meta-comentarios técnicos).
+3. **Recomendación sobre relacionarse o hacer negocios** — antes de las preguntas. Indica de forma clara si **conviene** avanzar, **solo con condiciones/salvaguardas** o **no conviene** relacionarse con la contraparte según el análisis; una viñeta o dos como máximo con el porqué.
+4. **Preguntas sugeridas para la reunión** — **entre 2 y 3 preguntas** (máximo 3), cada una en **una sola frase**.
+
+Si el contexto es **solo Reino Unido** o **solo Estados Unidos**, el apartado 3 se refiere a esa única contraparte.
+Si el contexto incluye **UK y USA** como entidades distintas, el apartado 3 debe separar la recomendación por jurisdicción (viñetas breves UK vs EE.UU.).
+""".strip()
+
 
 def infer_jurisdiction_scope(participantes: str) -> JurisdictionScope:
     """
@@ -115,9 +139,11 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
         system = (
             "Eres un analista corporativo del Reino Unido. Redactas en español, en Markdown. "
             "Te basas **solo** en el contexto de **Companies House** (perfil, historial y, si existe, "
-            "el análisis Gemini del formulario descargado). "
+            "la lectura del formulario regulatorio incluida en el contexto). "
             "El bloque USA del mensaje indica explícitamente que no aplica: **no** lo uses como evidencia "
-            "ni hagas comparativa transatlántica. No inventes hechos ajenos al contexto."
+            "ni hagas comparativa transatlántica. No inventes hechos ajenos al contexto. "
+            "Extensión total del dossier: **breve** (orientación: equivalente a ~1–1,5 páginas de texto como máximo). "
+            + _CLIENT_EXECUTIVE_STYLE
         )
         user = f"""Preparación de reunión (solo **Reino Unido / Companies House**)
 
@@ -126,7 +152,7 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
 **Descripción adicional:** {descripcion or "(ninguna)"}
 
 ---
-### Contexto UK (Companies House — API + posible análisis de formulario)
+### Contexto UK (Companies House)
 
 {uk}
 
@@ -138,17 +164,18 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
 ---
 ### Tu entrega
 
-1. Resumen ejecutivo del estado societario y de los hechos que el contexto UK respalde (incluido el análisis del formulario si aparece).
-2. Riesgos o vacíos de información.
-3. Preguntas sugeridas para la reunión (3–5 bullets).
+{_BRIEF_DOSSIER_DELIVERY}
 """
 
     elif scope == "us_only":
         system = (
             "Eres un analista financiero-corporativo de emisores **estadounidenses**. Redactas en español, en Markdown. "
-            "Te basas **solo** en el contexto de la **SEC** (submissions / filings recientes en la tabla). "
+            "Te basas **solo** en el material del mensaje: tabla de presentaciones recientes ante la SEC, "
+            "cifras estructuradas si aparecen, y la lectura del documento principal del emisor cuando exista. "
             "El bloque UK indica que no aplica: **no** lo uses ni hagas comparativa con Companies House. "
-            "No inventes hechos ajenos al contexto."
+            "No inventes hechos ajenos al contexto. "
+            "Extensión total del dossier: **breve** (orientación: equivalente a ~1–1,5 páginas de texto como máximo). "
+            + _CLIENT_EXECUTIVE_STYLE
         )
         user = f"""Preparación de reunión (solo **Estados Unidos / SEC**)
 
@@ -162,16 +189,14 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
 {uk}
 
 ---
-### Contexto USA (SEC EDGAR — datos de API)
+### Contexto USA (información pública del emisor)
 
 {us}
 
 ---
 ### Tu entrega
 
-1. Resumen ejecutivo del emisor y de los envíos recientes que el contexto SEC respalde.
-2. Riesgos o vacíos de información.
-3. Preguntas sugeridas para la reunión (3–5 bullets).
+{_BRIEF_DOSSIER_DELIVERY}
 """
 
     else:
@@ -181,7 +206,9 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
             "**entidades distintas** (homónimos, ADRs, etc.). "
             "**No** asumas que describen la misma empresa salvo que el brief del usuario lo indique de forma clara. "
             "Si un bloque es principalmente aviso de error o vacío, dilo y no lo compares como si fuera equivalente al otro. "
-            "No inventes hechos no respaldados por el contexto."
+            "No inventes hechos no respaldados por el contexto. "
+            "Extensión total del dossier: **breve** (orientación: equivalente a ~1,5–2 páginas como máximo en conjunto). "
+            + _CLIENT_EXECUTIVE_STYLE
         )
         user = f"""Reunión a preparar (contexto **UK y USA** — tratarlos como fuentes independientes salvo indicación contraria en el brief)
 
@@ -195,23 +222,23 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
 {uk}
 
 ---
-### Contexto USA (SEC EDGAR)
+### Contexto USA (información pública del emisor)
 
 {us}
 
 ---
 ### Tu entrega
 
-1. Resumen ejecutivo: separa claramente lo que aplica a **UK** y lo que aplica a **EE. UU.**, sin fusionar entidades.
-2. Riesgos o vacíos (incluida ambigüedad entre jurisdicciones si el brief es genérico).
-3. Preguntas sugeridas para la reunión (3–5 bullets).
+En el **resumen ejecutivo** (apartado 1), separa en bullets breves lo que aplica a **UK** y lo que aplica a **EE. UU.**, sin fusionar entidades.
+
+{_BRIEF_DOSSIER_DELIVERY}
 """
 
     try:
         texto = generate_text_with_gemini(user, system_instruction=system)
     except Exception as e:
         logger.exception("Fallo síntesis Gemini en LangGraph")
-        err = f"Gemini síntesis: {e}"
+        err = f"Error en la síntesis del informe: {e}"
         return {
             "final_dossier_markdown": f"# Error en síntesis\n\n{err}",
             "agent_errors": state.get("agent_errors", []) + [err],

@@ -81,7 +81,9 @@ const messages = {
   "auth.error.slug_unreadable":
     "No se pudo generar una URL válida. Usa letras o números en el nombre, apellido o empresa.",
   "auth.error.network":
-    "No se pudo conectar con la API. ¿Está el backend en marcha (python main.py) y NEXT_PUBLIC_API_URL correcta?",
+    "No se pudo conectar con la API. Si usas Next en otro puerto (p. ej. 3001), añade ese origen a CORS_ORIGINS en el .env del backend. Comprueba python main.py y NEXT_PUBLIC_API_URL en frontend-react/.env.local (reinicia npm run dev).",
+  "auth.error.mixed_content":
+    "La app está en HTTPS pero la API está en http://… El navegador bloquea esa llamada. Usa la web en http://localhost:3000 con el backend local, o define NEXT_PUBLIC_API_URL con una URL HTTPS pública de tu API (p. ej. Railway).",
   "auth.error.server": "No se pudo completar el registro. Inténtalo de nuevo.",
   "landing.badge": "Frontend Next.js · v0.1",
   "landing.title": "Project Dossier",
@@ -172,16 +174,21 @@ const messages = {
   "person_research.max_profiles": "Perfiles a enriquecer (1–5)",
   "person_research.include_posts": "Incluir publicaciones recientes (si la API lo permite)",
   "person_research.submit": "Buscar y analizar",
-  "person_research.submitting": "Generando informe con Gemini…",
+  "person_research.submitting": "Generando informe…",
   "person_research.error_auth": "Debes iniciar sesión.",
   "person_research.error_name": "Indica al menos el nombre completo de la persona.",
   "person_research.warn_title": "Avisos",
   "person_research.section_raw": "JSON bruto (intentos de búsqueda)",
-  "person_research.section_analysis": "Análisis Gemini",
+  "person_research.section_analysis": "Informe ejecutivo",
   "person_research.analysis_web_badge":
-    "Informe generado con Gemini y búsqueda web en vivo. Verifica afirmaciones y enlaces; el ranking puede diferir del buscador Google en el navegador.",
+    "Incluye fuentes públicas en la web. Verifica afirmaciones y enlaces antes de decidir.",
   "person_research.no_analysis":
-    "Sin informe: con búsqueda por IA, configura GEMINI_API_KEY o GOOGLE_API_KEY y no desactives la búsqueda web. Con Netrows, hace falta NETROWS_API_KEY y, para el análisis, clave Gemini.",
+    "Sin informe: revisa la configuración del servidor (clave de modelo y búsqueda web) o los avisos anteriores.",
+  "person_research.saved_title": "Guardado en Mis Dossiers",
+  "person_research.saved_body":
+    "Este informe quedó registrado en tu organización. Puedes abrirlo cuando quieras desde el listado.",
+  "person_research.saved_open": "Abrir dossier",
+  "person_research.saved_list": "Ir a Mis Dossiers",
   "person_research.toggle_raw": "Mostrar / ocultar JSON",
   "person_research.disclaimer":
     "El informe se basa en lo que devuelve la búsqueda en esta sesión; el modelo no debe inventar hechos. Contrasta con fuentes independientes para decisiones legales o de RR.HH.",
@@ -256,6 +263,14 @@ const messages = {
   "detail.refine_bullet_ticker": "Ticker y mercado (p. ej. F · NYSE)",
   "detail.refine_bullet_country": "País o sede principal",
   "detail.refine_cta": "Volver a generar con más contexto",
+  "detail.pipeline_person": "Dossier de persona",
+  "detail.person_refine_title": "Si quieres afinar la investigación",
+  "detail.person_refine_desc":
+    "Los homónimos son frecuentes. Repite la búsqueda con empresa, cargo o país/ciudad para acotar mejor la identidad y el informe.",
+  "detail.person_refine_bullet_name": "Nombre completo tal como figura en documentos o redes",
+  "detail.person_refine_bullet_company": "Empresa actual o probable",
+  "detail.person_refine_bullet_geo": "País, región o ciudad",
+  "detail.person_refine_cta": "Nueva búsqueda de persona",
   "detail.show_raw_json": "Ver JSON en bruto",
   "detail.hide_raw_json": "Ocultar JSON en bruto",
   "detail.api_pipeline_sources": "Pipeline, fuentes y agentes",
