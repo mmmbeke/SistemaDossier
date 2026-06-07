@@ -110,7 +110,8 @@ export default function LoginPage() {
       router.push(resolvePostLoginRedirect());
     } catch (e) {
       if (e instanceof DossierApiError) {
-        if (e.isNetworkError()) setFormError(t("auth.error.network"));
+        if (e.isMixedContentBlocked()) setFormError(t("auth.error.mixed_content"));
+        else if (e.isNetworkError()) setFormError(t("auth.error.network"));
         else setFormError(e.message || t("auth.error.server"));
       } else {
         setFormError(t("auth.error.server"));

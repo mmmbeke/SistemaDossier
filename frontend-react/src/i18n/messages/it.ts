@@ -77,7 +77,9 @@ const messages = {
   "auth.error.slug_unreadable":
     "Impossibile creare un URL valido. Usa lettere o numeri nel nome, cognome o azienda.",
   "auth.error.network":
-    "Impossibile raggiungere l’API. Il backend è avviato (python main.py) e NEXT_PUBLIC_API_URL in .env.local è corretto?",
+    "Impossibile raggiungere l’API. Se Next è su un’altra porta (es. 3001), aggiungi quell’origine a CORS_ORIGINS nel .env del backend. Controlla python main.py e NEXT_PUBLIC_API_URL in frontend-react/.env.local (riavvia npm run dev).",
+  "auth.error.mixed_content":
+    "La pagina è HTTPS ma l’URL dell’API è http://… Il browser blocca la richiesta. Usa http://localhost:3000 in locale, oppure imposta NEXT_PUBLIC_API_URL su un URL HTTPS pubblico (es. Railway).",
   "auth.error.server": "Registrazione non riuscita. Riprova.",
   "landing.badge": "Next.js Frontend · v0.1",
   "landing.title": "Project Dossier",

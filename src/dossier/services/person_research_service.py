@@ -316,22 +316,17 @@ def run_person_research(
             gemini_google_search_used = True
             if not gemini_only:
                 warnings.append(
-                    "Incluye búsqueda en web con Gemini (herramienta Google Search). "
-                    "Puede conllevar coste adicional según tu proyecto de Google."
+                    "Se ha añadido un bloque complementario desde fuentes públicas en la web "
+                    "(además de los datos de perfiles)."
                 )
         except RuntimeError as e:
             warnings.append(str(e))
         except Exception as e:  # noqa: BLE001
-            warnings.append(f"Error en búsqueda web con Gemini: {e!s}")
+            warnings.append(f"Error en búsqueda web complementaria: {e!s}")
 
     if gemini_only:
         if md_web:
-            gemini_md = (
-                "## Informe OSINT (Gemini + Google Search)\n\n"
-                "_Investigación con Gemini y búsqueda web en vivo. "
-                "Verifica cada afirmación y enlace; los resultados pueden diferir ligeramente del buscador Google._\n\n"
-                + md_web
-            )
+            gemini_md = md_web
         elif not has_gemini_key:
             warnings.append(
                 "Sin GEMINI_API_KEY / GOOGLE_API_KEY no se puede ejecutar la búsqueda por IA (Gemini + web)."
@@ -352,29 +347,18 @@ def run_person_research(
             if md_web:
                 gemini_md = (
                     gemini_md
-                    + "\n\n---\n\n## Búsqueda web con Gemini + Google Search\n\n"
-                    + "_Complemento desde fuentes públicas en la web; contrasta con el análisis anterior "
-                    "(basado en JSON de Netrows) y verifica enlaces._\n\n"
+                    + "\n\n---\n\n### Complemento (fuentes públicas en la web)\n\n"
                     + md_web
                 )
         except RuntimeError as e:
             warnings.append(str(e))
         except Exception as e:  # noqa: BLE001
-            warnings.append(f"Error en análisis Gemini (Netrows): {e!s}")
+            warnings.append(f"Error en análisis sobre perfiles: {e!s}")
         if gemini_md is None and md_web:
-            gemini_md = (
-                "## Informe OSINT (Gemini + búsqueda web)\n\n"
-                "_Falló el análisis sobre datos Netrows; solo se muestra el bloque de búsqueda web._\n\n"
-                + md_web
-            )
+            gemini_md = md_web
     elif req.research_source == PersonResearchSource.netrows and not profiles:
         if md_web:
-            gemini_md = (
-                "## Informe OSINT (Gemini + búsqueda web)\n\n"
-                "_Netrows no devolvió perfiles enlazados; el informe se basó en búsqueda web con Gemini. "
-                "Verifica cada afirmación y las fuentes citadas._\n\n"
-                + md_web
-            )
+            gemini_md = md_web
         elif not has_gemini_key:
             warnings.append(
                 "Sin perfiles de Netrows y sin GEMINI_API_KEY / GOOGLE_API_KEY: no se pudo ejecutar "

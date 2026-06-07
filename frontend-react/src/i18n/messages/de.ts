@@ -77,7 +77,9 @@ const messages = {
   "auth.error.slug_unreadable":
     "Aus diesen Angaben lässt sich keine gültige URL bilden. Bitte Buchstaben oder Ziffern in Name oder Firma verwenden.",
   "auth.error.network":
-    "Die API ist nicht erreichbar. Läuft das Backend (z. B. python main.py) und ist NEXT_PUBLIC_API_URL korrekt?",
+    "Die API ist nicht erreichbar. Läuft Next auf einem anderen Port (z. B. 3001), diesen Ursprung in CORS_ORIGINS in der Backend-.env eintragen. Backend mit python main.py; NEXT_PUBLIC_API_URL in frontend-react/.env.local und npm run dev neu starten.",
+  "auth.error.mixed_content":
+    "Die Seite ist HTTPS, die API-URL ist http:// – der Browser blockiert das. Für lokale Entwicklung http://localhost:3000 nutzen oder NEXT_PUBLIC_API_URL auf eine öffentliche HTTPS-API (z. B. Railway) setzen.",
   "auth.error.server": "Die Registrierung konnte nicht abgeschlossen werden. Bitte erneut versuchen.",
   "landing.badge": "Next.js Frontend · v0.1",
   "landing.title": "Project Dossier",

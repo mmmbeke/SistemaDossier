@@ -80,7 +80,9 @@ const messages = {
   "auth.error.slug_unreadable":
     "Could not build a valid URL from this text. Use letters or numbers in the name or company field.",
   "auth.error.network":
-    "Cannot reach the API. Is the backend running (python main.py) and is NEXT_PUBLIC_API_URL correct?",
+    "Cannot reach the API. If Next runs on another port (e.g. 3001), add that origin to CORS_ORIGINS in the backend .env. Check python main.py and NEXT_PUBLIC_API_URL in frontend-react/.env.local (restart npm run dev).",
+  "auth.error.mixed_content":
+    "This page is HTTPS but the API URL is http://… Browsers block that. Use http://localhost:3000 for local dev, or set NEXT_PUBLIC_API_URL to a public HTTPS API URL (e.g. Railway).",
   "auth.error.server": "Registration could not be completed. Please try again.",
   "landing.badge": "Next.js Frontend · v0.1",
   "landing.title": "Project Dossier",
@@ -171,16 +173,21 @@ const messages = {
   "person_research.max_profiles": "Profiles to enrich (1–5)",
   "person_research.include_posts": "Include recent posts (when available)",
   "person_research.submit": "Search and analyze",
-  "person_research.submitting": "Generating report with Gemini…",
+  "person_research.submitting": "Generating report…",
   "person_research.error_auth": "You must be signed in.",
   "person_research.error_name": "Enter at least the person's full name.",
   "person_research.warn_title": "Warnings",
   "person_research.section_raw": "Raw API (attempts)",
-  "person_research.section_analysis": "Gemini analysis",
+  "person_research.section_analysis": "Executive brief",
   "person_research.analysis_web_badge":
-    "Report from Gemini with live Google Search. Verify claims and links; ranking may differ from google.com in your browser.",
+    "Includes public web sources. Verify claims and links before you decide.",
   "person_research.no_analysis":
-    "No report: for AI search, set GEMINI_API_KEY or GOOGLE_API_KEY and keep web search enabled. For Netrows, set NETROWS_API_KEY and Gemini for analysis.",
+    "No report: check server configuration (model key and web search) or the warnings above.",
+  "person_research.saved_title": "Saved to My Dossiers",
+  "person_research.saved_body":
+    "This brief was stored for your organization. Open it anytime from the list.",
+  "person_research.saved_open": "Open dossier",
+  "person_research.saved_list": "Go to My Dossiers",
   "person_research.toggle_raw": "Show / hide raw JSON",
   "person_research.disclaimer":
     "The brief reflects what this search session returned; the model must not invent facts. Cross-check independently for legal or HR decisions.",
@@ -255,6 +262,14 @@ const messages = {
   "detail.refine_bullet_ticker": "Ticker + venue (e.g. F · NYSE)",
   "detail.refine_bullet_country": "Country or headquarters",
   "detail.refine_cta": "Run again with more detail",
+  "detail.pipeline_person": "People dossier",
+  "detail.person_refine_title": "To refine the research",
+  "detail.person_refine_desc":
+    "Common names often match multiple people. Run the search again with company, role, or location to narrow identity and the report.",
+  "detail.person_refine_bullet_name": "Full name as on documents or profiles",
+  "detail.person_refine_bullet_company": "Current or likely employer",
+  "detail.person_refine_bullet_geo": "Country, region, or city",
+  "detail.person_refine_cta": "New people search",
   "detail.show_raw_json": "Show raw JSON",
   "detail.hide_raw_json": "Hide raw JSON",
   "detail.api_pipeline_sources": "Pipeline, sources & agents",

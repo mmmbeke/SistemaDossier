@@ -67,19 +67,90 @@ def corporate_company_search(
 def person_professional_research(
     body: PersonResearchRequest,
     user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    db: Session = Depends(get_db_if_configured),
 ):
     """
     Investigación de persona: elige `research_source` en el cuerpo JSON.
-    `gemini_web`: solo Gemini + Google Search. `netrows`: API Netrows + análisis Gemini (requiere NETROWS_API_KEY).
+    `gemini_web`: búsqueda web en vivo + síntesis. `netrows`: perfiles vía Netrows + síntesis
+    (requiere NETROWS_API_KEY) y, si aplica, complemento web.
+
+    Si se genera texto de informe, se persiste en `dossiers` (misma organización que el JWT),
+    como los dossiers corporativos; la respuesta incluye `saved_dossier` con el `id` creado.
     """
-    _user, org = user_org
+    user, org = user_org
+    t0 = time.perf_counter()
     try:
-        return run_person_research(
+        result = run_person_research(
             body,
             organization_context_block=format_dossier_context_for_prompt(org),
         )
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
+
+    elapsed_ms = int((time.perf_counter() - t0) * 1000)
+    md = (result.get("gemini_analysis_markdown") or "").strip()
+    saved: dict | None = None
+
+    if md:
+        now = datetime.now(timezone.utc)
+        is_err = md.lstrip().startswith("# Error")
+        status = "failed" if is_err else "complete"
+        dossier_id = uuid.uuid4()
+
+        dossier_data_body: dict = {
+            "format": "markdown",
+            "body": md,
+            "pipeline": "person_research",
+            "success": not is_err,
+            "billing": "none",
+            "person_filters": {
+                "full_name": body.full_name,
+                "job_area": body.job_area,
+                "company": body.company,
+                "country": body.country,
+                "city": body.city,
+                "extra_keywords": body.extra_keywords,
+                "research_source": body.research_source.value,
+            },
+        }
+
+        dossier = Dossier(
+            id=dossier_id,
+            organization_id=org.id,
+            requested_by_user_id=user.id,
+            contact_id=None,
+            subject_name=body.full_name.strip()[:255],
+            subject_email=None,
+            module_identity=True,
+            module_corporate=False,
+            module_media=False,
+            depth_level="standard",
+            credits_consumed=0,
+            status=status,
+            status_message="Error en el informe generado." if is_err else None,
+            dossier_data=dossier_data_body,
+            agents_activated=[],
+            agents_failed=[],
+            data_sources_used=[],
+            generation_started_at=now,
+            generation_completed_at=now,
+            generation_duration_ms=elapsed_ms,
+            trigger_source="manual",
+        )
+        db.add(dossier)
+        db.commit()
+        db.refresh(dossier)
+
+        saved = {
+            "id": str(dossier.id),
+            "organization_id": str(org.id),
+            "status": dossier.status,
+            "credits_consumed": dossier.credits_consumed,
+            "generation_duration_ms": dossier.generation_duration_ms,
+        }
+
+    result["saved_dossier"] = saved
+    return result
 
 
 @router.post("/dossiers/corporate/generate")
@@ -177,7 +248,7 @@ def generate_corporate_dossier(
         dossier_data=dossier_data_body,
         agents_activated=["agent_corporate_uk", "agent_corporate_usa", "synthesize_gemini"],
         agents_failed=(["synthesize_gemini"] if is_err else []),
-        data_sources_used=["companies_house", "sec_edgar", "gemini"],
+        data_sources_used=["companies_house", "sec_edgar", "sec_company_facts", "gemini"],
         generation_started_at=now,
         generation_completed_at=now,
         generation_duration_ms=elapsed_ms,
