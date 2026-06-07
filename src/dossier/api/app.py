@@ -139,7 +139,8 @@ TENANT_ID = os.getenv("MICROSOFT_TENANT_ID", "common")
 REDIRECT_URI = os.getenv("MICROSOFT_REDIRECT_URI")
 
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-SCOPES = ["Calendars.Read"]
+# User.Read: perfil /me en Graph (nombre, correo). Calendars.Read: eventos.
+SCOPES = ["Calendars.Read", "User.Read"]
 
 
 def get_msal_app():
