@@ -291,7 +291,8 @@ export default function RegisterPage() {
       router.push("/dashboard");
     } catch (err) {
       if (err instanceof DossierApiError) {
-        if (err.isNetworkError()) setFormError(t("auth.error.network"));
+        if (err.isMixedContentBlocked()) setFormError(t("auth.error.mixed_content"));
+        else if (err.isNetworkError()) setFormError(t("auth.error.network"));
         else setFormError(err.message || t("auth.error.server"));
       } else {
         setFormError(t("auth.error.server"));

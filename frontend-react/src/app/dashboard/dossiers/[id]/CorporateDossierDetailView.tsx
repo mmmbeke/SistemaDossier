@@ -22,6 +22,7 @@ const KNOWN_DOSSIER_DATA_KEYS = new Set([
   "success",
   "billing",
   "resolution",
+  "person_filters",
 ]);
 
 function formatExtraValue(v: unknown): string {
@@ -75,7 +76,10 @@ function parseDossierData(data: unknown): {
   };
 }
 
-function refineHref(subject: string | null): string {
+function refineHrefForDossier(subject: string | null, pipeline: string | null): string {
+  if (pipeline === "person_research") {
+    return "/dashboard/person-research";
+  }
   const q = (subject ?? "").trim();
   const base = "/dashboard/generate";
   if (!q) return base;
@@ -90,6 +94,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   const meta = useMemo(() => parseDossierData(dossier.dossier_data), [dossier.dossier_data]);
+  const isPersonPipeline = meta.pipeline === "person_research";
 
   const created = dossier.created_at
     ? formatLongDate(dossier.created_at, preferences)
@@ -174,7 +179,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
                 className="rounded-full border px-3 py-0.5 text-xs"
                 style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}
               >
-                {meta.pipeline}
+                {isPersonPipeline ? t("detail.pipeline_person") : meta.pipeline}
               </span>
             )}
           </div>
@@ -193,14 +198,14 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
 
         <div className="flex shrink-0 flex-col gap-2 lg:items-end">
           <Link
-            href={refineHref(dossier.subject_name)}
+            href={refineHrefForDossier(dossier.subject_name, meta.pipeline)}
             className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
             style={{
               backgroundImage:
                 "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
             }}
           >
-            {t("detail.refine_cta")}
+            {isPersonPipeline ? t("detail.person_refine_cta") : t("detail.refine_cta")}
           </Link>
           <button
             type="button"
@@ -411,24 +416,35 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             </DashboardCard>
           )}
 
-          <DashboardCard title={t("detail.refine_title")}>
+          <DashboardCard title={isPersonPipeline ? t("detail.person_refine_title") : t("detail.refine_title")}>
             <p className="mb-3 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              {t("detail.refine_desc")}
+              {isPersonPipeline ? t("detail.person_refine_desc") : t("detail.refine_desc")}
             </p>
-            <ul
-              className="mb-4 list-inside list-disc space-y-1 text-sm"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              <li>{t("detail.refine_bullet_legal")}</li>
-              <li>{t("detail.refine_bullet_ticker")}</li>
-              <li>{t("detail.refine_bullet_country")}</li>
-            </ul>
+            {isPersonPipeline ? (
+              <ul
+                className="mb-4 list-inside list-disc space-y-1 text-sm"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <li>{t("detail.person_refine_bullet_name")}</li>
+                <li>{t("detail.person_refine_bullet_company")}</li>
+                <li>{t("detail.person_refine_bullet_geo")}</li>
+              </ul>
+            ) : (
+              <ul
+                className="mb-4 list-inside list-disc space-y-1 text-sm"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <li>{t("detail.refine_bullet_legal")}</li>
+                <li>{t("detail.refine_bullet_ticker")}</li>
+                <li>{t("detail.refine_bullet_country")}</li>
+              </ul>
+            )}
             <Link
-              href={refineHref(dossier.subject_name)}
+              href={refineHrefForDossier(dossier.subject_name, meta.pipeline)}
               className="inline-flex w-full items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90"
               style={{ borderColor: "var(--border-default)", color: "var(--accent-from)" }}
             >
-              {t("detail.refine_cta")}
+              {isPersonPipeline ? t("detail.person_refine_cta") : t("detail.refine_cta")}
             </Link>
           </DashboardCard>
 

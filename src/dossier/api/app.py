@@ -98,10 +98,21 @@ app = FastAPI(
 )
 
 # Orígenes permitidos para el dashboard Next.js (navegador bloquea sin CORS).
-_cors_raw = os.getenv(
-    "CORS_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000,http://[::1]:3000",
-)
+def _default_cors_origins_csv() -> str:
+    """Puertos 3000–3009 en localhost / 127.0.0.1 / ::1 (Next suele saltar de puerto si 3000 está ocupado)."""
+    parts: list[str] = []
+    for port in range(3000, 3010):
+        parts.extend(
+            [
+                f"http://localhost:{port}",
+                f"http://127.0.0.1:{port}",
+                f"http://[::1]:{port}",
+            ]
+        )
+    return ",".join(parts)
+
+
+_cors_raw = os.getenv("CORS_ORIGINS", _default_cors_origins_csv())
 _cors_origins = _parse_cors_origins(_cors_raw)
 # Cada preview en Vercel tiene un subdominio distinto (hash, rama, equipo).
 # fullmatch() sobre el header Origin (sin path). Desactivar: CORS_ALLOW_VERCEL_APP_REGEX=0

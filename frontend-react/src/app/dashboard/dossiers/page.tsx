@@ -68,7 +68,20 @@ export default function DossiersPage() {
     return dbItems.filter((row) => {
       const name = (row.subject_name || "").toLowerCase();
       const mail = (row.subject_email || "").toLowerCase();
-      const matchesQuery = q === "" || name.includes(q) || mail.includes(q);
+      let companyFromPerson = "";
+      const dd = row.dossier_data;
+      if (dd && typeof dd === "object" && !Array.isArray(dd)) {
+        const pf = (dd as Record<string, unknown>).person_filters;
+        if (pf && typeof pf === "object" && !Array.isArray(pf)) {
+          const c = (pf as Record<string, unknown>).company;
+          if (typeof c === "string") companyFromPerson = c.toLowerCase();
+        }
+      }
+      const matchesQuery =
+        q === "" ||
+        name.includes(q) ||
+        mail.includes(q) ||
+        (companyFromPerson && companyFromPerson.includes(q));
       return matchesQuery && dbStatusMatchesFilter(row.status, filter);
     });
   }, [dbItems, query, filter]);

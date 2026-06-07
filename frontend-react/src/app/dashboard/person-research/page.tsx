@@ -235,13 +235,35 @@ export default function PersonResearchPage() {
             </DashboardCard>
           ) : null}
 
+          {result?.saved_dossier?.id ? (
+            <DashboardCard title={t("person_research.saved_title")}>
+              <p className="mb-3 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                {t("person_research.saved_body")}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={`/dashboard/dossiers/${result.saved_dossier.id}`}
+                  className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
+                  }}
+                >
+                  {t("person_research.saved_open")}
+                </Link>
+                <Link
+                  href="/dashboard/dossiers"
+                  className="inline-flex items-center justify-center rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-90"
+                  style={{ borderColor: "var(--border-default)", color: "var(--accent-from)" }}
+                >
+                  {t("person_research.saved_list")}
+                </Link>
+              </div>
+            </DashboardCard>
+          ) : null}
+
           {result?.gemini_analysis_markdown ? (
             <DashboardCard title={t("person_research.section_analysis")}>
-              {result.gemini_google_search_used ? (
-                <p className="mb-3 text-xs leading-relaxed" style={{ color: "var(--accent-from)" }}>
-                  {t("person_research.analysis_web_badge")}
-                </p>
-              ) : null}
               <div
                 className="api-md max-w-none text-sm leading-relaxed"
                 style={{ color: "var(--text-primary)" }}

@@ -1,103 +1,29 @@
 """Plantillas de análisis Gemini para documentos regulatorios (Companies House y SEC EDGAR)."""
 from __future__ import annotations
 
-# Cuerpo común: informe de riesgo / compliance sobre el documento adjunto.
+# Cuerpo común: lectura breve de riesgo sobre el documento (CH y SEC). Debe ser **corta** para no inflar el dossier.
 _SHARED_CORPORATE_DOCUMENT_RISK_INSTRUCTIONS = """
-Actúa como un analista senior de riesgo empresarial, compliance, due diligence y evaluación corporativa.
+Actúa como analista senior de riesgo, compliance y due diligence.
 
-Tu tarea es realizar un análisis exhaustivo de todos los formularios, datos y respuestas obtenidas desde la API proporcionada. Debes interpretar la información de manera estratégica, financiera, operativa y reputacional para elaborar un informe completo sobre la empresa evaluada.
+Analiza **solo** el documento y metadatos indicados. Objetivo: un informe **breve** (orientación: **600–900 palabras** como máximo), en Markdown, útil para dirección.
 
-Objetivos del análisis
-Identificar claramente:
-A qué se dedica la empresa.
-Modelo de negocio.
-Industria o sector.
-Tipo de clientes.
-Tamaño estimado de la operación.
-Presencia geográfica.
-Servicios o productos ofrecidos.
-Extraer y resumir información crítica obtenida en los formularios:
-Datos legales y societarios.
-Información fiscal y tributaria.
-Beneficiarios finales / accionistas.
-Directivos y representantes.
-Información bancaria.
-Licencias o permisos.
-Actividad económica declarada.
-Volumen estimado de operaciones.
-Países relacionados.
-Historial operativo.
-Información de contacto y dominios.
-Antigüedad de la empresa.
-Indicadores financieros si existen.
-Realizar un análisis de coherencia y consistencia:
-Detectar inconsistencias entre formularios.
-Identificar campos incompletos o sospechosos.
-Detectar posibles señales de alerta.
-Evaluar si la información parece auténtica, insuficiente o riesgosa.
-Señalar contradicciones documentales.
-Elaborar un análisis de riesgo integral considerando:
-Riesgo financiero.
-Riesgo reputacional.
-Riesgo regulatorio y compliance.
-Riesgo AML / lavado de dinero.
-Riesgo operacional.
-Riesgo de fraude.
-Riesgo geopolítico.
-Riesgo comercial.
-Riesgo tecnológico o de ciberseguridad (si aplica).
-Dependencia excesiva de terceros.
-Actividades sensibles o reguladas.
-Detectar señales de alerta (Red Flags):
-Estructuras societarias complejas.
-Uso de paraísos fiscales.
-Información incompleta o inconsistente.
-Actividades de alto riesgo.
-Cambios frecuentes de representantes.
-Países sancionados o riesgosos.
-Patrones atípicos.
-Falta de documentación clave.
-Datos falsos o difíciles de verificar.
-Riesgos de fraude o suplantación.
-Generar un score o clasificación de riesgo:
-Bajo.
-Medio.
-Alto.
-Crítico.
+Cubre de forma compacta (sin repetir teoría ni rellenar):
+- Qué hace la empresa y contexto del envío.
+- Riesgos relevantes (financiero, reputacional, regulatorio, operacional, AML si aplica) con severidad **Alta / Media / Baja** solo donde aporte.
+- Red flags concretas si existen.
+- Una **clasificación global de riesgo** (Bajo / Medio / Alto / Crítico) en **una frase** con justificación breve.
+- **3 a 5** acciones o comprobaciones concretas a priorizar.
 
-Explica detalladamente por qué se asignó dicha clasificación.
+Estructura sugerida (secciones cortas, pocas viñetas cada una):
+## Resumen
+## Riesgos y señales
+## Clasificación de riesgo
+## Próximos pasos
 
-Proporcionar recomendaciones accionables:
-Si es recomendable relacionarse comercialmente con la empresa.
-Qué validaciones adicionales deberían realizarse.
-Qué documentación solicitar.
-Qué riesgos deben mitigarse.
-Qué controles de compliance implementar.
-Si se recomienda aprobación, revisión manual o rechazo.
-Formato del resultado
-
-Genera el informe con la siguiente estructura:
-
-INFORME DE EVALUACIÓN EMPRESARIAL
-1. Resumen Ejecutivo
-2. Perfil de la Empresa
-3. Información Clave Detectada
-4. Análisis de Formularios y Coherencia
-5. Evaluación de Riesgos
-6. Red Flags Detectadas
-7. Score de Riesgo
-8. Recomendaciones
-9. Conclusión Final
-Requisitos adicionales
-Usa lenguaje profesional y corporativo.
-Prioriza precisión y análisis crítico.
-Destaca hallazgos importantes.
-Explica el impacto potencial de cada riesgo.
-Si falta información, indícalo explícitamente.
-No inventes datos.
-Diferencia claramente hechos, inferencias y sospechas.
-Usa tablas cuando sea útil.
-Asigna niveles de severidad a cada hallazgo.
+Requisitos:
+- Lenguaje profesional; evita tablas salvo que ahorren espacio.
+- No inventes datos. Si algo no figura en el documento: «no consta en este documento».
+- Redacción para **cliente final**: no menciones marcas de IA, APIs, protocolos técnicos, «fragmentos» ni limitaciones del software. Si falta detalle, indícalo como punto a **validar con la contraparte** o **pedir en data room**, no como fallo técnico.
 """.strip()
 
 

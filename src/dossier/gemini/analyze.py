@@ -53,6 +53,26 @@ def _should_retry(exc: BaseException) -> bool:
     return _is_rate_limit_error(exc) or _is_transient_server_error(exc)
 
 
+def gemini_error_should_retry_full_request(exc: BaseException) -> bool:
+    """
+    True si merece la pena repetir toda la petición (subida de archivo + generate).
+
+    Usado por el pipeline corporativo además de los reintentos internos de
+    ``analyze_document_bytes`` (p. ej. 503 UNAVAILABLE en upload o tras agotar reintentos).
+    """
+    return _should_retry(exc)
+
+
+def gemini_error_retry_delay_seconds(exc: BaseException) -> float:
+    """Espera sugerida antes de reintentar (alineada con ``analyze_document_bytes``)."""
+    return _retry_after_seconds(exc)
+
+
+def is_gemini_transient_server_error(exc: BaseException) -> bool:
+    """503, UNAVAILABLE, timeouts (mensajes UX distintos de 429)."""
+    return _is_transient_server_error(exc)
+
+
 def _retry_after_seconds(exc: BaseException) -> float:
     msg = str(exc)
     m = re.search(r"please retry in ([\d.]+)s", msg, re.I)

@@ -16,6 +16,9 @@ export function getApiBaseUrl(): string {
   return "http://127.0.0.1:8000";
 }
 
+/** Marca interna: página HTTPS + API en http (el navegador bloquea el fetch). */
+const FETCH_FAILED_MIXED_CONTENT = "__dossier_fetch_mixed_content__";
+
 export type AuthUser = {
   id: string;
   email: string;
@@ -147,6 +150,21 @@ export class DossierApiError extends Error {
   isNetworkError(): boolean {
     return this.status === 0;
   }
+
+  /** Página en HTTPS y `NEXT_PUBLIC_API_URL` en http (contenido mixto; el navegador bloquea). */
+  isMixedContentBlocked(): boolean {
+    return this.status === 0 && this.message === FETCH_FAILED_MIXED_CONTENT;
+  }
+}
+
+function throwFetchFailed(): never {
+  if (typeof window !== "undefined" && window.location.protocol === "https:") {
+    const base = getApiBaseUrl().trim().toLowerCase();
+    if (base.startsWith("http:")) {
+      throw new DossierApiError(0, FETCH_FAILED_MIXED_CONTENT);
+    }
+  }
+  throw new DossierApiError(0, "NETWORK");
 }
 
 function formatFastApiValidationItem(item: unknown): string {
@@ -206,7 +224,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
       body: JSON.stringify(body),
     });
   } catch {
-    throw new DossierApiError(0, "NETWORK");
+    throwFetchFailed();
   }
 
   const text = await res.text();
@@ -269,7 +287,7 @@ export async function fetchAuthMe(): Promise<AuthUser> {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
-    throw new DossierApiError(0, "NETWORK");
+    throwFetchFailed();
   }
   const text = await res.text();
   let parsed: unknown = null;
@@ -356,7 +374,7 @@ async function getJsonWithAuth<T>(path: string): Promise<T> {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
-    throw new DossierApiError(0, "NETWORK");
+    throwFetchFailed();
   }
   const text = await res.text();
   let parsed: unknown = null;
@@ -390,7 +408,7 @@ async function patchJsonWithAuth<T>(path: string, body: unknown): Promise<T> {
       body: JSON.stringify(body),
     });
   } catch {
-    throw new DossierApiError(0, "NETWORK");
+    throwFetchFailed();
   }
   const text = await res.text();
   let parsed: unknown = null;
@@ -517,7 +535,7 @@ async function postJsonWithAuth<T>(path: string, body: unknown): Promise<T> {
       body: JSON.stringify(body),
     });
   } catch {
-    throw new DossierApiError(0, "NETWORK");
+    throwFetchFailed();
   }
 
   const text = await res.text();
@@ -602,7 +620,7 @@ export async function fetchCorporateCompanySearch(
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
-    throw new DossierApiError(0, "NETWORK");
+    throwFetchFailed();
   }
   const text = await res.text();
   let parsed: unknown = null;
@@ -632,6 +650,14 @@ export type PersonResearchPayload = {
   research_source?: "gemini_web" | "netrows";
 };
 
+export type PersonSavedDossier = {
+  id: string;
+  organization_id: string;
+  status: string;
+  credits_consumed: number;
+  generation_duration_ms: number | null;
+};
+
 export type PersonResearchApiResponse = {
   filters_applied: Record<string, unknown>;
   search_attempts: unknown[];
@@ -639,9 +665,11 @@ export type PersonResearchApiResponse = {
   profiles: unknown[];
   posts_by_url: Record<string, unknown>;
   gemini_analysis_markdown: string | null;
-  /** True si el informe salió de Gemini + Google Search (sin JSON de Netrows). */
+  /** True si el informe incluyó bloque desde búsqueda web pública. */
   gemini_google_search_used?: boolean;
   warnings: string[];
+  /** Presente si se guardó fila en `dossiers` (hay cuerpo de informe). */
+  saved_dossier: PersonSavedDossier | null;
 };
 
 export async function postPersonResearch(
@@ -676,7 +704,7 @@ export async function fetchDossiersFromApi(limit = 50): Promise<DossiersListResp
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
-    throw new DossierApiError(0, "NETWORK");
+    throwFetchFailed();
   }
   const text = await res.text();
   let parsed: unknown = null;
@@ -705,7 +733,7 @@ export async function fetchDossierById(dossierId: string): Promise<DossierDetail
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
-    throw new DossierApiError(0, "NETWORK");
+    throwFetchFailed();
   }
   const text = await res.text();
   let parsed: unknown = null;
@@ -735,7 +763,7 @@ export async function deleteDossierFromApi(dossierId: string): Promise<void> {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
-    throw new DossierApiError(0, "NETWORK");
+    throwFetchFailed();
   }
   const text = await res.text();
   let parsed: unknown = null;

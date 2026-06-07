@@ -28,7 +28,12 @@ from dossier.companies_house.prompt_templates import (
     format_sec_filing_gemini_prompt,
 )
 from dossier.config import load_env
-from dossier.gemini.analyze import analyze_document_bytes
+from dossier.gemini.analyze import (
+    analyze_document_bytes,
+    gemini_error_retry_delay_seconds,
+    gemini_error_should_retry_full_request,
+    is_gemini_transient_server_error,
+)
 from dossier.services.corporate_company_search import (
     find_companies_house_matches,
     find_sec_matches,
@@ -82,20 +87,33 @@ def _gemini_retry_sleep_seconds(exc: BaseException) -> float:
 def _gemini_analyze_bytes_with_retries(
     data: bytes, filename: str, prompt: str, *, log_prefix: str
 ) -> str:
-    """Reintentos ante 429 / RESOURCE_EXHAUSTED (cuota o ráfaga)."""
+    """
+    Reintentos ante 429/cuota y errores transitorios de Gemini (503 UNAVAILABLE, timeouts).
+
+    ``analyze_document_bytes`` ya reintenta dentro de ``generate_content``; aquí repetimos
+    el flujo completo (subida + análisis) cuando falla upload, procesamiento del archivo, etc.
+    """
     last: BaseException | None = None
-    for attempt in range(4):
+    max_attempts = int(os.getenv("GEMINI_CORPORATE_FILING_OUTER_RETRIES", "5"))
+    max_attempts = max(2, min(max_attempts, 8))
+    for attempt in range(max_attempts):
         try:
             return analyze_document_bytes(data, filename, prompt)
         except Exception as e:
             last = e
-            if attempt < 3 and _is_gemini_429_or_quota(e):
-                wait = _gemini_retry_sleep_seconds(e)
+            if attempt < max_attempts - 1 and gemini_error_should_retry_full_request(e):
+                wait = (
+                    _gemini_retry_sleep_seconds(e)
+                    if _is_gemini_429_or_quota(e)
+                    else gemini_error_retry_delay_seconds(e)
+                )
                 logger.info(
-                    "%s: 429/cuota, reintento en %.1fs (paso %s/4)",
+                    "%s: error reintentable (%s), espera %.1fs (paso %s/%s)",
                     log_prefix,
+                    type(e).__name__,
                     wait,
                     attempt + 2,
+                    max_attempts,
                 )
                 time.sleep(wait)
                 continue
@@ -183,6 +201,37 @@ def _sec_get_json(url: str) -> dict[str, Any]:
     return r.json()
 
 
+def _sec_filing_tier_for_gemini_pick(form: str) -> int:
+    """
+    Prioridad para elegir **qué filing** descargar y enviar a Gemini (un solo HTML).
+
+    Valores más bajos = preferidos. Así evitamos quedarnos en el primer HTML «válido»
+    de la cola reciente (p. ej. Form SD o 8-K) cuando existe un 10-K o 10-Q cercano.
+    """
+    u = (form or "").strip().upper()
+    if u in ("10-K", "20-F", "40-F"):
+        return 0
+    if u in ("10-K/A", "10-KT", "20-F/A", "40-F/A"):
+        return 1
+    if u.startswith("10-K"):
+        return 2
+    if u in ("10-Q", "10-Q/A", "6-K", "6-K/A"):
+        return 3
+    if u in ("DEF 14A", "DEFA14A", "PRE 14A"):
+        return 5
+    if u.startswith("S-1") or u.startswith("F-1") or u.startswith("424B"):
+        return 8
+    if u.startswith("8-K"):
+        return 22
+    if "13G" in u or "13D" in u or u.startswith("SC 13"):
+        return 38
+    if u in ("SD", "SD/A"):
+        return 40
+    if u in ("4", "144", "3", "5"):
+        return 45
+    return 30
+
+
 def _resolve_sec_cik(participantes: str) -> tuple[str | None, str | None, str]:
     """(cik10, ticker opcional, nota)."""
     text = (participantes or "").strip()
@@ -229,7 +278,7 @@ def _format_sec_recent_submissions(data: dict[str, Any], limit: int = 20) -> str
     dates = recent.get("filingDate") or []
     accs = recent.get("accessionNumber") or []
     lines = [
-        "## Datos SEC (submissions JSON)",
+        "## Presentaciones recientes (referencia regulatoria)",
         f"- **Nombre en SEC:** {name}",
         f"- **CIK (cabecera):** {cik_header}",
         f"- **Tickers:** {', '.join(str(x) for x in tickers) if tickers else '(no listados)'}",
@@ -243,6 +292,110 @@ def _format_sec_recent_submissions(data: dict[str, Any], limit: int = 20) -> str
     for i in range(n):
         lines.append(f"| {dates[i]} | {forms[i]} | {accs[i]} |")
     return "\n".join(lines)
+
+
+# Etiquetas us-gaap frecuentes para un snapshot compacto (Company Facts API).
+_SEC_COMPANY_FACTS_TAGS: tuple[str, ...] = (
+    "Revenues",
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "Assets",
+    "Liabilities",
+    "StockholdersEquity",
+    "NetIncomeLoss",
+    "OperatingIncomeLoss",
+    "CashAndCashEquivalentsAtCarryingValue",
+    "EarningsPerShareBasic",
+    "EarningsPerShareDiluted",
+    "LongTermDebt",
+    "DebtCurrent",
+)
+
+
+def _sec_company_facts_enabled() -> bool:
+    """Resumen XBRL vía `companyfacts` (una petición extra a data.sec.gov)."""
+    load_env()
+    v = (os.getenv("DOSSIER_SEC_COMPANY_FACTS") or "1").strip().lower()
+    return v not in ("0", "false", "no", "off")
+
+
+def _sec_extract_company_facts_sample(payload: dict[str, Any]) -> dict[str, Any]:
+    """Reduce el JSON masivo de companyfacts a unas pocas series temporales."""
+    usgaap = (payload.get("facts") or {}).get("us-gaap") or {}
+    sample: dict[str, list[dict[str, Any]]] = {}
+    for tag in _SEC_COMPANY_FACTS_TAGS:
+        block = usgaap.get(tag)
+        if not isinstance(block, dict):
+            continue
+        units = block.get("units") or {}
+        rows: list[Any] = []
+        for uk in ("USD", "USD/shares", "shares", "pure"):
+            if uk in units and isinstance(units[uk], list):
+                rows = units[uk]
+                break
+        if not rows and units:
+            for _u, arr in units.items():
+                if isinstance(arr, list) and arr:
+                    rows = arr
+                    break
+        if not rows:
+            continue
+
+        def _rk(r: dict[str, Any]) -> str:
+            return str(r.get("filed") or r.get("end") or "")
+
+        top = sorted(rows, key=_rk, reverse=True)[:8]
+        slim: list[dict[str, Any]] = []
+        for r in top:
+            if not isinstance(r, dict):
+                continue
+            row_out: dict[str, Any] = {}
+            for k in ("filed", "end", "val", "fy", "fp", "form", "accn"):
+                if k in r and r[k] is not None:
+                    row_out[k] = r[k]
+            if row_out:
+                slim.append(row_out)
+        if slim:
+            sample[tag] = slim
+    return {
+        "entityName": payload.get("entityName"),
+        "cik": payload.get("cik"),
+        "us_gaap_highlights": sample,
+    }
+
+
+def _build_sec_company_facts_markdown(cik: str) -> str:
+    if not _sec_company_facts_enabled():
+        return ""
+    url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+    try:
+        payload = _sec_get_json(url)
+    except Exception as e:
+        logger.warning("SEC companyfacts CIK=%s: %s", cik, e)
+        return (
+            "\n\n### Indicadores financieros públicos (cifras reportadas por el emisor)\n\n"
+            f"*No se pudieron cargar las series resumidas: `{e}`*\n"
+        )
+    slim = _sec_extract_company_facts_sample(payload)
+    highlights = slim.get("us_gaap_highlights") or {}
+    if not highlights:
+        return (
+            "\n\n### Indicadores financieros públicos (cifras reportadas por el emisor)\n\n"
+            "*No hay series numéricas reconocibles en el material público estándar para este emisor "
+            "(emisores extranjeros o presentaciones con taxonomía distinta pueden dejar esta sección casi vacía).*\n"
+        )
+    raw = json.dumps(slim, indent=2, ensure_ascii=False)
+    max_chars_raw = (os.getenv("DOSSIER_SEC_COMPANY_FACTS_MAX_CHARS") or "14000").strip()
+    max_c = int(max_chars_raw) if max_chars_raw.isdigit() else 14_000
+    max_c = max(4000, min(max_c, 80_000))
+    return (
+        "\n\n### Indicadores financieros públicos (cifras reportadas por el emisor)\n\n"
+        "Serie temporal reciente de partidas contables frecuentes (ingresos, activos, patrimonio, "
+        "resultado, caja, deuda, BPA, etc.), tal como figuran en los datos públicos de referencia. "
+        "Usa `form`, `filed` y `end` para interpretar cada cifra.\n\n"
+        "```json\n"
+        + _trunc(raw, max_c)
+        + "\n```\n"
+    )
 
 
 def _ch_gemini_filing_markdown(
@@ -261,17 +414,15 @@ def _ch_gemini_filing_markdown(
 
     if not (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip():
         return (
-            "\n\n### Análisis del formulario (Gemini)\n\n"
-            "*No hay `GEMINI_API_KEY` / `GOOGLE_API_KEY`: se omitió el análisis del documento "
-            "(igual que en el CLI sin clave).*\n"
+            "\n\n### Lectura del formulario regulatorio (Reino Unido)\n\n"
+            "*Falta la clave de análisis de documentos en el entorno: se omitió la lectura del formulario.*\n"
         )
 
     if not _ch_filing_gemini_enabled():
         return (
-            "\n\n### Análisis del formulario (Gemini)\n\n"
-            "*Omitido por configuración (`DOSSIER_CORPORATE_CH_FILING_GEMINI=0`): no se envía el "
-            "documento a Gemini aquí, para **ahorrar una petición** por dossier. "
-            "Sigue activa la síntesis final del informe (otra llamada al modelo).*\n"
+            "\n\n### Lectura del formulario regulatorio (Reino Unido)\n\n"
+            "*Omitido por configuración (`DOSSIER_CORPORATE_CH_FILING_GEMINI=0`): no se adjunta lectura "
+            "detallada del formulario en este dossier.*\n"
         )
 
     items = fh.get("items") or []
@@ -284,9 +435,9 @@ def _ch_gemini_filing_markdown(
 
     if not chosen:
         return (
-            "\n\n### Análisis del formulario (Gemini)\n\n"
-            "*Ningún ítem reciente del historial incluye `document_metadata` descargable "
-            "(p. ej. solo presentaciones en papel); no hay archivo para Gemini — mismo criterio que el CLI.*\n"
+            "\n\n### Lectura del formulario regulatorio (Reino Unido)\n\n"
+            "*Ningún ítem reciente del historial incluye documento electrónico descargable "
+            "(p. ej. solo presentaciones en papel); no hay archivo para analizar.*\n"
         )
 
     item, meta_url = chosen
@@ -311,25 +462,32 @@ def _ch_gemini_filing_markdown(
         logger.info("Gemini: analizando primer filing CH %s (%s)", company_number, filename)
         analysis = _analyze_ch_document_with_retries(data, filename, prompt)
         return (
-            "\n\n### Análisis del formulario (Companies House — Gemini)\n\n"
-            + (analysis.strip() or "(Gemini devolvió texto vacío.)")
+            "\n\n### Lectura del formulario Companies House\n\n"
+            + (analysis.strip() or "(Sin texto en el resumen del documento.)")
             + "\n"
         )
     except Exception as e:
         logger.warning("Gemini CH filing analysis failed: %s", e)
         if _is_gemini_429_or_quota(e):
             return (
-                "\n\n### Análisis del formulario (Gemini)\n\n"
-                "**Cuota o límite de Gemini (429 / RESOURCE_EXHAUSTED).** En el plan gratuito el "
-                "número de peticiones por día y modelo es bajo; este paso usa **una petición** "
-                "adicional a la de la síntesis final del dossier.\n\n"
-                "- Espera el tiempo que indica Google y vuelve a intentar, o revisa facturación/cuota.\n"
-                "- Para generar dossiers **sin** este análisis del documento CH (solo síntesis con "
-                "JSON de perfil/historial), pon en `.env`:\n\n"
+                "\n\n### Lectura del formulario regulatorio (Reino Unido)\n\n"
+                "**Límite de cuota del servicio de análisis de documentos (429).** "
+                "Este paso consume capacidad adicional además del informe ejecutivo final.\n\n"
+                "- Espere según el mensaje del proveedor y vuelva a intentar, o revise el plan de uso.\n"
+                "- Para generar dossiers sin esta lectura detallada del formulario, en `.env`:\n\n"
                 "  `DOSSIER_CORPORATE_CH_FILING_GEMINI=0`\n\n"
-                f"*Detalle:* `{e}`\n"
+                f"*Detalle técnico:* `{e}`\n"
             )
-        return f"\n\n### Análisis del formulario (Gemini)\n\n*Error al analizar el documento: {e}*\n"
+        if is_gemini_transient_server_error(e):
+            return (
+                "\n\n### Lectura del formulario regulatorio (Reino Unido)\n\n"
+                "**El servicio de análisis no respondió a tiempo (503 / no disponible / timeout).** "
+                "Suele ser un fallo puntual; no indica que el formulario no exista.\n\n"
+                "- Espere unos minutos y vuelva a generar el dossier.\n"
+                "- Para omitir esta lectura: `DOSSIER_CORPORATE_CH_FILING_GEMINI=0` en `.env`.\n\n"
+                f"*Detalle técnico:* `{e}`\n"
+            )
+        return f"\n\n### Lectura del formulario regulatorio (Reino Unido)\n\n*Error al analizar el documento: {e}*\n"
 
 
 def _sec_gemini_filing_markdown(
@@ -339,8 +497,11 @@ def _sec_gemini_filing_markdown(
     resolution_note: str,
 ) -> str:
     """
-    Descarga el HTML principal del filing SEC más reciente que permita index.json
-    y lo analiza con Gemini (misma plantilla de riesgo que CH).
+    Descarga el HTML principal de un filing SEC reciente y lo analiza con Gemini.
+
+    Orden de revisión: se priorizan **10-K / 20-F / 40-F**, luego enmiendas y **10-Q**,
+    y recién después formularios puntuales (8-K, SD, 13G, etc.), siempre respetando
+    el índice de recencia de la API (menor índice = filing más reciente entre el mismo tipo).
     """
     from dossier.sec_edgar.cli import build_document_url, build_index_url, find_main_document
 
@@ -350,15 +511,15 @@ def _sec_gemini_filing_markdown(
 
     if not (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip():
         return (
-            "\n\n### Análisis del documento SEC (Gemini)\n\n"
-            "*No hay `GEMINI_API_KEY` / `GOOGLE_API_KEY`: se omitió el análisis del documento.*\n"
+            "\n\n### Lectura del informe periódico SEC\n\n"
+            "*Falta la clave de análisis de documentos en el entorno: se omitió la lectura del informe.*\n"
         )
 
     if not _sec_filing_gemini_enabled():
         return (
-            "\n\n### Análisis del documento SEC (Gemini)\n\n"
-            "*Omitido por configuración (`DOSSIER_CORPORATE_SEC_FILING_GEMINI=0`): no se descarga "
-            "HTML de EDGAR para Gemini (ahorra una petición además de la síntesis final).*\n"
+            "\n\n### Lectura del informe periódico SEC\n\n"
+            "*Omitido por configuración (`DOSSIER_CORPORATE_SEC_FILING_GEMINI=0`): no se adjunta lectura "
+            "detallada del informe periódico en este dossier.*\n"
         )
 
     company_name = str(submissions_data.get("name") or "N/A")
@@ -374,7 +535,7 @@ def _sec_gemini_filing_markdown(
     accns = recent.get("accessionNumber") or []
     if not forms or not accns or len(forms) != len(accns):
         return (
-            "\n\n### Análisis del documento SEC (Gemini)\n\n"
+            "\n\n### Lectura del informe periódico SEC\n\n"
             "*No hay bloque `filings.recent` utilizable en submissions.*\n"
         )
 
@@ -383,8 +544,15 @@ def _sec_gemini_filing_markdown(
     doc_bytes: bytes | None = None
     doc_url = ""
 
-    n = min(len(forms), len(dates), len(accns), 28)
-    for i in range(n):
+    scan_raw = (os.getenv("DOSSIER_SEC_GEMINI_FILING_SCAN_MAX") or "60").strip()
+    scan_max = int(scan_raw) if scan_raw.isdigit() else 60
+    scan_max = max(12, min(scan_max, 120))
+
+    n = min(len(forms), len(dates), len(accns), scan_max)
+    indices = list(range(n))
+    indices.sort(key=lambda i: (_sec_filing_tier_for_gemini_pick(str(forms[i])), i))
+
+    for i in indices:
         form_s = str(forms[i])
         date_s = str(dates[i])
         acc_s = str(accns[i])
@@ -410,11 +578,19 @@ def _sec_gemini_filing_markdown(
         chosen_doc = str(doc_name)
         doc_bytes = raw
         doc_url = final_url
+        logger.info(
+            "SEC filing elegido para Gemini: form=%s date=%s accession=%s (tier=%s, índice reciente=%s)",
+            chosen_form,
+            chosen_date,
+            chosen_acc,
+            _sec_filing_tier_for_gemini_pick(chosen_form),
+            i,
+        )
         break
 
     if not chosen_doc or doc_bytes is None:
         return (
-            "\n\n### Análisis del documento SEC (Gemini)\n\n"
+            "\n\n### Lectura del informe periódico SEC\n\n"
             "*No se encontró un HTML principal descargable en los envíos recientes revisados "
             "(o falló `index.json` / la descarga).*\n"
         )
@@ -438,26 +614,35 @@ def _sec_gemini_filing_markdown(
             doc_bytes, filename, prompt, log_prefix="Gemini filing SEC"
         )
         return (
-            "\n\n### Análisis del documento SEC (Gemini)\n\n"
+            "\n\n### Lectura del informe periódico SEC\n\n"
             f"*Resolución emisor: {resolution_note}"
             + (f", ticker **{ticker_display}**" if ticker_display else "")
-            + f". URL analizada: `{doc_url}`*\n\n"
-            + (analysis.strip() or "(Gemini devolvió texto vacío.)")
+            + f". Enlace al documento de referencia: `{doc_url}`*\n\n"
+            + (analysis.strip() or "(Sin texto en el resumen del documento.)")
             + "\n"
         )
     except Exception as e:
         logger.warning("Gemini SEC filing analysis failed: %s", e)
         if _is_gemini_429_or_quota(e):
             return (
-                "\n\n### Análisis del documento SEC (Gemini)\n\n"
-                "**Cuota o límite de Gemini (429 / RESOURCE_EXHAUSTED).** Este paso usa una petición "
-                "adicional a la síntesis final.\n\n"
-                "- Espera y reintenta, o revisa cuota en Google AI.\n"
-                "- Para omitir este análisis SEC en dossiers corporativos:\n\n"
+                "\n\n### Lectura del informe periódico SEC\n\n"
+                "**Límite de cuota del servicio de análisis de documentos (429).** "
+                "Este paso consume capacidad adicional además del informe ejecutivo final.\n\n"
+                "- Espere y vuelva a intentar, o revise el plan de uso del proveedor.\n"
+                "- Para omitir esta lectura en dossiers corporativos:\n\n"
                 "  `DOSSIER_CORPORATE_SEC_FILING_GEMINI=0`\n\n"
-                f"*Detalle:* `{e}`\n"
+                f"*Detalle técnico:* `{e}`\n"
             )
-        return f"\n\n### Análisis del documento SEC (Gemini)\n\n*Error al analizar el documento: {e}*\n"
+        if is_gemini_transient_server_error(e):
+            return (
+                "\n\n### Lectura del informe periódico SEC\n\n"
+                "**El servicio de análisis no respondió a tiempo (503 / no disponible / timeout).** "
+                "Suele ser un fallo puntual al procesar el archivo; no indica que el informe no exista.\n\n"
+                "- Espere unos minutos y vuelva a generar el dossier.\n"
+                "- Para omitir esta lectura: `DOSSIER_CORPORATE_SEC_FILING_GEMINI=0` en `.env`.\n\n"
+                f"*Detalle técnico:* `{e}`\n"
+            )
+        return f"\n\n### Lectura del informe periódico SEC\n\n*No se pudo completar la lectura del documento: {e}*\n"
 
 
 def build_uk_corporate_context_markdown(participantes: str) -> str:
@@ -508,7 +693,7 @@ def build_uk_corporate_context_markdown(participantes: str) -> str:
     gemini_md = _ch_gemini_filing_markdown(profile, fh, auth, num)
 
     return (
-        "## Reino Unido (Companies House) — datos de API\n\n"
+        "## Reino Unido (Companies House)\n\n"
         f"*Empresa resuelta: **{num}** ({note}).*\n\n"
         "### Perfil (JSON)\n\n```json\n"
         + _trunc(prof_json, 10_000)
@@ -521,7 +706,7 @@ def build_uk_corporate_context_markdown(participantes: str) -> str:
 
 
 def build_us_corporate_context_markdown(participantes: str) -> str:
-    """Markdown con submissions SEC recientes, o mensaje de fallo."""
+    """Markdown con submissions, indicadores financieros públicos y lectura opcional del informe EDGAR."""
     cik, ticker, note = _resolve_sec_cik(participantes)
     if not cik:
         return (
@@ -546,13 +731,15 @@ def build_us_corporate_context_markdown(participantes: str) -> str:
         )
 
     body = _format_sec_recent_submissions(data, limit=22)
+    company_facts_md = _build_sec_company_facts_markdown(cik)
     sec_gemini = _sec_gemini_filing_markdown(data, cik, ticker, note)
     return (
-        "## Estados Unidos (SEC EDGAR) — datos de API\n\n"
+        "## Estados Unidos (SEC EDGAR — información pública)\n\n"
         f"*Emisor resuelto: CIK **{cik}** ({note})"
         + (f", ticker **{ticker}**" if ticker else "")
         + ".*\n\n"
         + body
         + "\n"
+        + company_facts_md
         + sec_gemini
     )
