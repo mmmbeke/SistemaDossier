@@ -103,12 +103,6 @@ function initialsFromProfile(fullName: string, email: string): string {
 
 type FooterProfile = { initials: string; name: string; detail: string };
 
-const DEMO_FOOTER: FooterProfile = {
-  initials: "JD",
-  name: "John Doe",
-  detail: "",
-};
-
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -161,34 +155,13 @@ export default function Sidebar() {
           } else {
             setFooter({
               initials: "?",
-              name: t("auth.error.server"),
-              detail: t("user.plan"),
+              name: t("overview.anonymous"),
+              detail: "",
             });
           }
         }
         return;
       }
-
-      const preview = readDossierUserPreview();
-      if (preview) {
-        if (!cancelled) {
-          setIsPlatformAdmin(!!preview.is_platform_admin);
-          const initials = initialsFromProfile(preview.full_name, preview.email);
-          const name = preview.full_name.trim() || preview.email;
-          const detail =
-            preview.workspace_kind === "personal"
-              ? t("workspace.personal")
-              : preview.company_name?.trim() || preview.email;
-          setFooter({ initials, name, detail });
-        }
-        return;
-      }
-
-      if (!cancelled)
-        setFooter({
-          ...DEMO_FOOTER,
-          detail: t("user.plan"),
-        });
     }
 
     void load();
@@ -212,7 +185,7 @@ export default function Sidebar() {
     clearAuthSession();
     setMenuOpen(false);
     setIsPlatformAdmin(false);
-    setFooter({ ...DEMO_FOOTER, detail: t("user.plan") });
+    setFooter(null);
     router.push("/login");
     router.refresh();
   }
@@ -222,7 +195,11 @@ export default function Sidebar() {
     return pathname.startsWith(href);
   }
 
-  const display = footer ?? { ...DEMO_FOOTER, detail: t("user.plan") };
+  const display = footer ?? {
+    initials: "…",
+    name: t("common.loading"),
+    detail: "",
+  };
 
   return (
     <aside

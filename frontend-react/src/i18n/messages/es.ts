@@ -1,4 +1,5 @@
 const messages = {
+  "auth.gate_checking": "Comprobando sesión…",
   "auth.login.title": "Bienvenido de vuelta",
   "auth.login.subtitle": "Ingresa a tu cuenta para acceder a tus dossiers.",
   "auth.login.email": "Email",
@@ -21,7 +22,7 @@ const messages = {
   "auth.register.company": "Empresa",
   "auth.register.email_corporate": "Email corporativo",
   "auth.register.password_placeholder": "Mínimo 8 caracteres",
-  "auth.register.create_free": "Crear cuenta gratis",
+  "auth.register.create_free": "Crear cuenta",
   "auth.register.subtitle_credits": "Empieza con 10 créditos gratis al mes. Sin tarjeta de crédito.",
   "auth.register.account_mode": "¿Cómo lo vas a usar?",
   "auth.register.mode_work": "Empresa o equipo",
@@ -256,6 +257,7 @@ const messages = {
   "detail.delete": "Eliminar dossier",
   "detail.delete_error": "No se pudo eliminar el dossier.",
   "common.clear": "Limpiar",
+  "common.loading": "Cargando…",
   "common.at_company": "en",
   "common.view_dossier": "Ver dossier →",
   "common.has_alerts": "Tiene alertas activas",

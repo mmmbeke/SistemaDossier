@@ -33,7 +33,7 @@ const extraEn = {
   "auth.register.company": "Company",
   "auth.register.email_corporate": "Work email",
   "auth.register.password_placeholder": "Minimum 8 characters",
-  "auth.register.create_free": "Create free account",
+  "auth.register.create_free": "Create account",
   "auth.register.subtitle_credits":
     "Start with 10 free credits per month. No credit card required.",
   "auth.register.terms_prefix": "I accept the",
@@ -189,7 +189,7 @@ const extraEs = {
   "auth.register.company": "Empresa",
   "auth.register.email_corporate": "Email corporativo",
   "auth.register.password_placeholder": "Mínimo 8 caracteres",
-  "auth.register.create_free": "Crear cuenta gratis",
+    "auth.register.create_free": "Crear cuenta",
   "auth.register.subtitle_credits":
     "Empieza con 10 créditos gratis al mes. Sin tarjeta de crédito.",
   "auth.register.terms_prefix": "Acepto los",

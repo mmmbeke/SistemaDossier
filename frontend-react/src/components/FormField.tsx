@@ -86,7 +86,7 @@ export default function FormField({
             aria-pressed={passwordVisible}
             onClick={() => setPasswordVisible((v) => !v)}
           >
-            <EyeIcon open={!passwordVisible} />
+            <EyeIcon open={passwordVisible} />
           </button>
         </div>
       ) : (
