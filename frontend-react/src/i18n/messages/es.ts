@@ -12,6 +12,17 @@ const messages = {
   "auth.login.no_account": "¿No tienes cuenta?",
   "auth.login.create_account": "Crear cuenta",
   "auth.login.or_continue": "o continúa con",
+  "auth.forgot.title": "Recuperar contraseña",
+  "auth.forgot.subtitle":
+    "Indica el correo de tu cuenta. Si existe, te enviaremos instrucciones para restablecerla (cuando el envío de correos esté activo).",
+  "auth.forgot.submit": "Enviar instrucciones",
+  "auth.forgot.back_to_login": "Iniciar sesión",
+  "auth.forgot.footer_prompt": "¿Recordaste tu contraseña?",
+  "auth.forgot.success_body":
+    "Si existe una cuenta con ese correo, recibirás instrucciones para restablecer la contraseña. Revisa también la carpeta de spam.",
+  "auth.forgot.error_network":
+    "No se pudo contactar al servidor. Comprueba tu conexión y que la URL de la API esté configurada.",
+  "auth.forgot.error_server": "Algo salió mal. Inténtalo de nuevo en unos minutos.",
   "auth.register.title": "Crea tu cuenta",
   "auth.register.subtitle": "Empieza a preparar reuniones más inteligentes con Project Dossier.",
   "auth.register.name": "Nombre completo",

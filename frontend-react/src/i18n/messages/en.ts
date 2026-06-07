@@ -12,6 +12,16 @@ const messages = {
   "auth.login.no_account": "Don't have an account?",
   "auth.login.create_account": "Create account",
   "auth.login.or_continue": "or continue with",
+  "auth.forgot.title": "Reset your password",
+  "auth.forgot.subtitle":
+    "Enter the email you use for your account. If it exists, we will send you instructions (when email delivery is enabled).",
+  "auth.forgot.submit": "Send instructions",
+  "auth.forgot.back_to_login": "Sign in",
+  "auth.forgot.footer_prompt": "Remembered your password?",
+  "auth.forgot.success_body":
+    "If an account exists for that email, you will receive instructions to reset your password. Check your inbox and spam folder.",
+  "auth.forgot.error_network": "Could not reach the server. Check your connection and that the API URL is configured.",
+  "auth.forgot.error_server": "Something went wrong. Try again in a few minutes.",
   "auth.register.title": "Create your account",
   "auth.register.subtitle": "Start preparing smarter meetings with Project Dossier.",
   "auth.register.name": "Full name",
