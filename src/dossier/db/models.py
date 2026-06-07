@@ -118,6 +118,56 @@ class OrgMembership(Base):
     )
 
 
+class CalendarIntegration(Base):
+    """Integración OAuth de calendario por usuario (DDL: ``docs/calendar_integrations_oauth.sql``)."""
+
+    __tablename__ = "calendar_integrations"
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider", name="calendar_integrations_user_id_provider_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    provider: Mapped[str] = mapped_column(String(20))
+    calendar_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    advance_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    skip_internal_meetings: Mapped[bool] = mapped_column(Boolean, default=True)
+    skip_recurring_after_first: Mapped[bool] = mapped_column(Boolean, default=True)
+    min_attendees: Mapped[int] = mapped_column(Integer, default=1)
+    domain_whitelist: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default=text("'{}'::text[]")
+    )
+    domain_blacklist: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default=text("'{}'::text[]")
+    )
+    default_depth: Mapped[str] = mapped_column(String(10), default="standard")
+    auto_send_email: Mapped[bool] = mapped_column(Boolean, default=True)
+    email_cc_assistant: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    refresh_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    access_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    access_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    granted_scopes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    provider_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    provider_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class Contact(Base):
     """Address book por organización; referenciado por `dossiers.contact_id`."""
 

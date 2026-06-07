@@ -20,15 +20,19 @@ Si ya aplicaste la tabla desde `Migracion.md` **sin** estas columnas, usa el blo
    `https://<tu-api-railway>/callback`  
    Debe coincidir **carácter a carácter** con `MICROSOFT_REDIRECT_URI`.
 3. **Certificates & secrets** → New client secret → copiar a Railway como `MICROSOFT_CLIENT_SECRET`.
-4. **API permissions** → Add → Microsoft Graph → **Delegated**: `Calendars.Read` (lectura; coincide con `SCOPES` en `app.py`).
+4. **API permissions** → Add → Microsoft Graph → **Delegated**: `Calendars.Read` y **`User.Read`** (perfil `/me`; ver `SCOPES` en `app.py`).
 5. Grant admin consent solo si tu tenant lo exige (cuentas corporativas).
 6. Railway (u otro host):
    - `MICROSOFT_CLIENT_ID`
    - `MICROSOFT_CLIENT_SECRET`
    - `MICROSOFT_TENANT_ID` → `common` si aceptáis cuentas personales y work/school.
    - `MICROSOFT_REDIRECT_URI` → la misma URL registrada en Azure.
+   - **`FRONTEND_URL`** (o `MICROSOFT_OAUTH_SUCCESS_URL`): base del front **sin** barra final, p. ej. `https://tu-app.vercel.app`. Tras OAuth con `state`, `/callback` redirige a  
+     `{FRONTEND_URL}?calendar_microsoft=ok` o `...?calendar_microsoft=error&reason=...`.
 
-**Siguiente paso de código (cuando lo implementéis):** en `/login-microsoft` generar `state` con el `user_id` (JWT) firmado; en `/callback` intercambiar código, **persistir tokens en `calendar_integrations`**, y redirigir al front con éxito (sin devolver refresh token al navegador).
+**Flujo integrado (implementado):** `GET /integrations/microsoft/start` con JWT de la app (cabecera `Authorization: Bearer`). Parámetro **`as_json=true`** devuelve `{"authorize_url": "..."}` para SPAs; sin él, responde **302** a Microsoft. El `state` lleva `user_id` y `org_id`; en `/callback` se persisten tokens en **`calendar_integrations`** y se redirige al front.
+
+**Pruebas sin usuario de la app:** `GET /login-microsoft` (sin `state`) sigue devolviendo JSON con `access_token` en `/callback` (legado).
 
 ## 3. Google Cloud (Calendar) — qué configurar
 
@@ -46,8 +50,9 @@ Si ya aplicaste la tabla desde `Migracion.md` **sin** estas columnas, usa el blo
 ## 4. Frontend (decisión Google vs Outlook)
 
 - Tras registro/login con JWT: pantalla **“Conectá tu calendario”** con dos botones.
-- Cada botón llama a vuestro backend: `GET /integrations/microsoft/start` y `GET /integrations/google/start` (nombres de ejemplo), que redirigen al proveedor con `state` ligado al usuario.
-- Tras OAuth, el proveedor redirige al **callback de la API**; la API guarda tokens y redirige a la app web (`https://<vercel>/onboarding/calendar?ok=1`).
+- Cada botón: el de Microsoft llama a **`GET /auth/login`** (o sesión existente), luego  
+  **`GET /integrations/microsoft/start?as_json=true`** con **`Authorization: Bearer <JWT>`**, recibe `authorize_url` y hace **`window.location = authorize_url`**.
+- Tras OAuth, Microsoft vuelve a **`/callback`**; la API guarda tokens y redirige a **`{FRONTEND_URL}?calendar_microsoft=ok`** (o `error`).
 
 ## 5. Despliegue “cuando esté todo listo”
 

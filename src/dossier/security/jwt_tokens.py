@@ -48,6 +48,31 @@ def decode_access_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, _secret(), algorithms=["HS256"])
 
 
+def create_microsoft_oauth_state(*, user_id: str, organization_id: str) -> str:
+    """
+    Token corto (JWT) que Microsoft devuelve en ``state`` al callback.
+    Vincula el flujo OAuth al usuario de la app (``sub``) y a su organización (``org_id``).
+    Caducidad breve para reducir riesgo si el enlace filtra.
+    """
+    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    payload: dict[str, Any] = {
+        "purpose": "microsoft_oauth",
+        "sub": user_id,
+        "org_id": organization_id,
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, _secret(), algorithm="HS256")
+
+
+def decode_microsoft_oauth_state(token: str) -> dict[str, Any]:
+    """Valida el ``state`` del callback Microsoft; lanza PyJWTError si no aplica."""
+    payload = jwt.decode(token, _secret(), algorithms=["HS256"])
+    if payload.get("purpose") != "microsoft_oauth":
+        raise ValueError("state inválido: propósito incorrecto")
+    return payload
+
+
 def assert_jwt_secret_configured() -> None:
     """Útil al arrancar rutas de auth: falla con mensaje claro si falta JWT_SECRET."""
     _secret()

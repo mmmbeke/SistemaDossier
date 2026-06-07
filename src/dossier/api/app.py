@@ -5,28 +5,40 @@ import logging
 import os
 import re
 from contextlib import asynccontextmanager
-from typing import Optional
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, Optional
+from urllib.parse import urlencode
+from uuid import UUID
 
 import msal
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
+from jwt.exceptions import PyJWTError
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 from starlette.requests import Request
 
 from dossier.api.admin_routes import router as admin_router
-from dossier.api.auth_routes import router as auth_router
+from dossier.api.auth_routes import (
+    get_current_user_and_org,
+    get_db_if_configured,
+    router as auth_router,
+)
 from dossier.api.dossier_routes import router as dossiers_router
 from dossier.api.google_calendar import router as google_calendar_router
 from dossier.config import PROJECT_ROOT, load_env
 from dossier.db import is_database_configured
 from dossier.db.connection import get_engine
+from dossier.db.models import Organization, User
+from dossier.security.jwt_tokens import create_microsoft_oauth_state, decode_microsoft_oauth_state
 from dossier.services import (
     generar_dossier_ejecutivo,
     listar_reuniones,
     obtener_reunion_por_id,
 )
+from dossier.services.calendar_integrations import upsert_microsoft_calendar_tokens
 from dossier.services.graph_calendar import diagnostico_microsoft_calendar
 
 load_env()
@@ -184,6 +196,21 @@ def _resolver_access_token(
     )
 
 
+def _oauth_frontend_base() -> str:
+    """URL del front (sin barra final) para redirigir tras OAuth con ``state``."""
+    return (
+        os.getenv("FRONTEND_URL", "").strip().rstrip("/")
+        or os.getenv("MICROSOFT_OAUTH_SUCCESS_URL", "").strip().rstrip("/")
+    )
+
+
+def _redirect_calendar_oauth(**params: str) -> RedirectResponse | None:
+    base = _oauth_frontend_base()
+    if not base:
+        return None
+    return RedirectResponse(f"{base}?{urlencode(params)}", status_code=302)
+
+
 @app.get("/")
 def read_root():
     return {
@@ -205,9 +232,48 @@ def read_root():
     }
 
 
+@app.get("/integrations/microsoft/start", tags=["Integraciones"])
+def integrations_microsoft_start(
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    as_json: bool = Query(
+        False,
+        description="Si true, devuelve JSON con authorize_url (recomendado para SPA: fetch + Bearer).",
+    ),
+):
+    """
+    Inicia OAuth Microsoft ligado al usuario de la app (JWT).
+
+    - **Navegador sin cabecera:** no sirve abrir esta URL a mano; devuelve 401.
+    - **SPA:** ``fetch(..., { headers: { Authorization: Bearer }, redirect: 'manual' })``
+      con ``as_json=true`` y luego ``window.location = data.authorize_url``.
+    - **Redirect directo:** ``as_json=false`` (por defecto) responde 302 a Microsoft
+      (útil con ``curl -L -H 'Authorization: Bearer …'``).
+    """
+    if not CLIENT_ID or not CLIENT_SECRET or not REDIRECT_URI:
+        raise HTTPException(
+            status_code=500,
+            detail="Faltan MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET o MICROSOFT_REDIRECT_URI.",
+        )
+
+    user, org = user_org
+    state = create_microsoft_oauth_state(
+        user_id=str(user.id),
+        organization_id=str(org.id),
+    )
+    msal_app = get_msal_app()
+    auth_url = msal_app.get_authorization_request_url(
+        SCOPES,
+        redirect_uri=REDIRECT_URI,
+        state=state,
+    )
+    if as_json:
+        return JSONResponse({"authorize_url": auth_url})
+    return RedirectResponse(auth_url)
+
+
 @app.get("/login-microsoft", tags=["Autenticación Microsoft"])
 def login_microsoft():
-    """Redirige al usuario a la página de inicio de sesión de Microsoft."""
+    """Redirige a Microsoft **sin** vincular usuario de la app (solo pruebas / legado)."""
     if not CLIENT_ID or not CLIENT_SECRET:
         raise HTTPException(
             status_code=500,
@@ -220,9 +286,21 @@ def login_microsoft():
 
 
 @app.get("/callback", tags=["Autenticación Microsoft"])
-def callback(code: str = None, error: str = None):
-    """Recibe el código de autorización de Microsoft y lo cambia por un token."""
+def callback(
+    code: Optional[str] = None,
+    error: Optional[str] = None,
+    state: Optional[str] = None,
+    db: Session = Depends(get_db_if_configured),
+):
+    """
+    Intercambia ``code`` por tokens. Si venía ``state`` de ``/integrations/microsoft/start``,
+    guarda tokens en ``calendar_integrations`` y redirige al front (``FRONTEND_URL``).
+    Sin ``state``, mantiene respuesta JSON (pruebas / legado).
+    """
     if error:
+        redir = _redirect_calendar_oauth(calendar_microsoft="error", reason=error[:180])
+        if redir and state:
+            return redir
         raise HTTPException(status_code=400, detail=f"Error de Microsoft: {error}")
     if not code:
         raise HTTPException(status_code=400, detail="No se recibió el código de autorización.")
@@ -234,18 +312,73 @@ def callback(code: str = None, error: str = None):
         redirect_uri=REDIRECT_URI,
     )
 
-    if "access_token" in result:
-        return {
-            "mensaje": "Autenticación exitosa con Microsoft",
-            "usuario": result.get("id_token_claims", {}).get("name"),
-            "correo": result.get("id_token_claims", {}).get("preferred_username"),
-            "access_token": result["access_token"],
-        }
+    if "access_token" not in result:
+        msg = result.get("error_description") or result.get("error") or "token desconocido"
+        redir = _redirect_calendar_oauth(calendar_microsoft="error", reason=str(msg)[:180])
+        if redir and state:
+            return redir
+        raise HTTPException(status_code=400, detail=f"No se pudo obtener el token: {msg}")
 
-    raise HTTPException(
-        status_code=400,
-        detail=f"No se pudo obtener el token: {result.get('error_description')}",
-    )
+    access_token = result["access_token"]
+    claims = result.get("id_token_claims") or {}
+    refresh_token = result.get("refresh_token")
+    expires_in = int(result.get("expires_in") or 3600)
+    granted = " ".join(SCOPES)
+
+    if state:
+        if not _oauth_frontend_base():
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "Define FRONTEND_URL o MICROSOFT_OAUTH_SUCCESS_URL para redirigir tras OAuth "
+                    "cuando se usa state (flujo integrado)."
+                ),
+            )
+        try:
+            payload = decode_microsoft_oauth_state(state)
+            user_id = UUID(str(payload["sub"]))
+            org_id = UUID(str(payload["org_id"]))
+        except (PyJWTError, KeyError, ValueError) as e:
+            redir = _redirect_calendar_oauth(
+                calendar_microsoft="error",
+                reason=f"state_invalid:{type(e).__name__}",
+            )
+            if redir:
+                return redir
+            raise HTTPException(status_code=400, detail="state inválido o expirado.") from e
+
+        try:
+            upsert_microsoft_calendar_tokens(
+                db,
+                user_id=user_id,
+                organization_id=org_id,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                expires_in_seconds=expires_in,
+                granted_scopes=granted,
+                id_token_claims=claims,
+            )
+        except SQLAlchemyError as e:
+            logger.exception("No se pudo guardar calendar_integrations")
+            redir = _redirect_calendar_oauth(
+                calendar_microsoft="error",
+                reason="db_error",
+            )
+            if redir:
+                return redir
+            raise HTTPException(status_code=500, detail="Error al guardar la integración.") from e
+
+        redir_ok = _redirect_calendar_oauth(calendar_microsoft="ok")
+        if redir_ok:
+            return redir_ok
+        raise HTTPException(status_code=500, detail="FRONTEND_URL no configurada.")
+
+    return {
+        "mensaje": "Autenticación exitosa con Microsoft",
+        "usuario": claims.get("name"),
+        "correo": claims.get("preferred_username"),
+        "access_token": access_token,
+    }
 
 
 @app.get("/calendario/eventos", tags=["Calendario"])
