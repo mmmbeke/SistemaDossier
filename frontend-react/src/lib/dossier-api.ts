@@ -879,3 +879,61 @@ export async function fetchOutlookCalendarEventos(options?: {
   const mensaje = o.mensaje === null || typeof o.mensaje === "string" ? (o.mensaje as string | null) : null;
   return { total, reuniones, mensaje };
 }
+
+/** Ítem de ``GET /calendario/generar-dossiers``. */
+export type CalendarGenerarDossierItem = {
+  reunion: OutlookReunionApi;
+  dossier_generado: string;
+};
+
+export type CalendarGenerarDossiersResponse = {
+  total: number;
+  dossiers: CalendarGenerarDossierItem[];
+  mensaje?: string;
+};
+
+/**
+ * Genera dossier(es) con IA a partir del calendario Outlook (token Microsoft en servidor + JWT de la app).
+ * Con ``eventId`` solo procesa esa reunión de Graph.
+ */
+export async function fetchGenerarDossiersDesdeCalendario(options?: {
+  eventId?: string;
+  top?: number;
+}): Promise<CalendarGenerarDossiersResponse> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const sp = new URLSearchParams();
+  if (options?.eventId) sp.set("event_id", options.eventId);
+  if (options?.top != null) sp.set("top", String(options.top));
+  const qs = sp.toString();
+  const pathUrl = `${getApiBaseUrl()}/calendario/generar-dossiers${qs ? `?${qs}` : ""}`;
+  let res: Response;
+  try {
+    res = await fetch(pathUrl, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new DossierApiError(502, "Respuesta inválida de /calendario/generar-dossiers.", parsed);
+  }
+  const o = parsed as Record<string, unknown>;
+  const dossiers = Array.isArray(o.dossiers) ? (o.dossiers as CalendarGenerarDossierItem[]) : [];
+  const total = typeof o.total === "number" ? o.total : dossiers.length;
+  const mensaje = typeof o.mensaje === "string" ? o.mensaje : undefined;
+  return { total, dossiers, mensaje };
+}

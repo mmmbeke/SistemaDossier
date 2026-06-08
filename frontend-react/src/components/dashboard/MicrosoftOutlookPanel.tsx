@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import PrimaryButton from "@/components/PrimaryButton";
 import {
   DossierApiError,
+  fetchGenerarDossiersDesdeCalendario,
   fetchMicrosoftIntegrationStartAsJson,
   fetchOutlookCalendarEventos,
   getStoredAccessToken,
@@ -61,6 +62,9 @@ export default function MicrosoftOutlookPanel() {
   const [err, setErr] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [includePast, setIncludePast] = useState(false);
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [genErr, setGenErr] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ eventKey: string; tema: string; body: string } | null>(null);
 
   const loadMeetings = useCallback(async () => {
     if (!getStoredAccessToken()) {
@@ -110,6 +114,34 @@ export default function MicrosoftOutlookPanel() {
       setConnecting(false);
       if (e instanceof DossierApiError) setErr(e.message);
       else setErr(t("overview.microsoft_error"));
+    }
+  }
+
+  async function onGenerateDossier(r: OutlookReunionApi) {
+    const id = r.id?.trim();
+    if (!id) {
+      setGenErr(t("overview.microsoft_no_event_id"));
+      return;
+    }
+    setGenErr(null);
+    setGeneratingId(id);
+    try {
+      const data = await fetchGenerarDossiersDesdeCalendario({ eventId: id });
+      const first = data.dossiers[0];
+      if (!first || typeof first.dossier_generado !== "string") {
+        setGenErr(t("overview.microsoft_generate_empty"));
+        return;
+      }
+      setPreview({
+        eventKey: id,
+        tema: first.reunion?.tema || r.tema || "—",
+        body: first.dossier_generado,
+      });
+    } catch (e) {
+      if (e instanceof DossierApiError) setGenErr(e.message || t("overview.microsoft_generate_error"));
+      else setGenErr(t("overview.microsoft_generate_error"));
+    } finally {
+      setGeneratingId(null);
     }
   }
 
@@ -168,6 +200,15 @@ export default function MicrosoftOutlookPanel() {
         </div>
       )}
 
+      {genErr && (
+        <div
+          className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-100"
+          role="alert"
+        >
+          {genErr}
+        </div>
+      )}
+
       {!token ? (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
           {t("overview.activity_login_hint")}
@@ -208,6 +249,39 @@ export default function MicrosoftOutlookPanel() {
                 <div className="mt-1 text-xs" style={{ color: "var(--text-subtle)" }}>
                   {r.ubicacion}
                 </div>
+              ) : null}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!r.id || generatingId !== null}
+                  onClick={() => void onGenerateDossier(r)}
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
+                  }}
+                >
+                  {generatingId === r.id ? t("overview.microsoft_generating") : t("overview.microsoft_generate_dossier")}
+                </button>
+              </div>
+              {preview && preview.eventKey === r.id ? (
+                <details className="mt-3 rounded-md border px-2 py-2" style={{ borderColor: "var(--border-default)" }}>
+                  <summary className="cursor-pointer text-xs font-medium" style={{ color: "var(--accent-from)" }}>
+                    {t("overview.microsoft_generated_preview")} — {t("overview.microsoft_generate_success")}
+                  </summary>
+                  <p className="mb-1 mt-2 text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+                    {preview.tema}
+                  </p>
+                  <pre
+                    className="max-h-64 overflow-auto whitespace-pre-wrap rounded p-2 text-xs leading-relaxed"
+                    style={{
+                      backgroundColor: "var(--bg-surface-strong)",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    {preview.body}
+                  </pre>
+                </details>
               ) : null}
             </li>
           ))}

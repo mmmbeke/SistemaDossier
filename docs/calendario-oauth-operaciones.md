@@ -36,6 +36,8 @@ Si ya aplicaste la tabla desde `Migracion.md` **sin** estas columnas, usa el blo
 
 **Lectura de eventos (Outlook) con JWT:** `GET /calendario/eventos`, `GET /calendario/diagnostico-microsoft` y `GET /calendario/generar-dossiers` usan **`Authorization: Bearer <JWT de la app>`**; el backend obtiene o renueva el token de Microsoft Graph desde **`calendar_integrations`** (refresh vía MSAL). El query **`?access_token=`** con un token de Graph sigue admitido solo como atajo de pruebas.
 
+**Generar dossier desde una reunión:** `GET /calendario/generar-dossiers?event_id=<id Graph>` procesa solo ese evento; sin `event_id` usa las próximas reuniones hasta `top` (ver OpenAPI). El frontend (Resumen) puede llamar a este endpoint tras listar eventos.
+
 ## 3. Google Cloud (Calendar) — qué configurar
 
 1. **Google Cloud Console** → proyecto → **APIs & Services** → Enable **Google Calendar API**.
