@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
+import MicrosoftOutlookPanel from "@/components/dashboard/MicrosoftOutlookPanel";
 import StatCard from "@/components/dashboard/StatCard";
 import TopBar from "@/components/dashboard/TopBar";
 import NewDossierButton from "@/components/dossier/NewDossierButton";
@@ -96,6 +97,9 @@ export default function OverviewPage() {
   const [dossierRows, setDossierRows] = useState<DossierListItem[]>([]);
   const [dashError, setDashError] = useState<string | null>(null);
   const [dashLoad, setDashLoad] = useState<"idle" | "loading" | "ready">("idle");
+  const [msOAuthBanner, setMsOAuthBanner] = useState<
+    null | { kind: "ok" } | { kind: "error"; detail?: string }
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -124,6 +128,22 @@ export default function OverviewPage() {
       cancelled = true;
     };
   }, [t]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const v = sp.get("calendar_microsoft");
+    if (v !== "ok" && v !== "error") return;
+    const reason = sp.get("reason") || undefined;
+    sp.delete("calendar_microsoft");
+    sp.delete("reason");
+    const rest = sp.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+    queueMicrotask(() => {
+      if (v === "ok") setMsOAuthBanner({ kind: "ok" });
+      else setMsOAuthBanner({ kind: "error", detail: reason });
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -208,6 +228,32 @@ export default function OverviewPage() {
         </div>
       )}
 
+      {msOAuthBanner && (
+        <div
+          className={`mb-4 flex flex-wrap items-start justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${
+            msOAuthBanner.kind === "ok"
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+              : "border-red-500/40 bg-red-500/10 text-red-100"
+          }`}
+          role="status"
+        >
+          <span>
+            {msOAuthBanner.kind === "ok"
+              ? t("overview.microsoft_oauth_ok")
+              : `${t("overview.microsoft_oauth_error")}${
+                  msOAuthBanner.detail ? ` (${msOAuthBanner.detail.slice(0, 120)})` : ""
+                }`}
+          </span>
+          <button
+            type="button"
+            className="shrink-0 underline underline-offset-2"
+            onClick={() => setMsOAuthBanner(null)}
+          >
+            {t("overview.microsoft_banner_close")}
+          </button>
+        </div>
+      )}
+
       <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard value={dashLoad === "ready" ? stats.total : "—"} label={t("stat.total_dossiers")} />
         <StatCard value={dashLoad === "ready" ? stats.complete : "—"} label={t("stat.completed_dossiers")} />
@@ -221,6 +267,12 @@ export default function OverviewPage() {
           label={t("stat.credits_balance")}
           trend={creditsTrend}
         />
+      </section>
+
+      <section className="mb-8">
+        <DashboardCard title={t("overview.microsoft_title")}>
+          <MicrosoftOutlookPanel />
+        </DashboardCard>
       </section>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">

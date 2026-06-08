@@ -779,3 +779,103 @@ export async function deleteDossierFromApi(dossierId: string): Promise<void> {
     throw new DossierApiError(res.status, msg, parsed);
   }
 }
+
+/** Respuesta de ``GET /integrations/microsoft/start?as_json=true``. */
+export type MicrosoftOAuthStartJson = { authorize_url: string };
+
+/** Inicia OAuth Microsoft (usuario de la app); devuelve la URL a la que redirigir el navegador. */
+export async function fetchMicrosoftIntegrationStartAsJson(): Promise<MicrosoftOAuthStartJson> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/integrations/microsoft/start?as_json=true`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    typeof (parsed as { authorize_url?: unknown }).authorize_url !== "string"
+  ) {
+    throw new DossierApiError(502, "La API no devolvió authorize_url.", parsed);
+  }
+  return parsed as MicrosoftOAuthStartJson;
+}
+
+/** Fila normalizada de ``GET /calendario/eventos`` (Graph). */
+export type OutlookReunionApi = {
+  id?: string | null;
+  tema?: string;
+  descripcion?: string;
+  participantes?: string;
+  inicio?: string;
+  fin?: string;
+  ubicacion?: string;
+  todo_el_dia?: boolean;
+};
+
+export type CalendarEventosApiResponse = {
+  total: number;
+  reuniones: OutlookReunionApi[];
+  mensaje: string | null;
+};
+
+/** Lista reuniones de Outlook usando el JWT de la app y tokens en servidor. */
+export async function fetchOutlookCalendarEventos(options?: {
+  top?: number;
+  incluir_pasadas?: boolean;
+}): Promise<CalendarEventosApiResponse> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const sp = new URLSearchParams();
+  if (options?.top != null) sp.set("top", String(options.top));
+  if (options?.incluir_pasadas) sp.set("incluir_pasadas", "true");
+  const qs = sp.toString();
+  const pathUrl = `${getApiBaseUrl()}/calendario/eventos${qs ? `?${qs}` : ""}`;
+  let res: Response;
+  try {
+    res = await fetch(pathUrl, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new DossierApiError(502, "Respuesta inválida de /calendario/eventos.", parsed);
+  }
+  const o = parsed as Record<string, unknown>;
+  const reuniones = Array.isArray(o.reuniones) ? (o.reuniones as OutlookReunionApi[]) : [];
+  const total = typeof o.total === "number" ? o.total : reuniones.length;
+  const mensaje = o.mensaje === null || typeof o.mensaje === "string" ? (o.mensaje as string | null) : null;
+  return { total, reuniones, mensaje };
+}
