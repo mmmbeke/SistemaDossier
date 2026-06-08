@@ -22,6 +22,7 @@ from starlette.requests import Request
 
 from dossier.api.admin_routes import router as admin_router
 from dossier.api.auth_routes import (
+    auth_payload_and_user,
     get_current_user_and_org,
     get_db_if_configured,
     router as auth_router,
@@ -40,6 +41,7 @@ from dossier.services import (
 )
 from dossier.services.calendar_integrations import upsert_microsoft_calendar_tokens
 from dossier.services.graph_calendar import diagnostico_microsoft_calendar
+from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
 
 load_env()
 
@@ -178,22 +180,22 @@ def _status(name: str) -> str:
     return "Configurada ✅" if os.getenv(name) else "Faltante ❌"
 
 
-def _resolver_access_token(
-    authorization: Optional[str] = None,
-    access_token: Optional[str] = None,
+def _graph_token_for_calendar_route(
+    db: Session,
+    authorization: Optional[str],
+    access_token: Optional[str],
 ) -> str:
-    """Acepta token por query (?access_token=) o cabecera Authorization: Bearer."""
+    """
+    Token de Microsoft Graph para rutas de calendario.
+
+    - Si viene ``?access_token=`` (Graph), se usa tal cual (pruebas / legado).
+    - Si no: ``Authorization: Bearer`` debe ser el **JWT de la app**; se lee o renueva
+      el token desde ``calendar_integrations``.
+    """
     if access_token:
         return access_token.strip()
-    if authorization and authorization.lower().startswith("bearer "):
-        return authorization[7:].strip()
-    raise HTTPException(
-        status_code=401,
-        detail=(
-            "Falta el token. Pásalo como ?access_token=... "
-            "o cabecera Authorization: Bearer <token>"
-        ),
-    )
+    _, user = auth_payload_and_user(db, authorization)
+    return get_microsoft_graph_access_token_for_user(db, user.id)
 
 
 def _oauth_frontend_base() -> str:
@@ -389,11 +391,15 @@ def api_listar_eventos_calendario(
         False,
         description="Si true, muestra también eventos pasados (útil para probar)",
     ),
-    access_token: Optional[str] = Query(None, description="Token de /callback"),
+    access_token: Optional[str] = Query(
+        None,
+        description="Opcional: token de Graph (legado). Si se omite, Authorization es el JWT de la app.",
+    ),
     authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db_if_configured),
 ):
-    """Lista reuniones del calendario de Outlook usando el access_token de Microsoft."""
-    token = _resolver_access_token(authorization, access_token)
+    """Lista reuniones de Outlook: JWT de la app + tokens en BD, o ``?access_token=`` para pruebas."""
+    token = _graph_token_for_calendar_route(db, authorization, access_token)
     try:
         reuniones = listar_reuniones(
             token,
@@ -416,14 +422,18 @@ def api_listar_eventos_calendario(
 
 @app.get("/calendario/diagnostico-microsoft", tags=["Calendario"])
 def api_diagnostico_microsoft_calendario(
-    access_token: Optional[str] = Query(None, description="Token de /callback"),
+    access_token: Optional[str] = Query(
+        None,
+        description="Opcional: token de Graph (legado). Si se omite, Authorization es el JWT de la app.",
+    ),
     authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db_if_configured),
 ):
     """
     Quién es ``/me`` en Graph, cuántos calendarios hay y si existen eventos
     en el calendario predeterminado (si /calendario/eventos viene vacío).
     """
-    token = _resolver_access_token(authorization, access_token)
+    token = _graph_token_for_calendar_route(db, authorization, access_token)
     try:
         return diagnostico_microsoft_calendar(token)
     except ValueError as e:
@@ -436,11 +446,15 @@ def api_generar_dossiers_desde_calendario(
     event_id: Optional[str] = Query(
         None, description="Si se indica, solo genera dossier para esa reunión"
     ),
-    access_token: Optional[str] = Query(None),
+    access_token: Optional[str] = Query(
+        None,
+        description="Opcional: token de Graph (legado). Si se omite, Authorization es el JWT de la app.",
+    ),
     authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db_if_configured),
 ):
     """Lee el calendario con Graph API y genera dossiers con IA para cada reunión (o una por id)."""
-    token = _resolver_access_token(authorization, access_token)
+    token = _graph_token_for_calendar_route(db, authorization, access_token)
 
     try:
         if event_id:
