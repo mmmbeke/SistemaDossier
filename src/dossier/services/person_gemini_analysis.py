@@ -1,4 +1,4 @@
-"""Análisis narrativo (Gemini) a partir de datos de perfiles públicos — informe breve para cliente."""
+"""Análisis narrativo (Gemini) a partir de datos de perfiles públicos — informe exhaustivo."""
 from __future__ import annotations
 
 import json
@@ -7,35 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from dossier.gemini.text_generate import generate_text_with_gemini
-
-_SYSTEM_PROMPT = """Eres un analista de due diligence para clientes ejecutivos. Recibirás un JSON con datos
-públicos agregados (perfiles, publicaciones si las hay). Ese JSON es tu única base de hechos verificables.
-
-Reglas:
-- Redacta en español, tono profesional y breve (orientación: hasta unas 450 palabras en total).
-- No menciones proveedores de datos, APIs, ni nombres de productos de IA.
-- Si un hecho no aparece en el JSON, dilo en una línea en la sección correspondiente; no inventes.
-- Ausencia de un perfil en el JSON no implica que no exista en la vida real: formulación prudente.
-- No incluyas listados técnicos, anexos de campos JSON ni meta-comentarios sobre el formato de entrada.
-
-Estructura OBLIGATORIA de la salida (Markdown, encabezados ### exactos):
-
-### Resumen ejecutivo
-4–6 líneas: identidad probable, coherencia del perfil y riesgo general en una frase.
-
-### Identidad y rol
-2–5 viñetas con lo más relevante del JSON (cargos, empresas, educación si consta).
-
-### Riesgos y señales
-Hasta 5 viñetas (inconsistencias, controversias públicas reflejadas en el JSON). Si no hay, indícalo en una línea.
-
-### ¿Conviene relacionarse o hacer tratos?
-Una línea en negritas: **Recomendable** | **Solo con salvaguardas** | **No recomendable**.
-2–4 frases de argumento basadas solo en el JSON.
-
-### Preguntas sugeridas
-Exactamente 2 o 3 preguntas numeradas, una frase cada una, para profundizar antes de decidir.
-"""
+from dossier.services.person_analysis_prompts import PERSON_EXHAUSTIVE_SYSTEM_PROMPT
 
 
 def _truncate_json(payload: Any, max_chars: int) -> str:
@@ -62,7 +34,11 @@ def _build_user_prompt(*, filters: dict[str, Any], bundle_json: str) -> str:
     return f"""Persona objeto del encargo: {cabecera}
 Fecha del análisis: {fecha}
 
-Genera el informe siguiendo la estructura y reglas del sistema. Usa exclusivamente el siguiente JSON como fuente de hechos:
+Elabora un informe **exhaustivo** siguiendo la estructura del sistema. Cruza perfiles y publicaciones; busca
+inconsistencias en puestos y proyectos; destaca publicaciones o situaciones que llamen la atención; cierra con
+recomendaciones y valoración sobre relacionarse o hacer tratos.
+
+Usa exclusivamente el siguiente JSON como corpus de hechos:
 
 {bundle_json}
 """
@@ -75,7 +51,7 @@ def analyze_person_profile_bundle(
     posts_by_url: dict[str, Any],
 ) -> str:
     max_chars = int(os.getenv("GEMINI_PERSON_MAX_JSON_CHARS", "120000"))
-    bundle = {
+    bundle: dict[str, Any] = {
         "criterios_de_busqueda": filters,
         "perfiles": profiles,
         "publicaciones_por_url": posts_by_url or {},
@@ -84,5 +60,5 @@ def analyze_person_profile_bundle(
     user_prompt = _build_user_prompt(filters=filters, bundle_json=bundle_json)
     return generate_text_with_gemini(
         user_prompt,
-        system_instruction=_SYSTEM_PROMPT,
+        system_instruction=PERSON_EXHAUSTIVE_SYSTEM_PROMPT,
     )
