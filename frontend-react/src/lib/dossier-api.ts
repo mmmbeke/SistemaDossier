@@ -819,6 +819,42 @@ export async function fetchMicrosoftIntegrationStartAsJson(): Promise<MicrosoftO
   return parsed as MicrosoftOAuthStartJson;
 }
 
+/** Inicia OAuth Google Calendar (usuario de la app); devuelve la URL de autorización. */
+export async function fetchGoogleIntegrationStartAsJson(): Promise<MicrosoftOAuthStartJson> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/integrations/google/start?as_json=true`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    typeof (parsed as { authorize_url?: unknown }).authorize_url !== "string"
+  ) {
+    throw new DossierApiError(502, "La API no devolvió authorize_url.", parsed);
+  }
+  return parsed as MicrosoftOAuthStartJson;
+}
+
 /** Fila normalizada de ``GET /calendario/eventos`` (Graph). */
 export type OutlookReunionApi = {
   id?: string | null;
@@ -880,6 +916,49 @@ export async function fetchOutlookCalendarEventos(options?: {
   return { total, reuniones, mensaje };
 }
 
+/** Lista eventos de Google Calendar (JWT + tokens en servidor). */
+export async function fetchGoogleCalendarEventos(options?: {
+  top?: number;
+  incluir_pasadas?: boolean;
+}): Promise<CalendarEventosApiResponse> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const sp = new URLSearchParams();
+  if (options?.top != null) sp.set("top", String(options.top));
+  if (options?.incluir_pasadas) sp.set("incluir_pasadas", "true");
+  const qs = sp.toString();
+  const pathUrl = `${getApiBaseUrl()}/calendario/eventos-google${qs ? `?${qs}` : ""}`;
+  let res: Response;
+  try {
+    res = await fetch(pathUrl, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new DossierApiError(502, "Respuesta inválida de /calendario/eventos-google.", parsed);
+  }
+  const o = parsed as Record<string, unknown>;
+  const reuniones = Array.isArray(o.reuniones) ? (o.reuniones as OutlookReunionApi[]) : [];
+  const total = typeof o.total === "number" ? o.total : reuniones.length;
+  const mensaje = o.mensaje === null || typeof o.mensaje === "string" ? (o.mensaje as string | null) : null;
+  return { total, reuniones, mensaje };
+}
+
 /** Ítem de ``GET /calendario/generar-dossiers``. */
 export type CalendarGenerarDossierItem = {
   reunion: OutlookReunionApi;
@@ -930,6 +1009,51 @@ export async function fetchGenerarDossiersDesdeCalendario(options?: {
   }
   if (!parsed || typeof parsed !== "object") {
     throw new DossierApiError(502, "Respuesta inválida de /calendario/generar-dossiers.", parsed);
+  }
+  const o = parsed as Record<string, unknown>;
+  const dossiers = Array.isArray(o.dossiers) ? (o.dossiers as CalendarGenerarDossierItem[]) : [];
+  const total = typeof o.total === "number" ? o.total : dossiers.length;
+  const mensaje = typeof o.mensaje === "string" ? o.mensaje : undefined;
+  return { total, dossiers, mensaje };
+}
+
+/**
+ * Genera dossier(es) con IA a partir de Google Calendar (token en servidor + JWT de la app).
+ */
+export async function fetchGenerarDossiersDesdeGoogleCalendar(options?: {
+  eventId?: string;
+  top?: number;
+}): Promise<CalendarGenerarDossiersResponse> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const sp = new URLSearchParams();
+  if (options?.eventId) sp.set("event_id", options.eventId);
+  if (options?.top != null) sp.set("top", String(options.top));
+  const qs = sp.toString();
+  const pathUrl = `${getApiBaseUrl()}/calendario/generar-dossiers-google${qs ? `?${qs}` : ""}`;
+  let res: Response;
+  try {
+    res = await fetch(pathUrl, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new DossierApiError(502, "Respuesta inválida de /calendario/generar-dossiers-google.", parsed);
   }
   const o = parsed as Record<string, unknown>;
   const dossiers = Array.isArray(o.dossiers) ? (o.dossiers as CalendarGenerarDossierItem[]) : [];

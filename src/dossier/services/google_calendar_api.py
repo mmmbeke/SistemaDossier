@@ -1,0 +1,110 @@
+"""
+Lectura de Google Calendar API v3 (calendario ``primary``), normalizado al mismo
+shape que ``graph_calendar.normalizar_evento`` para reutilizar dossiers.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
+
+import requests
+
+_EVENTS_BASE = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+
+
+def _headers(access_token: str) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json",
+    }
+
+
+def _iso_z(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _get(access_token: str, params: dict) -> dict:
+    r = requests.get(_EVENTS_BASE, headers=_headers(access_token), params=params, timeout=30)
+    if r.status_code == 401:
+        raise ValueError("Token de Google inválido o expirado. Vuelve a conectar Google Calendar.")
+    if not r.ok:
+        raise ValueError(f"Google Calendar API ({r.status_code}): {r.text[:500]}")
+    return r.json()
+
+
+def _formatear_participantes(evento: dict) -> str:
+    emails: list[str] = []
+    org = evento.get("organizer", {})
+    if isinstance(org, dict):
+        em = org.get("email")
+        if em:
+            emails.append(f"{em} (organizador)")
+    for a in evento.get("attendees") or []:
+        if not isinstance(a, dict):
+            continue
+        em = a.get("email")
+        if em and em not in emails:
+            emails.append(em)
+    return ", ".join(emails) if emails else "No especificados"
+
+
+def normalizar_evento_google(evento: dict) -> dict:
+    start = evento.get("start") or {}
+    end = evento.get("end") or {}
+    inicio = start.get("dateTime") or start.get("date") or ""
+    fin = end.get("dateTime") or end.get("date") or ""
+    loc = evento.get("location")
+    if not isinstance(loc, str):
+        loc = ""
+    all_day = bool(start.get("date") and not start.get("dateTime"))
+    return {
+        "id": evento.get("id"),
+        "tema": evento.get("summary") or "Sin asunto",
+        "descripcion": (evento.get("description") or "")[:2000],
+        "participantes": _formatear_participantes(evento),
+        "inicio": inicio,
+        "fin": fin,
+        "ubicacion": loc,
+        "todo_el_dia": all_day,
+    }
+
+
+def listar_reuniones_google(
+    access_token: str,
+    top: int = 10,
+    dias_adelante: int = 90,
+    incluir_pasadas: bool = False,
+) -> list[dict]:
+    """Lista eventos del calendario principal, normalizados."""
+    now = datetime.now(timezone.utc)
+    if incluir_pasadas:
+        time_min = now - timedelta(days=30)
+        time_max = now + timedelta(days=dias_adelante)
+    else:
+        time_min = now
+        time_max = now + timedelta(days=dias_adelante)
+
+    params: dict[str, str | int | bool] = {
+        "timeMin": _iso_z(time_min),
+        "timeMax": _iso_z(time_max),
+        "maxResults": max(top, 1),
+        "singleEvents": True,
+        "orderBy": "startTime",
+    }
+    datos = _get(access_token, params)
+    items = datos.get("items") or []
+    return [normalizar_evento_google(e) for e in items[:top]]
+
+
+def obtener_reunion_google_por_id(access_token: str, event_id: str) -> dict | None:
+    """GET un evento por id en ``primary``."""
+    eid = quote(event_id, safe="")
+    url = f"{_EVENTS_BASE}/{eid}"
+    r = requests.get(url, headers=_headers(access_token), timeout=30)
+    if r.status_code == 404:
+        return None
+    if r.status_code == 401:
+        raise ValueError("Token de Google inválido o expirado. Vuelve a conectar Google Calendar.")
+    if not r.ok:
+        raise ValueError(f"Google Calendar API ({r.status_code}): {r.text[:500]}")
+    return normalizar_evento_google(r.json())

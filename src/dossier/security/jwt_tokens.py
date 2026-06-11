@@ -73,6 +73,30 @@ def decode_microsoft_oauth_state(token: str) -> dict[str, Any]:
     return payload
 
 
+def create_google_oauth_state(*, user_id: str, organization_id: str) -> str:
+    """
+    Token corto (JWT) que Google devuelve en ``state`` al callback.
+    Vincula el flujo OAuth al usuario de la app (``sub``) y a su organización (``org_id``).
+    """
+    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    payload: dict[str, Any] = {
+        "purpose": "google_oauth",
+        "sub": user_id,
+        "org_id": organization_id,
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, _secret(), algorithm="HS256")
+
+
+def decode_google_oauth_state(token: str) -> dict[str, Any]:
+    """Valida el ``state`` del callback Google; lanza PyJWTError o ValueError si no aplica."""
+    payload = jwt.decode(token, _secret(), algorithms=["HS256"])
+    if payload.get("purpose") != "google_oauth":
+        raise ValueError("state inválido: propósito incorrecto")
+    return payload
+
+
 def assert_jwt_secret_configured() -> None:
     """Útil al arrancar rutas de auth: falla con mensaje claro si falta JWT_SECRET."""
     _secret()

@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 from uuid import UUID
 
 import msal
+import requests
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -33,13 +34,23 @@ from dossier.config import PROJECT_ROOT, load_env
 from dossier.db import is_database_configured
 from dossier.db.connection import get_engine
 from dossier.db.models import Organization, User
-from dossier.security.jwt_tokens import create_microsoft_oauth_state, decode_microsoft_oauth_state
+from dossier.security.jwt_tokens import (
+    create_google_oauth_state,
+    create_microsoft_oauth_state,
+    decode_google_oauth_state,
+    decode_microsoft_oauth_state,
+)
 from dossier.services import (
     generar_dossier_ejecutivo,
     listar_reuniones,
     obtener_reunion_por_id,
 )
-from dossier.services.calendar_integrations import upsert_microsoft_calendar_tokens
+from dossier.services.calendar_integrations import (
+    upsert_google_calendar_tokens,
+    upsert_microsoft_calendar_tokens,
+)
+from dossier.services.google_calendar_api import listar_reuniones_google, obtener_reunion_google_por_id
+from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
 from dossier.services.graph_calendar import diagnostico_microsoft_calendar
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
 
@@ -163,6 +174,14 @@ CLIENT_SECRET = os.getenv("MICROSOFT_CLIENT_SECRET")
 TENANT_ID = os.getenv("MICROSOFT_TENANT_ID", "common")
 REDIRECT_URI = os.getenv("MICROSOFT_REDIRECT_URI")
 
+GOOGLE_CLIENT_ID = (os.getenv("GOOGLE_CLIENT_ID") or "").strip() or None
+GOOGLE_CLIENT_SECRET = (os.getenv("GOOGLE_CLIENT_SECRET") or "").strip() or None
+GOOGLE_REDIRECT_URI = (os.getenv("GOOGLE_REDIRECT_URI") or "").strip() or None
+GOOGLE_OAUTH_SCOPES = (
+    "openid https://www.googleapis.com/auth/userinfo.email "
+    "https://www.googleapis.com/auth/calendar.readonly"
+)
+
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 # User.Read: perfil /me en Graph (nombre, correo). Calendars.Read: eventos.
 SCOPES = ["Calendars.Read", "User.Read"]
@@ -196,6 +215,80 @@ def _graph_token_for_calendar_route(
         return access_token.strip()
     _, user = auth_payload_and_user(db, authorization)
     return get_microsoft_graph_access_token_for_user(db, user.id)
+
+
+def _google_authorize_url(state: str) -> str:
+    if not GOOGLE_CLIENT_ID or not GOOGLE_REDIRECT_URI:
+        raise HTTPException(
+            status_code=500,
+            detail="Faltan GOOGLE_CLIENT_ID o GOOGLE_REDIRECT_URI.",
+        )
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": GOOGLE_OAUTH_SCOPES,
+        "state": state,
+        "access_type": "offline",
+        "prompt": "consent",
+    }
+    return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+
+
+def _google_exchange_authorization_code(code: str) -> dict:
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET or not GOOGLE_REDIRECT_URI:
+        raise HTTPException(
+            status_code=500,
+            detail="Faltan GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET o GOOGLE_REDIRECT_URI.",
+        )
+    r = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": GOOGLE_REDIRECT_URI,
+            "grant_type": "authorization_code",
+        },
+        timeout=30,
+    )
+    try:
+        body = r.json()
+    except Exception:
+        body = {}
+    if r.status_code != 200 or "access_token" not in body:
+        msg = body.get("error_description") or body.get("error") or r.text[:400]
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se pudo intercambiar el código OAuth de Google: {msg}",
+        )
+    return body
+
+
+def _google_userinfo(access_token: str) -> dict:
+    r = requests.get(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=30,
+    )
+    if not r.ok:
+        return {}
+    try:
+        out = r.json()
+        return out if isinstance(out, dict) else {}
+    except Exception:
+        return {}
+
+
+def _google_token_for_calendar_route(
+    db: Session,
+    authorization: Optional[str],
+    access_token: Optional[str],
+) -> str:
+    if access_token:
+        return access_token.strip()
+    _, user = auth_payload_and_user(db, authorization)
+    return get_google_calendar_access_token_for_user(db, user.id)
 
 
 def _oauth_frontend_base() -> str:
@@ -268,6 +361,36 @@ def integrations_microsoft_start(
         redirect_uri=REDIRECT_URI,
         state=state,
     )
+    if as_json:
+        return JSONResponse({"authorize_url": auth_url})
+    return RedirectResponse(auth_url)
+
+
+@app.get("/integrations/google/start", tags=["Integraciones"])
+def integrations_google_start(
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    as_json: bool = Query(
+        False,
+        description="Si true, devuelve JSON con authorize_url (recomendado para SPA: fetch + Bearer).",
+    ),
+):
+    """
+    Inicia OAuth Google Calendar ligado al usuario de la app (JWT).
+
+    Igual patrón que ``/integrations/microsoft/start``: usar ``as_json=true`` desde el SPA.
+    """
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET or not GOOGLE_REDIRECT_URI:
+        raise HTTPException(
+            status_code=500,
+            detail="Faltan GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET o GOOGLE_REDIRECT_URI.",
+        )
+
+    user, org = user_org
+    state = create_google_oauth_state(
+        user_id=str(user.id),
+        organization_id=str(org.id),
+    )
+    auth_url = _google_authorize_url(state)
     if as_json:
         return JSONResponse({"authorize_url": auth_url})
     return RedirectResponse(auth_url)
@@ -383,6 +506,93 @@ def callback(
     }
 
 
+@app.get("/callback-google", tags=["Integraciones"])
+def callback_google(
+    code: Optional[str] = None,
+    error: Optional[str] = None,
+    error_description: Optional[str] = None,
+    state: Optional[str] = None,
+    db: Session = Depends(get_db_if_configured),
+):
+    """
+    Callback OAuth Google: intercambia ``code`` por tokens y guarda en ``calendar_integrations``.
+    Redirige al frontend con ``calendar_google=ok`` o ``calendar_google=error``.
+    """
+    if error:
+        msg = (error_description or error or "unknown")[:180]
+        redir = _redirect_calendar_oauth(calendar_google="error", reason=msg)
+        if redir and state:
+            return redir
+        raise HTTPException(status_code=400, detail=f"Error de Google: {error}")
+    if not code:
+        raise HTTPException(status_code=400, detail="No se recibió el código de autorización.")
+
+    try:
+        tok = _google_exchange_authorization_code(code)
+    except HTTPException as e:
+        det = e.detail
+        rsn = (det[:180] if isinstance(det, str) else "token_exchange")[:180]
+        redir = _redirect_calendar_oauth(calendar_google="error", reason=rsn)
+        if redir and state:
+            return redir
+        raise
+
+    access_token = tok["access_token"]
+    refresh_token = tok.get("refresh_token")
+    expires_in = int(tok.get("expires_in") or 3600)
+    granted = str(tok.get("scope") or GOOGLE_OAUTH_SCOPES)
+
+    userinfo = _google_userinfo(access_token)
+
+    if not state:
+        return {
+            "mensaje": "Autenticación exitosa con Google (sin state; solo pruebas)",
+            "userinfo": userinfo,
+        }
+
+    if not _oauth_frontend_base():
+        raise HTTPException(
+            status_code=500,
+            detail="Define FRONTEND_URL o MICROSOFT_OAUTH_SUCCESS_URL para redirigir tras OAuth.",
+        )
+
+    try:
+        payload = decode_google_oauth_state(state)
+        user_id = UUID(str(payload["sub"]))
+        org_id = UUID(str(payload["org_id"]))
+    except (PyJWTError, KeyError, ValueError) as e:
+        redir = _redirect_calendar_oauth(
+            calendar_google="error",
+            reason=f"state_invalid:{type(e).__name__}",
+        )
+        if redir:
+            return redir
+        raise HTTPException(status_code=400, detail="state inválido o expirado.") from e
+
+    try:
+        upsert_google_calendar_tokens(
+            db,
+            user_id=user_id,
+            organization_id=org_id,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in_seconds=expires_in,
+            granted_scopes=granted,
+            userinfo=userinfo,
+        )
+    except SQLAlchemyError as e:
+        logger.exception("No se pudo guardar calendar_integrations Google")
+        redir = _redirect_calendar_oauth(calendar_google="error", reason="db_error")
+        if redir:
+            return redir
+        raise HTTPException(status_code=500, detail="Error al guardar la integración.") from e
+
+    redir_ok = _redirect_calendar_oauth(calendar_google="ok")
+    if redir_ok:
+        return redir_ok
+    raise HTTPException(status_code=500, detail="FRONTEND_URL no configurada.")
+
+
 @app.get("/calendario/eventos", tags=["Calendario"])
 def api_listar_eventos_calendario(
     top: int = Query(10, ge=1, le=50, description="Cantidad máxima de reuniones"),
@@ -415,6 +625,43 @@ def api_listar_eventos_calendario(
         mensaje = (
             "No se encontraron eventos. Crea una reunión de prueba en Outlook "
             "(outlook.com → Calendario) o prueba con incluir_pasadas=true."
+        )
+
+    return {"total": len(reuniones), "reuniones": reuniones, "mensaje": mensaje}
+
+
+@app.get("/calendario/eventos-google", tags=["Calendario"])
+def api_listar_eventos_google_calendar(
+    top: int = Query(10, ge=1, le=50, description="Cantidad máxima de eventos"),
+    dias: int = Query(90, ge=1, le=365, description="Días hacia adelante a buscar"),
+    incluir_pasadas: bool = Query(
+        False,
+        description="Si true, incluye ventana de eventos pasados recientes (útil para probar)",
+    ),
+    access_token: Optional[str] = Query(
+        None,
+        description="Opcional: access token de Google Calendar (legado). Si se omite, Authorization es el JWT de la app.",
+    ),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db_if_configured),
+):
+    """Lista eventos del calendario principal de Google: JWT de la app + tokens en BD."""
+    token = _google_token_for_calendar_route(db, authorization, access_token)
+    try:
+        reuniones = listar_reuniones_google(
+            token,
+            top=top,
+            dias_adelante=dias,
+            incluir_pasadas=incluir_pasadas,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    mensaje = None
+    if not reuniones:
+        mensaje = (
+            "No se encontraron eventos. Crea un evento en Google Calendar "
+            "o prueba con incluir_pasadas=true."
         )
 
     return {"total": len(reuniones), "reuniones": reuniones, "mensaje": mensaje}
@@ -473,6 +720,62 @@ def api_generar_dossiers_desde_calendario(
     if not reuniones:
         return {
             "mensaje": "No hay reuniones próximas en el calendario.",
+            "dossiers": [],
+        }
+
+    dossiers = []
+    for reunion in reuniones:
+        informe = generar_dossier_ejecutivo(
+            tema_reunion=reunion["tema"],
+            participantes=reunion["participantes"],
+            descripcion=reunion.get("descripcion", ""),
+        )
+        dossiers.append(
+            {
+                "reunion": reunion,
+                "dossier_generado": informe,
+            }
+        )
+
+    return {
+        "total": len(dossiers),
+        "dossiers": dossiers,
+    }
+
+
+@app.get("/calendario/generar-dossiers-google", tags=["Calendario"])
+def api_generar_dossiers_desde_google_calendar(
+    top: int = Query(5, ge=1, le=10, description="Máximo de eventos a procesar con IA"),
+    event_id: Optional[str] = Query(
+        None, description="Si se indica, solo genera dossier para ese evento de Google Calendar"
+    ),
+    access_token: Optional[str] = Query(
+        None,
+        description="Opcional: access token de Google (legado). Si se omite, Authorization es el JWT de la app.",
+    ),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db_if_configured),
+):
+    """Lee Google Calendar y genera dossiers con IA (mismo shape que ``/calendario/generar-dossiers``)."""
+    token = _google_token_for_calendar_route(db, authorization, access_token)
+
+    try:
+        if event_id:
+            reunion = obtener_reunion_google_por_id(token, event_id)
+            if not reunion:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No se encontró el evento con ese id en Google Calendar.",
+                )
+            reuniones = [reunion]
+        else:
+            reuniones = listar_reuniones_google(token, top=top, dias_adelante=90)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    if not reuniones:
+        return {
+            "mensaje": "No hay eventos próximos en Google Calendar.",
             "dossiers": [],
         }
 

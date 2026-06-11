@@ -44,19 +44,26 @@ Si ya aplicaste la tabla desde `Migracion.md` **sin** estas columnas, usa el blo
 2. **OAuth consent screen** (externo o interno según usuarios).
 3. **Credentials** → OAuth 2.0 Client ID:
    - Tipo **Web application**.
-   - **Authorized redirect URIs**: la URL del callback que use vuestro backend o front (misma idea que Microsoft: exacta).
-4. Scopes mínimos de solo lectura: `https://www.googleapis.com/auth/calendar.readonly` o `calendar.events.readonly`.
-5. Para **refresh token** la primera vez: en la URL de autorización suele hacer falta `access_type=offline` y `prompt=consent` la primera vinculación.
-6. Variables:
-   - Client ID (y secret si el intercambio `code` → token es en **backend**): secret solo en Railway, no en Vercel.
-   - Si usáis PKCE solo en front, el diseño de secretos cambia; lo más simple para equipo pequeño es **callback en API** y secret en servidor.
+   - **Authorized redirect URIs**: URL exacta del callback de la API, p. ej.  
+     `https://<tu-api-railway>/callback-google`  
+     Debe coincidir con **`GOOGLE_REDIRECT_URI`**.
+4. Scopes usados por la API (solo lectura + email): `openid`, `userinfo.email`, `calendar.readonly` (ver `GOOGLE_OAUTH_SCOPES` en `app.py`).
+5. Variables en Railway (o `.env` local):
+   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+   - **`FRONTEND_URL`**: igual que Microsoft; tras OAuth la API redirige a  
+     `{FRONTEND_URL}?calendar_google=ok` o `...?calendar_google=error&reason=...`
+
+**Flujo integrado (implementado):** `GET /integrations/google/start` con JWT (`Authorization: Bearer`). **`as_json=true`** devuelve `{"authorize_url": "..."}` para el SPA. El `state` lleva `user_id` y `org_id`; en **`GET /callback-google`** se intercambia el `code` por tokens y se persisten en **`calendar_integrations`** (`provider='google'`).
+
+**Lectura y dossiers con JWT:** `GET /calendario/eventos-google` y `GET /calendario/generar-dossiers-google` (mismo patrón que Outlook; query opcional `?access_token=` solo para pruebas).
+
+**Legado:** `POST /calendario/generar-dossier-google` con `access_token` en query sigue disponible para pruebas manuales.
 
 ## 4. Frontend (decisión Google vs Outlook)
 
-- Tras registro/login con JWT: pantalla **“Conectá tu calendario”** con dos botones.
-- Cada botón: el de Microsoft llama a **`GET /auth/login`** (o sesión existente), luego  
-  **`GET /integrations/microsoft/start?as_json=true`** con **`Authorization: Bearer <JWT>`**, recibe `authorize_url` y hace **`window.location = authorize_url`**.
-- Tras OAuth, Microsoft vuelve a **`/callback`**; la API guarda tokens y redirige a **`{FRONTEND_URL}?calendar_microsoft=ok`** (o `error`).
+- Tras registro/login con JWT: en el **Resumen** del dashboard hay tarjetas **Microsoft Outlook** y **Google Calendar**.
+- **Outlook:** `GET /integrations/microsoft/start?as_json=true` con Bearer → `authorize_url` → vuelta con `?calendar_microsoft=ok|error`.
+- **Google:** `GET /integrations/google/start?as_json=true` con Bearer → `authorize_url` → vuelta con `?calendar_google=ok|error`.
 
 ## 5. Despliegue “cuando esté todo listo”
 

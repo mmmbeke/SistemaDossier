@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
+import GoogleCalendarPanel from "@/components/dashboard/GoogleCalendarPanel";
 import MicrosoftOutlookPanel from "@/components/dashboard/MicrosoftOutlookPanel";
 import StatCard from "@/components/dashboard/StatCard";
 import TopBar from "@/components/dashboard/TopBar";
@@ -115,6 +116,9 @@ export default function OverviewPage() {
   const [msOAuthBanner, setMsOAuthBanner] = useState<
     null | { kind: "ok" } | { kind: "error"; detail?: string }
   >(null);
+  const [googleOAuthBanner, setGoogleOAuthBanner] = useState<
+    null | { kind: "ok" } | { kind: "error"; detail?: string }
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,16 +151,24 @@ export default function OverviewPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const sp = new URLSearchParams(window.location.search);
-    const v = sp.get("calendar_microsoft");
-    if (v !== "ok" && v !== "error") return;
+    const ms = sp.get("calendar_microsoft");
+    const g = sp.get("calendar_google");
+    if (ms !== "ok" && ms !== "error" && g !== "ok" && g !== "error") return;
     const reason = sp.get("reason") || undefined;
-    sp.delete("calendar_microsoft");
+    if (ms === "ok" || ms === "error") {
+      sp.delete("calendar_microsoft");
+    }
+    if (g === "ok" || g === "error") {
+      sp.delete("calendar_google");
+    }
     sp.delete("reason");
     const rest = sp.toString();
     window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
     queueMicrotask(() => {
-      if (v === "ok") setMsOAuthBanner({ kind: "ok" });
-      else setMsOAuthBanner({ kind: "error", detail: reason });
+      if (ms === "ok") setMsOAuthBanner({ kind: "ok" });
+      else if (ms === "error") setMsOAuthBanner({ kind: "error", detail: reason });
+      if (g === "ok") setGoogleOAuthBanner({ kind: "ok" });
+      else if (g === "error") setGoogleOAuthBanner({ kind: "error", detail: reason });
     });
   }, []);
 
@@ -265,6 +277,32 @@ export default function OverviewPage() {
         </div>
       )}
 
+      {googleOAuthBanner && (
+        <div
+          className={`mb-4 flex flex-wrap items-start justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${
+            googleOAuthBanner.kind === "ok"
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+              : "border-red-500/40 bg-red-500/10 text-red-100"
+          }`}
+          role="status"
+        >
+          <span>
+            {googleOAuthBanner.kind === "ok"
+              ? t("overview.google_oauth_ok")
+              : `${t("overview.google_oauth_error")}${
+                  googleOAuthBanner.detail ? ` (${googleOAuthBanner.detail.slice(0, 120)})` : ""
+                }`}
+          </span>
+          <button
+            type="button"
+            className="shrink-0 underline underline-offset-2"
+            onClick={() => setGoogleOAuthBanner(null)}
+          >
+            {t("overview.google_banner_close")}
+          </button>
+        </div>
+      )}
+
       <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard value={dashLoad === "ready" ? stats.total : "—"} label={t("stat.total_dossiers")} />
         <StatCard value={dashLoad === "ready" ? stats.complete : "—"} label={t("stat.completed_dossiers")} />
@@ -283,6 +321,12 @@ export default function OverviewPage() {
       <section className="mb-8">
         <DashboardCard title={t("overview.microsoft_title")}>
           <MicrosoftOutlookPanel />
+        </DashboardCard>
+      </section>
+
+      <section className="mb-8">
+        <DashboardCard title={t("overview.google_title")}>
+          <GoogleCalendarPanel />
         </DashboardCard>
       </section>
 
