@@ -12,7 +12,7 @@ export default function NewDossierButton({ className = "" }: NewDossierButtonPro
 
   return (
     <Link
-      href="/dashboard/generate"
+      href="/dashboard/corporate"
       className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:opacity-95 ${className}`}
       style={{
         backgroundImage:

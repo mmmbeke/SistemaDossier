@@ -6,7 +6,6 @@ import DashboardCard from "@/components/dashboard/DashboardCard";
 import MicrosoftOutlookPanel from "@/components/dashboard/MicrosoftOutlookPanel";
 import StatCard from "@/components/dashboard/StatCard";
 import TopBar from "@/components/dashboard/TopBar";
-import NewDossierButton from "@/components/dossier/NewDossierButton";
 import {
   DossierApiError,
   fetchAuthMe,
@@ -55,6 +54,22 @@ const quickActions: {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
         <circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/corporate",
+    labelKey: "quick.corporate_label",
+    descKey: "quick.corporate_desc",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+        <path d="M3 21h18" />
+        <path d="M5 21V7l8-4v18" />
+        <path d="M19 21V11l-6-4" />
+        <path d="M9 9v.01" />
+        <path d="M9 12v.01" />
+        <path d="M9 15v.01" />
+        <path d="M9 18v.01" />
       </svg>
     ),
   },
@@ -213,11 +228,7 @@ export default function OverviewPage() {
 
   return (
     <>
-      <TopBar
-        title={t("overview.title", { name: titleName })}
-        subtitle={t("overview.subtitle")}
-        action={<NewDossierButton />}
-      />
+      <TopBar title={t("overview.title", { name: titleName })} subtitle={t("overview.subtitle")} />
 
       {dashError && (
         <div
