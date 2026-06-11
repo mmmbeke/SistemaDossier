@@ -1,0 +1,5 @@
+# Railway / Railpack: mise exige attestations de GitHub para Python;
+# en el build remoto a veces no existen y el install falla.
+# Ver: https://mise.jdx.dev/ — variable equivalente: MISE_PYTHON_GITHUB_ATTESTATIONS=false
+[settings]
+python.github_attestations = false
