@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import FilterTabs, { type FilterValue } from "@/components/dossier/FilterTabs";
+import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import TopBar from "@/components/dashboard/TopBar";
 import NewDossierButton from "@/components/dossier/NewDossierButton";
 import {
@@ -12,6 +13,7 @@ import {
   getStoredAccessToken,
   type DossierListItem,
 } from "@/lib/dossier-api";
+import { getCalendarMeetingLabel } from "@/lib/calendar-dossier-meta";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 type DbLoadState = "idle" | "loading" | "ready" | "error";
@@ -77,11 +79,13 @@ export default function DossiersPage() {
           if (typeof c === "string") companyFromPerson = c.toLowerCase();
         }
       }
+      const meeting = (getCalendarMeetingLabel(row) || "").toLowerCase();
       const matchesQuery =
         q === "" ||
         name.includes(q) ||
         mail.includes(q) ||
-        (companyFromPerson && companyFromPerson.includes(q));
+        (companyFromPerson && companyFromPerson.includes(q)) ||
+        (meeting && meeting.includes(q));
       return matchesQuery && dbStatusMatchesFilter(row.status, filter);
     });
   }, [dbItems, query, filter]);
@@ -263,6 +267,12 @@ export default function DossiersPage() {
                     <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                       {row.subject_name || row.subject_email || "—"}
                     </span>
+                    <CalendarMeetingLabel
+                      trigger_source={row.trigger_source}
+                      calendar_meeting={row.calendar_meeting}
+                      dossier_data={row.dossier_data}
+                      compact
+                    />
                     <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                       {row.subject_email || "—"} · {row.status} · {row.depth_level}
                     </span>

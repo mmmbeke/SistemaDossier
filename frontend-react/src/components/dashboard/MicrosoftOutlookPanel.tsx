@@ -9,7 +9,9 @@ import {
   fetchOutlookCalendarEventos,
   getStoredAccessToken,
   type OutlookReunionApi,
+  type CalendarSavedDossierRef,
 } from "@/lib/dossier-api";
+import CalendarDossierPreview from "@/components/dashboard/CalendarDossierPreview";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { Locale } from "@/i18n/types";
 
@@ -64,7 +66,14 @@ export default function MicrosoftOutlookPanel() {
   const [includePast, setIncludePast] = useState(false);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [genErr, setGenErr] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ eventKey: string; tema: string; body: string } | null>(null);
+  const [preview, setPreview] = useState<{
+    eventKey: string;
+    tema: string;
+    corporate: string | null;
+    person: string | null;
+    savedCorporate?: CalendarSavedDossierRef;
+    savedPerson?: CalendarSavedDossierRef;
+  } | null>(null);
 
   const loadMeetings = useCallback(async () => {
     if (!getStoredAccessToken()) {
@@ -128,14 +137,19 @@ export default function MicrosoftOutlookPanel() {
     try {
       const data = await fetchGenerarDossiersDesdeCalendario({ eventId: id });
       const first = data.dossiers[0];
-      if (!first || typeof first.dossier_generado !== "string") {
+      const corporate = first?.dossier_corporativo ?? null;
+      const person = first?.dossier_persona ?? null;
+      if (!first || (!corporate?.trim() && !person?.trim() && !first.dossier_generado?.trim())) {
         setGenErr(t("overview.microsoft_generate_empty"));
         return;
       }
       setPreview({
         eventKey: id,
         tema: first.reunion?.tema || r.tema || "—",
-        body: first.dossier_generado,
+        corporate,
+        person,
+        savedCorporate: first.saved_dossiers?.corporate,
+        savedPerson: first.saved_dossiers?.person,
       });
     } catch (e) {
       if (e instanceof DossierApiError) setGenErr(e.message || t("overview.microsoft_generate_error"));
@@ -264,24 +278,16 @@ export default function MicrosoftOutlookPanel() {
                   {generatingId === r.id ? t("overview.microsoft_generating") : t("overview.microsoft_generate_dossier")}
                 </button>
               </div>
-              {preview && preview.eventKey === r.id ? (
-                <details className="mt-3 rounded-md border px-2 py-2" style={{ borderColor: "var(--border-default)" }}>
-                  <summary className="cursor-pointer text-xs font-medium" style={{ color: "var(--accent-from)" }}>
-                    {t("overview.microsoft_generated_preview")} — {t("overview.microsoft_generate_success")}
-                  </summary>
-                  <p className="mb-1 mt-2 text-xs font-medium" style={{ color: "var(--text-primary)" }}>
-                    {preview.tema}
-                  </p>
-                  <pre
-                    className="max-h-64 overflow-auto whitespace-pre-wrap rounded p-2 text-xs leading-relaxed"
-                    style={{
-                      backgroundColor: "var(--bg-surface-strong)",
-                      color: "var(--text-muted)",
-                    }}
-                  >
-                    {preview.body}
-                  </pre>
-                </details>
+              {preview ? (
+                <CalendarDossierPreview
+                  eventKey={r.id || ""}
+                  activeEventKey={preview.eventKey}
+                  tema={preview.tema}
+                  corporate={preview.corporate}
+                  person={preview.person}
+                  savedCorporate={preview.savedCorporate}
+                  savedPerson={preview.savedPerson}
+                />
               ) : null}
             </li>
           ))}
