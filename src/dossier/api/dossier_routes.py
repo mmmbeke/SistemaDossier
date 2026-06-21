@@ -28,28 +28,17 @@ from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.corporate_company_search import search_corporate_company_candidates
 from dossier.services.person_research_service import run_person_research
 from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
+from dossier.services.dossier_folder_utils import (
+    build_dossier_list_entries,
+    serialize_dossier_list_item,
+    serialize_folder,
+)
 
 router = APIRouter(tags=["Dossiers"])
 
 
 def _serialize_dossier_list_item(d: Dossier) -> dict:
-    data = d.dossier_data if isinstance(d.dossier_data, dict) else None
-    return {
-        "id": str(d.id),
-        "subject_name": d.subject_name,
-        "subject_email": d.subject_email,
-        "status": d.status,
-        "depth_level": d.depth_level,
-        "credits_consumed": d.credits_consumed,
-        "created_at": d.created_at.isoformat() if d.created_at else None,
-        "updated_at": d.updated_at.isoformat() if d.updated_at else None,
-        "dossier_data": d.dossier_data,
-        "trigger_source": d.trigger_source,
-        "calendar_meeting": calendar_meeting_summary_from_dossier_data(
-            data,
-            trigger_source=d.trigger_source,
-        ),
-    }
+    return serialize_dossier_list_item(d)
 
 
 def _corporate_credit_charging_enabled() -> bool:
@@ -290,6 +279,27 @@ def generate_corporate_dossier(
     }
 
 
+@router.get("/dossiers/folders/{folder_id}")
+def get_dossier_folder(
+    folder_id: UUID,
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    db: Session = Depends(get_db_if_configured),
+):
+    """Carpeta con los dossiers (empresa + persona) de un mismo evento de calendario."""
+    _user, org = user_org
+    rows = db.execute(
+        select(Dossier)
+        .where(
+            Dossier.organization_id == org.id,
+            Dossier.dossier_folder_id == folder_id,
+        )
+        .order_by(Dossier.created_at.asc())
+    ).scalars().all()
+    if not rows:
+        raise HTTPException(status_code=404, detail="Carpeta no encontrada.")
+    return serialize_folder(rows)
+
+
 @router.get("/dossiers/{dossier_id}")
 def get_dossier_by_id(
     dossier_id: UUID,
@@ -363,5 +373,5 @@ def list_dossiers_for_org(
     rows = db.execute(stmt).scalars().all()
     return {
         "organization_id": str(org.id),
-        "items": [_serialize_dossier_list_item(r) for r in rows],
+        "items": build_dossier_list_entries(rows),
     }

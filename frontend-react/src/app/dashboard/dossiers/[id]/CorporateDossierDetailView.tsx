@@ -25,6 +25,8 @@ const KNOWN_DOSSIER_DATA_KEYS = new Set([
   "resolution",
   "person_filters",
   "calendar",
+  "calendar_folder",
+  "calendar_folder_role",
 ]);
 
 function formatExtraValue(v: unknown): string {

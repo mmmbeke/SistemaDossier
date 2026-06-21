@@ -1,17 +1,24 @@
 """
 Lectura del calendario de Outlook vía Microsoft Graph API.
+Normalizado al mismo shape que ``google_calendar_api.normalizar_evento_google``.
 """
 
 from __future__ import annotations
 
+import html
+import re
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 import requests
 
 GRAPH_EVENTS_URL = "https://graph.microsoft.com/v1.0/me/calendar/events"
 GRAPH_CALENDAR_VIEW_URL = "https://graph.microsoft.com/v1.0/me/calendar/calendarView"
+GRAPH_EVENT_BY_ID_URL = "https://graph.microsoft.com/v1.0/me/events/{event_id}"
 
-_SELECT = "id,subject,bodyPreview,start,end,attendees,organizer,location,isAllDay"
+_SELECT = "id,subject,body,bodyPreview,start,end,attendees,organizer,location,isAllDay"
+
+_MAX_DESCRIPCION = 2000
 
 
 def _headers(access_token: str) -> dict[str, str]:
@@ -36,7 +43,7 @@ def _get_graph(url: str, access_token: str, params: dict) -> dict:
 
     if response.status_code == 401:
         raise ValueError(
-            "Token inválido o expirado. Vuelve a iniciar sesión con /login-microsoft."
+            "Token inválido o expirado. Vuelve a conectar Outlook desde la app."
         )
     if not response.ok:
         raise ValueError(
@@ -44,6 +51,38 @@ def _get_graph(url: str, access_token: str, params: dict) -> dict:
         )
 
     return response.json()
+
+
+def _strip_html_to_text(raw: str) -> str:
+    """Convierte cuerpo HTML de Outlook a texto plano conservando saltos de línea."""
+    if not raw:
+        return ""
+    t = re.sub(r"(?i)<br\s*/?>", "\n", raw)
+    t = re.sub(r"(?i)</(p|div|li|tr|h[1-6])>", "\n", t)
+    t = re.sub(r"<[^>]+>", " ", t)
+    t = html.unescape(t)
+    lines: list[str] = []
+    for ln in t.splitlines():
+        cleaned = re.sub(r"[ \t]+", " ", ln).strip()
+        if not cleaned:
+            if lines and lines[-1] != "":
+                lines.append("")
+            continue
+        lines.append(cleaned)
+    return "\n".join(lines).strip()
+
+
+def _extract_descripcion(evento: dict) -> str:
+    """Descripción completa del evento (como Google ``description``), truncada a 2000 chars."""
+    body = evento.get("body")
+    if isinstance(body, dict):
+        content = body.get("content") or ""
+        if content:
+            ctype = (body.get("contentType") or "").lower()
+            text = _strip_html_to_text(content) if ctype == "html" else str(content).strip()
+            return text[:_MAX_DESCRIPCION]
+    preview = evento.get("bodyPreview") or ""
+    return str(preview)[:_MAX_DESCRIPCION]
 
 
 def obtener_eventos_proximos(
@@ -109,7 +148,7 @@ def normalizar_evento(evento: dict) -> dict:
     return {
         "id": evento.get("id"),
         "tema": evento.get("subject") or "Sin asunto",
-        "descripcion": evento.get("bodyPreview") or "",
+        "descripcion": _extract_descripcion(evento),
         "participantes": _formatear_participantes(evento),
         "inicio": inicio,
         "fin": fin,
@@ -207,7 +246,6 @@ def listar_reuniones(
     Con incluir_pasadas=True: cualquier evento reciente del calendario.
     """
     if incluir_pasadas:
-        # Más filas: con pocos slots, eventos nuevos podían quedar fuera del top.
         datos = obtener_todos_los_eventos(access_token, top=max(top, 50))
     else:
         datos = obtener_eventos_proximos(
@@ -222,10 +260,24 @@ def obtener_reunion_por_id(
     event_id: str,
     dias_adelante: int = 90,
 ) -> dict | None:
-    """Busca una reunión por id en el rango del calendario."""
-    for reunion in listar_reuniones(
-        access_token, top=50, dias_adelante=dias_adelante, incluir_pasadas=True
-    ):
-        if reunion.get("id") == event_id:
-            return reunion
-    return None
+    """GET directo por id en Graph (paridad con ``obtener_reunion_google_por_id``)."""
+    del dias_adelante  # compatibilidad con firma anterior
+    eid = quote(event_id, safe="")
+    url = GRAPH_EVENT_BY_ID_URL.format(event_id=eid)
+    response = requests.get(
+        url,
+        headers=_headers(access_token),
+        params={"$select": _SELECT},
+        timeout=30,
+    )
+    if response.status_code == 404:
+        return None
+    if response.status_code == 401:
+        raise ValueError(
+            "Token inválido o expirado. Vuelve a conectar Outlook desde la app."
+        )
+    if not response.ok:
+        raise ValueError(
+            f"Error al consultar Microsoft Graph ({response.status_code}): {response.text}"
+        )
+    return normalizar_evento(response.json())
