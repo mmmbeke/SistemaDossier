@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import DashboardCard from "@/components/dashboard/DashboardCard";
+import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import { DossierApiError, deleteDossierFromApi, type DossierDetailResponse } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import { formatLongDate } from "@/lib/format";
@@ -23,6 +24,7 @@ const KNOWN_DOSSIER_DATA_KEYS = new Set([
   "billing",
   "resolution",
   "person_filters",
+  "calendar",
 ]);
 
 function formatExtraValue(v: unknown): string {
@@ -186,6 +188,11 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
           <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
             {dossier.subject_name || t("detail.api_no_subject")}
           </h1>
+          <CalendarMeetingLabel
+            trigger_source={dossier.trigger_source}
+            calendar_meeting={dossier.calendar_meeting}
+            dossier_data={dossier.dossier_data}
+          />
           {dossier.subject_email && (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
               {dossier.subject_email}

@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
@@ -16,7 +18,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from jwt.exceptions import PyJWTError
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.requests import Request
@@ -40,10 +42,11 @@ from dossier.security.jwt_tokens import (
     decode_google_oauth_state,
     decode_microsoft_oauth_state,
 )
-from dossier.services import (
-    generar_dossier_ejecutivo,
-    listar_reuniones,
-    obtener_reunion_por_id,
+from dossier.org_dossier_context import format_dossier_context_for_prompt
+from dossier.services import generar_dossier_ejecutivo, listar_reuniones, obtener_reunion_por_id
+from dossier.services.calendar_event_dossiers import (
+    generate_dossiers_from_calendar_event,
+    persist_calendar_dossiers,
 )
 from dossier.services.calendar_integrations import (
     upsert_google_calendar_tokens,
@@ -52,6 +55,7 @@ from dossier.services.calendar_integrations import (
 from dossier.services.google_calendar_api import listar_reuniones_google, obtener_reunion_google_por_id
 from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
 from dossier.services.graph_calendar import diagnostico_microsoft_calendar
+from dossier.services.calendar_automation_worker import start_calendar_automation_thread
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
 
 load_env()
@@ -112,7 +116,11 @@ async def lifespan(app: FastAPI):
         "on" if _cors_origin_regex else "off",
         _cors_origins,
     )
-    yield
+    stop_automation = start_calendar_automation_thread()
+    try:
+        yield
+    finally:
+        stop_automation()
 
 
 app = FastAPI(
@@ -315,7 +323,7 @@ def read_root():
         "config_check": {
             "companies_house": _status("COMPANIES_HOUSE_API_KEY"),
             "gemini": _status("GEMINI_API_KEY"),
-            "netrows": _status("NETROWS_API_KEY"),
+            "lusha": _status("LUSHA_API_KEY"),
             "openai": _status("OPENAI_API_KEY"),
             "google_oauth": _status("GOOGLE_CLIENT_ID"),
             "microsoft": _status("MICROSOFT_CLIENT_ID"),
@@ -689,6 +697,7 @@ def api_diagnostico_microsoft_calendario(
 
 @app.get("/calendario/generar-dossiers", tags=["Calendario"])
 def api_generar_dossiers_desde_calendario(
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
     top: int = Query(5, ge=1, le=10, description="Máximo de reuniones a procesar con IA"),
     event_id: Optional[str] = Query(
         None, description="Si se indica, solo genera dossier para esa reunión"
@@ -700,7 +709,9 @@ def api_generar_dossiers_desde_calendario(
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db_if_configured),
 ):
-    """Lee el calendario con Graph API y genera dossiers con IA para cada reunión (o una por id)."""
+    """Empresa (asunto) → Companies House / SEC; persona (descripción) → Lusha."""
+    user, org = user_org
+    org_ctx = format_dossier_context_for_prompt(org)
     token = _graph_token_for_calendar_route(db, authorization, access_token)
 
     try:
@@ -725,17 +736,21 @@ def api_generar_dossiers_desde_calendario(
 
     dossiers = []
     for reunion in reuniones:
-        informe = generar_dossier_ejecutivo(
-            tema_reunion=reunion["tema"],
-            participantes=reunion["participantes"],
-            descripcion=reunion.get("descripcion", ""),
+        t0 = time.perf_counter()
+        item = generate_dossiers_from_calendar_event(
+            reunion,
+            organization_context_block=org_ctx,
         )
-        dossiers.append(
-            {
-                "reunion": reunion,
-                "dossier_generado": informe,
-            }
+        elapsed_ms = int((time.perf_counter() - t0) * 1000)
+        item = persist_calendar_dossiers(
+            db,
+            user_id=user.id,
+            org_id=org.id,
+            result=item,
+            calendar_provider="microsoft",
+            generation_duration_ms=elapsed_ms,
         )
+        dossiers.append(item)
 
     return {
         "total": len(dossiers),
@@ -745,6 +760,7 @@ def api_generar_dossiers_desde_calendario(
 
 @app.get("/calendario/generar-dossiers-google", tags=["Calendario"])
 def api_generar_dossiers_desde_google_calendar(
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
     top: int = Query(5, ge=1, le=10, description="Máximo de eventos a procesar con IA"),
     event_id: Optional[str] = Query(
         None, description="Si se indica, solo genera dossier para ese evento de Google Calendar"
@@ -756,7 +772,9 @@ def api_generar_dossiers_desde_google_calendar(
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db_if_configured),
 ):
-    """Lee Google Calendar y genera dossiers con IA (mismo shape que ``/calendario/generar-dossiers``)."""
+    """Empresa (asunto) → Companies House / SEC; persona (descripción) → Lusha."""
+    user, org = user_org
+    org_ctx = format_dossier_context_for_prompt(org)
     token = _google_token_for_calendar_route(db, authorization, access_token)
 
     try:
@@ -781,17 +799,21 @@ def api_generar_dossiers_desde_google_calendar(
 
     dossiers = []
     for reunion in reuniones:
-        informe = generar_dossier_ejecutivo(
-            tema_reunion=reunion["tema"],
-            participantes=reunion["participantes"],
-            descripcion=reunion.get("descripcion", ""),
+        t0 = time.perf_counter()
+        item = generate_dossiers_from_calendar_event(
+            reunion,
+            organization_context_block=org_ctx,
         )
-        dossiers.append(
-            {
-                "reunion": reunion,
-                "dossier_generado": informe,
-            }
+        elapsed_ms = int((time.perf_counter() - t0) * 1000)
+        item = persist_calendar_dossiers(
+            db,
+            user_id=user.id,
+            org_id=org.id,
+            result=item,
+            calendar_provider="google",
+            generation_duration_ms=elapsed_ms,
         )
+        dossiers.append(item)
 
     return {
         "total": len(dossiers),
@@ -846,6 +868,29 @@ def db_health():
             status_code=503,
             content={"postgresql": "error", "detail": str(e)},
         )
+
+
+@app.get("/calendario/automation/status", tags=["Calendario"])
+def calendar_automation_status(db: Session = Depends(get_db_if_configured)):
+    """Estado de la automatización (solo lectura; no dispara generación)."""
+    from dossier.services.calendar_automation import (
+        automation_enabled,
+        default_advance_minutes,
+        poll_interval_seconds,
+    )
+    from dossier.db.models import CalendarEvent
+
+    pending = db.execute(
+        select(CalendarEvent).where(CalendarEvent.processing_status == "scheduled")
+    ).scalars().all()
+    due_times = [e.dossier_scheduled_at for e in pending if e.dossier_scheduled_at]
+    return {
+        "enabled": automation_enabled(),
+        "poll_seconds": poll_interval_seconds(),
+        "advance_minutes": default_advance_minutes(),
+        "scheduled_events": len(pending),
+        "next_due": min(due_times).isoformat() if due_times else None,
+    }
 
 
 @app.get("/health")

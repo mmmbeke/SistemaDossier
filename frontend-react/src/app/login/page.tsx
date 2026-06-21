@@ -8,7 +8,9 @@ import FormField from "@/components/FormField";
 import PrimaryButton from "@/components/PrimaryButton";
 import {
   authLogin,
+  clearAuthSession,
   DossierApiError,
+  fetchAuthMe,
   getStoredAccessToken,
   persistAuthToken,
   writeDossierUserPreview,
@@ -43,23 +45,51 @@ export default function LoginPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   /**
-   * Si ya hay JWT (p. ej. “Recuérdame”), no mostramos el formulario: vamos al dashboard o a `?next=`.
-   * Si no hay sesión, restauramos checkbox y último email desde localStorage.
+   * Si ya hay JWT válido, ir al dashboard. Si el token existe pero la API lo rechaza, limpiar sesión.
    */
   useEffect(() => {
-    const token = getStoredAccessToken();
-    if (token) {
-      router.replace(resolvePostLoginRedirect());
-      return;
+    let cancelled = false;
+
+    async function tryExistingSession() {
+      const token = getStoredAccessToken();
+      if (!token) {
+        const pref = localStorage.getItem(REMEMBER_PREF_KEY);
+        const rememberOn = pref !== "0";
+        setRemember(rememberOn);
+        if (rememberOn) {
+          const last = localStorage.getItem(LAST_EMAIL_KEY);
+          if (last) setEmail(last);
+        }
+        const reason = new URLSearchParams(window.location.search).get("reason");
+        if (reason === "session_expired") {
+          setFormError(t("auth.error.session_expired"));
+        }
+        return;
+      }
+      try {
+        await fetchAuthMe();
+        if (!cancelled) router.replace(resolvePostLoginRedirect());
+      } catch (e) {
+        if (cancelled) return;
+        if (e instanceof DossierApiError && e.status === 401) {
+          clearAuthSession();
+          setFormError(t("auth.error.session_expired"));
+        }
+        const pref = localStorage.getItem(REMEMBER_PREF_KEY);
+        const rememberOn = pref !== "0";
+        setRemember(rememberOn);
+        if (rememberOn) {
+          const last = localStorage.getItem(LAST_EMAIL_KEY);
+          if (last) setEmail(last);
+        }
+      }
     }
-    const pref = localStorage.getItem(REMEMBER_PREF_KEY);
-    const rememberOn = pref !== "0";
-    setRemember(rememberOn);
-    if (rememberOn) {
-      const last = localStorage.getItem(LAST_EMAIL_KEY);
-      if (last) setEmail(last);
-    }
-  }, [router]);
+
+    void tryExistingSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [router, t]);
 
   function validate(): Errors {
     const next: Errors = {};

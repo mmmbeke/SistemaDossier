@@ -21,10 +21,11 @@ JurisdictionScope = Literal["uk_only", "us_only", "dual"]
 # Instrucciones de tono: el Markdown final va a clientes; no deben aparecer metadatos de ingeniería.
 _CLIENT_EXECUTIVE_STYLE = (
     "Audiencia: cliente ejecutivo (riesgo, M&A, banca). **No** menciones marcas de productos de IA, APIs, "
-    "protocolos técnicos de datos (p. ej. XBRL), «fragmentos» del archivo, ni limitaciones del software "
-    "o del pipeline de generación. "
+    "nombres de proveedores (Lusha, Gemini, Google, etc.), registros por marca (Companies House, SEC, EDGAR, XBRL), "
+    "«fragmentos» del archivo, ni limitaciones del software o del pipeline de generación. "
+    "Usa lenguaje de negocio: «registro público», «información regulatoria», «cuentas auditadas», «presentaciones oficiales». "
     "Si falta información, formuladlo como vacío de negocio o pregunta a la contraparte (p. ej. solicitar "
-    "DEF 14A, notas completas o documentación en data room), sin meta-comentarios sobre el origen técnico del dossier."
+    "documentación en data room), sin meta-comentarios sobre el origen técnico del dossier."
 )
 
 # Estilo del dossier final: brevedad + estructura fija (UK, US y dual).

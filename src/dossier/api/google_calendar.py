@@ -8,7 +8,8 @@ import json
 import requests
 from fastapi import APIRouter, HTTPException, Query, status
 
-from dossier.services import generar_dossier_ejecutivo
+from dossier.services.google_calendar_api import normalizar_evento_google
+from dossier.services.calendar_event_dossiers import generate_dossiers_from_calendar_event
 
 router = APIRouter(prefix="/calendario", tags=["Calendario"])
 
@@ -91,17 +92,14 @@ async def api_generar_dossier_desde_google(
             )
 
         evento = eventos[0]
-        asistentes = [a.get("email") for a in evento.get("attendees", [])]
-        participantes_str = ", ".join(asistentes) if asistentes else "Sin participantes"
-        informe_ia = generar_dossier_ejecutivo(
-            tema_reunion=evento.get("summary", "Reunión sin título"),
-            participantes=participantes_str,
-            descripcion=evento.get("description", "") or "",
-        )
+        reunion = normalizar_evento_google(evento)
+        result = generate_dossiers_from_calendar_event(reunion)
         return {
             "status": "Dossier generado automáticamente",
-            "tema": evento.get("summary"),
-            "dossier_generado": informe_ia,
+            "tema": reunion.get("tema"),
+            "dossier_generado": result["dossier_generado"],
+            "dossier_corporativo": result.get("dossier_corporativo"),
+            "dossier_persona": result.get("dossier_persona"),
         }
     except HTTPException:
         raise

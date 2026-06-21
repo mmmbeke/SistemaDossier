@@ -50,6 +50,8 @@ export type DossierListItem = {
   created_at: string | null;
   updated_at: string | null;
   dossier_data: unknown;
+  trigger_source?: string | null;
+  calendar_meeting?: string | null;
 };
 
 export type DossiersListResponse = {
@@ -75,6 +77,8 @@ export type DossierDetailResponse = {
   data_sources_used?: string[];
   generation_duration_ms?: number | null;
   status_message?: string | null;
+  trigger_source?: string | null;
+  calendar_meeting?: string | null;
 };
 
 export type AuthSuccessResponse = {
@@ -646,8 +650,8 @@ export type PersonResearchPayload = {
   start?: number;
   max_profiles?: number;
   include_posts?: boolean;
-  /** `gemini_web` = solo IA + Google Search; `netrows` = API Netrows + análisis Gemini. */
-  research_source?: "gemini_web" | "netrows";
+  /** `gemini_web` = solo IA + Google Search; `lusha` = API Lusha + análisis Gemini. */
+  research_source?: "gemini_web" | "lusha";
 };
 
 export type PersonSavedDossier = {
@@ -959,10 +963,35 @@ export async function fetchGoogleCalendarEventos(options?: {
   return { total, reuniones, mensaje };
 }
 
+/** Referencia a dossier guardado en Mis Dossiers. */
+export type CalendarSavedDossierRef = {
+  id: string;
+  status: string;
+  subject_name?: string;
+};
+
 /** Ítem de ``GET /calendario/generar-dossiers``. */
 export type CalendarGenerarDossierItem = {
   reunion: OutlookReunionApi;
+  /** Compatibilidad: primer dossier disponible (corporativo o persona). */
   dossier_generado: string;
+  dossier_corporativo?: string | null;
+  dossier_persona?: string | null;
+  saved_dossiers?: {
+    corporate?: CalendarSavedDossierRef;
+    person?: CalendarSavedDossierRef;
+  };
+  parse?: {
+    company?: string;
+    company_subject?: string;
+    company_corporate?: string;
+    company_corporate_source?: "subject" | "description" | "";
+    company_person?: string;
+    person_name?: string;
+    person_job?: string | null;
+    person_country?: string | null;
+  };
+  errors?: string[];
 };
 
 export type CalendarGenerarDossiersResponse = {

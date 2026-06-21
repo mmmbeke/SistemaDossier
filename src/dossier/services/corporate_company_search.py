@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from functools import lru_cache
 from typing import Any
@@ -29,24 +30,74 @@ def _load_sec_company_rows() -> tuple[dict[str, Any], ...]:
     return tuple(data.values())
 
 
+def _normalize_sec_compare(s: str) -> str:
+    """Quita puntuación para comparar nombres (p. ej. «Tesla Inc» vs «Tesla, Inc.»)."""
+    return " ".join(re.sub(r"[^\w\s]", " ", (s or "").lower()).split())
+
+
+def _sec_search_candidates(query: str) -> list[str]:
+    """Variantes del texto para resolver ticker/CIK (asuntos de calendario, briefs libres)."""
+    q = (query or "").strip()
+    if not q:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def add(s: str) -> None:
+        s = s.strip()
+        if len(s) >= 2 and s.lower() not in seen:
+            seen.add(s.lower())
+            out.append(s)
+
+    add(q)
+    if "." in q:
+        add(q.split(".", 1)[0])
+    norm = " ".join(_normalize_sec_compare(q).split())
+    add(norm)
+    for pat in (
+        r"(?i)^(?:reunión|reunion|demo|llamada|call|meeting)\s+(?:comercial|estratégica|estadategica|producto|con|de)\s+(.+)$",
+        r"(?i)^(?:reunión|reunion|meeting|call)\s+con\s+(.+)$",
+        r"(?i)^(?:reunión|reunion|meeting|call)\s+with\s+(.+)$",
+    ):
+        m = re.match(pat, q)
+        if m:
+            add(m.group(1).strip())
+    stop = {
+        "reunión", "reunion", "meeting", "call", "demo", "comercial", "con", "de", "the", "inc",
+        "corp", "ltd", "llc", "plc", "sa", "ag",
+    }
+    for word in re.findall(r"\w{3,}", q):
+        if word.lower() not in stop:
+            add(word)
+    return out
+
+
 def find_sec_matches(query: str, limit: int = 30) -> list[dict[str, Any]]:
     """Coincidencias en el listado de tickers SEC (nombre o ticker)."""
-    q = query.strip().lower()
-    if len(q) < 2:
-        return []
     companies = list(_load_sec_company_rows())
-    for c in companies:
-        if str(c["ticker"]).lower() == q:
-            return [_normalize_sec_row(c)]
-    for c in companies:
-        if str(c["title"]).lower() == q:
-            return [_normalize_sec_row(c)]
-    hits = [
-        _normalize_sec_row(c)
-        for c in companies
-        if q in str(c["title"]).lower() or q in str(c["ticker"]).lower()
-    ]
-    return hits[:limit]
+    for cand in _sec_search_candidates(query):
+        q = cand.strip().lower()
+        if len(q) < 2:
+            continue
+        for c in companies:
+            if str(c["ticker"]).lower() == q:
+                return [_normalize_sec_row(c)]
+        qnorm = _normalize_sec_compare(cand)
+        for c in companies:
+            title_norm = _normalize_sec_compare(str(c.get("title", "")))
+            if qnorm == title_norm or qnorm in title_norm or title_norm.startswith(qnorm):
+                return [_normalize_sec_row(c)]
+        for c in companies:
+            if str(c["title"]).lower() == q:
+                return [_normalize_sec_row(c)]
+        hits = [
+            _normalize_sec_row(c)
+            for c in companies
+            if q in str(c["title"]).lower() or q in str(c["ticker"]).lower()
+        ]
+        if hits:
+            return hits[:limit]
+    return []
 
 
 def _normalize_sec_row(c: dict[str, Any]) -> dict[str, Any]:
