@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import FilterTabs, { type FilterValue } from "@/components/dossier/FilterTabs";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
+import DossierFolderCard from "@/components/dossier/DossierFolderCard";
 import TopBar from "@/components/dashboard/TopBar";
 import NewDossierButton from "@/components/dossier/NewDossierButton";
 import {
@@ -11,30 +12,24 @@ import {
   deleteDossierFromApi,
   fetchDossiersFromApi,
   getStoredAccessToken,
+  isDossierFolderEntry,
+  type DossierListEntry,
   type DossierListItem,
 } from "@/lib/dossier-api";
-import { getCalendarMeetingLabel } from "@/lib/calendar-dossier-meta";
+import { countListEntries, entryMatchesFilter, entryMatchesQuery } from "@/lib/dossier-list-utils";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 type DbLoadState = "idle" | "loading" | "ready" | "error";
-
-function dbStatusMatchesFilter(status: string, filter: FilterValue): boolean {
-  if (filter === "all") return true;
-  if (filter === "complete") return status === "complete";
-  if (filter === "needs_update") return status !== "complete";
-  return true;
-}
 
 export default function DossiersPage() {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterValue>("all");
   const [dbLoad, setDbLoad] = useState<DbLoadState>("idle");
-  const [dbItems, setDbItems] = useState<DossierListItem[]>([]);
+  const [dbItems, setDbItems] = useState<DossierListEntry[]>([]);
   const [dbError, setDbError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  /** Si hay JWT, cargamos filas reales de `GET /dossiers` (PostgreSQL). */
   useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
@@ -66,54 +61,36 @@ export default function DossiersPage() {
   }, []);
 
   const filteredDb = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return dbItems.filter((row) => {
-      const name = (row.subject_name || "").toLowerCase();
-      const mail = (row.subject_email || "").toLowerCase();
-      let companyFromPerson = "";
-      const dd = row.dossier_data;
-      if (dd && typeof dd === "object" && !Array.isArray(dd)) {
-        const pf = (dd as Record<string, unknown>).person_filters;
-        if (pf && typeof pf === "object" && !Array.isArray(pf)) {
-          const c = (pf as Record<string, unknown>).company;
-          if (typeof c === "string") companyFromPerson = c.toLowerCase();
-        }
-      }
-      const meeting = (getCalendarMeetingLabel(row) || "").toLowerCase();
-      const matchesQuery =
-        q === "" ||
-        name.includes(q) ||
-        mail.includes(q) ||
-        (companyFromPerson && companyFromPerson.includes(q)) ||
-        (meeting && meeting.includes(q));
-      return matchesQuery && dbStatusMatchesFilter(row.status, filter);
-    });
+    return dbItems.filter(
+      (entry) => entryMatchesQuery(entry, query) && entryMatchesFilter(entry, filter)
+    );
   }, [dbItems, query, filter]);
 
   const useLiveDb = dbLoad === "ready";
   const hasSession = Boolean(getStoredAccessToken());
-
-  const counts = useMemo(() => {
-    if (useLiveDb) {
-      return {
-        all: dbItems.length,
-        complete: dbItems.filter((d) => d.status === "complete").length,
-        needs_update: dbItems.filter((d) => d.status !== "complete").length,
-      };
-    }
-    return { all: 0, complete: 0, needs_update: 0 };
-  }, [useLiveDb, dbItems]);
-
+  const counts = useMemo(() => countListEntries(dbItems), [dbItems]);
   const filterAllLabel = t("dossiers.filter_all").replace(/\s*\(\d+\)/, ` (${counts.all})`);
 
-  async function handleDeleteRow(row: DossierListItem) {
+  async function handleDeleteDossier(row: DossierListItem) {
     if (deletingId) return;
     if (!window.confirm(t("dossiers.delete_confirm"))) return;
     setDeletingId(row.id);
     setDbError(null);
     try {
       await deleteDossierFromApi(row.id);
-      setDbItems((prev) => prev.filter((r) => r.id !== row.id));
+      setDbItems((prev) =>
+        prev
+          .map((entry) => {
+            if (isDossierFolderEntry(entry)) {
+              const dossiers = entry.dossiers.filter((d) => d.id !== row.id);
+              if (dossiers.length === 0) return null;
+              return { ...entry, dossiers };
+            }
+            if (entry.id === row.id) return null;
+            return entry;
+          })
+          .filter((e): e is DossierListEntry => e !== null)
+      );
     } catch (e) {
       setDbError(e instanceof DossierApiError ? e.message : String(e));
     } finally {
@@ -251,50 +228,59 @@ export default function DossiersPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredDb.map((row) => (
-                <div
-                  key={row.id}
-                  className="flex gap-1 rounded-xl border transition hover:border-strong"
-                  style={{
-                    borderColor: "var(--border-default)",
-                    backgroundColor: "var(--bg-surface)",
-                  }}
-                >
-                  <Link
-                    href={`/dashboard/dossiers/${row.id}`}
-                    className="flex min-w-0 flex-1 flex-col gap-2 p-4 text-left"
+              {filteredDb.map((entry) =>
+                isDossierFolderEntry(entry) ? (
+                  <DossierFolderCard
+                    key={entry.id}
+                    folder={entry}
+                    deletingId={deletingId}
+                    onDeleteDossier={handleDeleteDossier}
+                  />
+                ) : (
+                  <div
+                    key={entry.id}
+                    className="flex gap-1 rounded-xl border transition hover:border-strong"
+                    style={{
+                      borderColor: "var(--border-default)",
+                      backgroundColor: "var(--bg-surface)",
+                    }}
                   >
-                    <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                      {row.subject_name || row.subject_email || "—"}
-                    </span>
-                    <CalendarMeetingLabel
-                      trigger_source={row.trigger_source}
-                      calendar_meeting={row.calendar_meeting}
-                      dossier_data={row.dossier_data}
-                      compact
-                    />
-                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                      {row.subject_email || "—"} · {row.status} · {row.depth_level}
-                    </span>
-                    {row.created_at && (
-                      <span className="text-xs" style={{ color: "var(--text-subtle)" }}>
-                        {row.created_at.slice(0, 10)}
+                    <Link
+                      href={`/dashboard/dossiers/${entry.id}`}
+                      className="flex min-w-0 flex-1 flex-col gap-2 p-4 text-left"
+                    >
+                      <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                        {entry.subject_name || entry.subject_email || "—"}
                       </span>
-                    )}
-                  </Link>
-                  <button
-                    type="button"
-                    disabled={deletingId === row.id}
-                    onClick={() => void handleDeleteRow(row)}
-                    className="shrink-0 self-stretch rounded-r-xl px-3 text-xs font-medium transition hover:bg-red-500/15 disabled:opacity-50"
-                    style={{ color: "var(--text-muted)" }}
-                    title={t("dossiers.delete_aria")}
-                    aria-label={t("dossiers.delete_aria")}
-                  >
-                    {deletingId === row.id ? t("dossiers.deleting") : t("dossiers.delete")}
-                  </button>
-                </div>
-              ))}
+                      <CalendarMeetingLabel
+                        trigger_source={entry.trigger_source}
+                        calendar_meeting={entry.calendar_meeting}
+                        dossier_data={entry.dossier_data}
+                        compact
+                      />
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        {entry.subject_email || "—"} · {entry.status} · {entry.depth_level}
+                      </span>
+                      {entry.created_at && (
+                        <span className="text-xs" style={{ color: "var(--text-subtle)" }}>
+                          {entry.created_at.slice(0, 10)}
+                        </span>
+                      )}
+                    </Link>
+                    <button
+                      type="button"
+                      disabled={deletingId === entry.id}
+                      onClick={() => void handleDeleteDossier(entry)}
+                      className="shrink-0 self-stretch rounded-r-xl px-3 text-xs font-medium transition hover:bg-red-500/15 disabled:opacity-50"
+                      style={{ color: "var(--text-muted)" }}
+                      title={t("dossiers.delete_aria")}
+                      aria-label={t("dossiers.delete_aria")}
+                    >
+                      {deletingId === entry.id ? t("dossiers.deleting") : t("dossiers.delete")}
+                    </button>
+                  </div>
+                )
+              )}
             </div>
           )}
         </section>

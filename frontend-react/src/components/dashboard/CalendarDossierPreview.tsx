@@ -12,6 +12,7 @@ type CalendarDossierPreviewProps = {
   person?: string | null;
   savedCorporate?: CalendarSavedDossierRef;
   savedPerson?: CalendarSavedDossierRef;
+  savedFolder?: { id: string; title: string };
 };
 
 function DossierBlock({
@@ -79,6 +80,7 @@ export default function CalendarDossierPreview({
   person,
   savedCorporate,
   savedPerson,
+  savedFolder,
 }: CalendarDossierPreviewProps) {
   const { t } = useTranslation();
   if (activeEventKey !== eventKey) return null;
@@ -93,13 +95,23 @@ export default function CalendarDossierPreview({
       {hasSaved ? (
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>
           {t("overview.calendar_dossiers_saved")}{" "}
-          <Link
-            href="/dashboard/dossiers"
-            className="font-semibold underline-offset-2 hover:underline"
-            style={{ color: "var(--accent-from)" }}
-          >
-            {t("overview.calendar_dossiers_open_list")}
-          </Link>
+          {savedFolder?.id ? (
+            <Link
+              href={`/dashboard/dossiers/folder/${savedFolder.id}`}
+              className="font-semibold underline-offset-2 hover:underline"
+              style={{ color: "var(--accent-from)" }}
+            >
+              {t("dossiers.folder_open")}
+            </Link>
+          ) : (
+            <Link
+              href="/dashboard/dossiers"
+              className="font-semibold underline-offset-2 hover:underline"
+              style={{ color: "var(--accent-from)" }}
+            >
+              {t("overview.calendar_dossiers_open_list")}
+            </Link>
+          )}
         </p>
       ) : null}
       <DossierBlock

@@ -436,6 +436,14 @@ def persist_calendar_dossiers(
     cal = _calendar_meta(reunion, calendar_provider)
     now = datetime.now(timezone.utc)
     saved: dict[str, Any] = {}
+    folder_id = uuid.uuid4()
+    folder_title = (
+        cal.get("meeting_label")
+        or (parsed.get("tema") or "").strip()
+        or (parsed.get("company_corporate") or "").strip()
+        or "Reunión"
+    )[:255]
+    calendar_folder = {"id": str(folder_id), "title": folder_title}
 
     corporate_md = result.get("dossier_corporativo")
     if _markdown_is_persistable(corporate_md):
@@ -464,6 +472,8 @@ def persist_calendar_dossiers(
                 "success": not is_err,
                 "billing": "none",
                 "calendar": cal,
+                "calendar_folder": calendar_folder,
+                "calendar_folder_role": "corporate",
             },
             agents_activated=["agent_corporate_uk", "agent_corporate_usa", "synthesize_gemini"],
             agents_failed=(["synthesize_gemini"] if is_err else []),
@@ -473,6 +483,7 @@ def persist_calendar_dossiers(
             generation_duration_ms=generation_duration_ms,
             trigger_source="calendar",
             calendar_event_id=calendar_event_id,
+            dossier_folder_id=folder_id,
         )
         db.add(dossier)
         saved["corporate"] = {
@@ -480,6 +491,7 @@ def persist_calendar_dossiers(
             "status": status,
             "subject_name": subject,
         }
+        saved["folder"] = {"id": str(folder_id), "title": folder_title}
 
     person_md = result.get("dossier_persona")
     if _markdown_is_persistable(person_md):
@@ -508,6 +520,8 @@ def persist_calendar_dossiers(
                 "success": not is_err,
                 "billing": "none",
                 "calendar": cal,
+                "calendar_folder": calendar_folder,
+                "calendar_folder_role": "person",
                 "person_filters": {
                     "full_name": parsed.get("person_name"),
                     "job_area": parsed.get("person_job"),
@@ -524,6 +538,7 @@ def persist_calendar_dossiers(
             generation_duration_ms=generation_duration_ms,
             trigger_source="calendar",
             calendar_event_id=calendar_event_id,
+            dossier_folder_id=folder_id,
         )
         db.add(dossier)
         saved["person"] = {
@@ -531,6 +546,8 @@ def persist_calendar_dossiers(
             "status": status,
             "subject_name": person_name,
         }
+        if "folder" not in saved:
+            saved["folder"] = {"id": str(folder_id), "title": folder_title}
 
     if saved:
         db.commit()
