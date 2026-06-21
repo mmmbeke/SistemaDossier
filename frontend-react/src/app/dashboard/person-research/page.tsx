@@ -17,7 +17,7 @@ import { useTranslation } from "@/providers/PreferencesProvider";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-type ResearchSourceUi = "gemini_web" | "netrows";
+type ResearchSourceUi = "gemini_web" | "lusha";
 
 export default function PersonResearchPage() {
   const { t } = useTranslation();
@@ -29,7 +29,7 @@ export default function PersonResearchPage() {
   const [city, setCity] = useState("");
   const [extraKeywords, setExtraKeywords] = useState("");
   const [maxProfiles, setMaxProfiles] = useState(1);
-  const [includePosts, setIncludePosts] = useState(false);
+  const [revealContactDetails, setRevealContactDetails] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<PersonResearchApiResponse | null>(null);
@@ -53,8 +53,8 @@ export default function PersonResearchPage() {
       full_name: name,
       research_source: researchSource,
       max_profiles:
-        researchSource === "netrows" ? Math.min(5, Math.max(1, maxProfiles)) : 1,
-      include_posts: researchSource === "netrows" ? includePosts : false,
+        researchSource === "lusha" ? Math.min(5, Math.max(1, maxProfiles)) : 1,
+      reveal_contact_details: researchSource === "lusha" ? revealContactDetails : false,
     };
     const ja = jobArea.trim();
     const co = company.trim();
@@ -125,14 +125,14 @@ export default function PersonResearchPage() {
                 <input
                   type="radio"
                   name="research_source"
-                  checked={researchSource === "netrows"}
-                  onChange={() => setResearchSource("netrows")}
+                  checked={researchSource === "lusha"}
+                  onChange={() => setResearchSource("lusha")}
                   className="mt-1"
                 />
                 <span>
-                  <span className="font-medium">{t("person_research.source_netrows")}</span>
+                  <span className="font-medium">{t("person_research.source_lusha")}</span>
                   <span className="mt-0.5 block text-xs" style={{ color: "var(--text-muted)" }}>
-                    {t("person_research.source_netrows_hint")}
+                    {t("person_research.source_lusha_hint")}
                   </span>
                 </span>
               </label>
@@ -182,7 +182,7 @@ export default function PersonResearchPage() {
               onChange={(e) => setExtraKeywords(e.target.value)}
             />
 
-            {researchSource === "netrows" ? (
+            {researchSource === "lusha" ? (
               <>
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
@@ -202,12 +202,12 @@ export default function PersonResearchPage() {
                 <label className="flex cursor-pointer items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
                   <input
                     type="checkbox"
-                    checked={includePosts}
-                    onChange={(e) => setIncludePosts(e.target.checked)}
+                    checked={revealContactDetails}
+                    onChange={(e) => setRevealContactDetails(e.target.checked)}
                     className="rounded border"
                     style={{ borderColor: "var(--border-default)" }}
                   />
-                  {t("person_research.include_posts")}
+                  {t("person_research.reveal_contact_details")}
                 </label>
               </>
             ) : null}
@@ -282,7 +282,7 @@ export default function PersonResearchPage() {
           ) : null}
 
           {result &&
-          (result.filters_applied?.research_source === "netrows" ||
+          (result.filters_applied?.research_source === "lusha" ||
             (Array.isArray(result.search_attempts) && result.search_attempts.length > 0) ||
             (Array.isArray(result.profile_urls) && result.profile_urls.length > 0)) ? (
             <DashboardCard title={t("person_research.section_raw")}>

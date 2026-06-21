@@ -167,14 +167,14 @@ const messages = {
   "generate.warn_query_short": "El texto de búsqueda es demasiado corto.",
   "person_research.title": "Informe profesional de persona",
   "person_research.subtitle":
-    "Elige búsqueda por IA (Gemini + web) o por Netrows (API profesional + Gemini). No sustituye diligencia legal; trata datos personales solo con base jurídica.",
+    "Elige búsqueda por IA (Gemini + web) o por Lusha (API profesional + Gemini). No sustituye diligencia legal; trata datos personales solo con base jurídica.",
   "person_research.source_label": "Tipo de investigación",
   "person_research.source_gemini": "Búsqueda por IA",
   "person_research.source_gemini_hint":
-    "Gemini con búsqueda web en vivo (Google Search). No usa Netrows.",
-  "person_research.source_netrows": "Búsqueda Netrows",
-  "person_research.source_netrows_hint":
-    "API Netrows (perfiles enlazados) y análisis Gemini sobre ese JSON. Requiere NETROWS_API_KEY en el servidor.",
+    "Gemini con búsqueda web en vivo (Google Search). No usa Lusha.",
+  "person_research.source_lusha": "Búsqueda Lusha",
+  "person_research.source_lusha_hint":
+    "API Lusha (contactos B2B) y análisis Gemini sobre ese JSON. Requiere LUSHA_API_KEY en el servidor.",
   "person_research.back": "Volver",
   "person_research.section_filters": "Filtros de búsqueda",
   "person_research.full_name": "Nombre completo",
@@ -190,7 +190,8 @@ const messages = {
   "person_research.extra_keywords": "Palabras clave extra (opcional)",
   "person_research.extra_keywords_ph": "Universidad, sector, proyecto…",
   "person_research.max_profiles": "Perfiles a enriquecer (1–5)",
-  "person_research.include_posts": "Incluir publicaciones recientes (si la API lo permite)",
+  "person_research.reveal_contact_details":
+    "Revelar email y teléfono en Lusha (consume créditos de tu cuenta)",
   "person_research.submit": "Buscar y analizar",
   "person_research.submitting": "Generando informe…",
   "person_research.error_auth": "Debes iniciar sesión.",
@@ -456,7 +457,7 @@ const messages = {
   "quick.addressbook_label": "Libreta de Direcciones",
   "quick.addressbook_desc": "Administrar contactos",
   "quick.person_research_label": "Personas",
-  "quick.person_research_desc": "IA + web o Netrows + Gemini",
+  "quick.person_research_desc": "IA + web o Lusha + Gemini",
   "quick.corporate_label": "Empresas",
   "quick.corporate_desc": "Generación de dossier corporativo UK + EE. UU.",
   "automation.title": "Automatización de Email y Calendario",

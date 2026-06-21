@@ -166,14 +166,14 @@ const messages = {
   "generate.warn_query_short": "Search text is too short.",
   "person_research.title": "Person professional insight",
   "person_research.subtitle":
-    "Choose AI search (Gemini + web) or Netrows (professional API + Gemini). Not a substitute for legal vetting; process personal data only with a lawful basis.",
+    "Choose AI search (Gemini + web) or Lusha (professional API + Gemini). Not a substitute for legal vetting; process personal data only with a lawful basis.",
   "person_research.source_label": "Research type",
   "person_research.source_gemini": "AI search",
   "person_research.source_gemini_hint":
-    "Gemini with live Google Search. Does not use Netrows.",
-  "person_research.source_netrows": "Netrows search",
-  "person_research.source_netrows_hint":
-    "Netrows API (linked profiles) and Gemini analysis on that JSON. Requires NETROWS_API_KEY on the server.",
+    "Gemini with live Google Search. Does not use Lusha.",
+  "person_research.source_lusha": "Lusha search",
+  "person_research.source_lusha_hint":
+    "Lusha API (B2B contacts) and Gemini analysis on that JSON. Requires LUSHA_API_KEY on the server.",
   "person_research.back": "Back",
   "person_research.section_filters": "Search filters",
   "person_research.full_name": "Full name",
@@ -189,7 +189,8 @@ const messages = {
   "person_research.extra_keywords": "Extra keywords (optional)",
   "person_research.extra_keywords_ph": "School, sector, project…",
   "person_research.max_profiles": "Profiles to enrich (1–5)",
-  "person_research.include_posts": "Include recent posts (when available)",
+  "person_research.reveal_contact_details":
+    "Reveal email and phone via Lusha (uses account credits)",
   "person_research.submit": "Search and analyze",
   "person_research.submitting": "Generating report…",
   "person_research.error_auth": "You must be signed in.",
@@ -455,7 +456,7 @@ const messages = {
   "quick.addressbook_label": "Address Book",
   "quick.addressbook_desc": "Manage contacts",
   "quick.person_research_label": "People",
-  "quick.person_research_desc": "AI + web or Netrows + Gemini",
+  "quick.person_research_desc": "AI + web or Lusha + Gemini",
   "quick.corporate_label": "Companies",
   "quick.corporate_desc": "UK + US corporate dossier generation",
   "automation.title": "Email & Calendar Automation",

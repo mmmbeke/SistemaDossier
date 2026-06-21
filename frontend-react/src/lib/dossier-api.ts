@@ -645,9 +645,9 @@ export type PersonResearchPayload = {
   extra_keywords?: string | null;
   start?: number;
   max_profiles?: number;
-  include_posts?: boolean;
-  /** `gemini_web` = solo IA + Google Search; `netrows` = API Netrows + análisis Gemini. */
-  research_source?: "gemini_web" | "netrows";
+  reveal_contact_details?: boolean;
+  /** `gemini_web` = solo IA + Google Search; `lusha` = API Lusha + análisis Gemini. */
+  research_source?: "gemini_web" | "lusha";
 };
 
 export type PersonSavedDossier = {

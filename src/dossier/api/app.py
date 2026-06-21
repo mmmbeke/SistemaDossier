@@ -176,7 +176,10 @@ REDIRECT_URI = os.getenv("MICROSOFT_REDIRECT_URI")
 
 GOOGLE_CLIENT_ID = (os.getenv("GOOGLE_CLIENT_ID") or "").strip() or None
 GOOGLE_CLIENT_SECRET = (os.getenv("GOOGLE_CLIENT_SECRET") or "").strip() or None
-GOOGLE_REDIRECT_URI = (os.getenv("GOOGLE_REDIRECT_URI") or "").strip() or None
+# Acepta GOOGLE_REDIRECT_URL por si el .env usa el nombre antiguo (typo).
+GOOGLE_REDIRECT_URI = (
+    (os.getenv("GOOGLE_REDIRECT_URI") or os.getenv("GOOGLE_REDIRECT_URL") or "").strip() or None
+)
 GOOGLE_OAUTH_SCOPES = (
     "openid https://www.googleapis.com/auth/userinfo.email "
     "https://www.googleapis.com/auth/calendar.readonly"
@@ -291,16 +294,22 @@ def _google_token_for_calendar_route(
     return get_google_calendar_access_token_for_user(db, user.id)
 
 
-def _oauth_frontend_base() -> str:
+def _oauth_frontend_base(*, for_calendar_callback: bool = False) -> str:
     """URL del front (sin barra final) para redirigir tras OAuth con ``state``."""
-    return (
+    base = (
         os.getenv("FRONTEND_URL", "").strip().rstrip("/")
         or os.getenv("MICROSOFT_OAUTH_SUCCESS_URL", "").strip().rstrip("/")
     )
+    if not base or not for_calendar_callback:
+        return base
+    # El banner ``calendar_*=ok|error`` vive en el dashboard del SPA.
+    if not base.endswith("/dashboard"):
+        base = f"{base}/dashboard"
+    return base
 
 
 def _redirect_calendar_oauth(**params: str) -> RedirectResponse | None:
-    base = _oauth_frontend_base()
+    base = _oauth_frontend_base(for_calendar_callback=True)
     if not base:
         return None
     return RedirectResponse(f"{base}?{urlencode(params)}", status_code=302)
@@ -315,7 +324,7 @@ def read_root():
         "config_check": {
             "companies_house": _status("COMPANIES_HOUSE_API_KEY"),
             "gemini": _status("GEMINI_API_KEY"),
-            "netrows": _status("NETROWS_API_KEY"),
+            "lusha": _status("LUSHA_API_KEY"),
             "openai": _status("OPENAI_API_KEY"),
             "google_oauth": _status("GOOGLE_CLIENT_ID"),
             "microsoft": _status("MICROSOFT_CLIENT_ID"),
@@ -392,8 +401,30 @@ def integrations_google_start(
     )
     auth_url = _google_authorize_url(state)
     if as_json:
-        return JSONResponse({"authorize_url": auth_url})
+        return JSONResponse(
+            {
+                "authorize_url": auth_url,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+            }
+        )
     return RedirectResponse(auth_url)
+
+
+@app.get("/integrations/google/oauth-config", tags=["Integraciones"])
+def integrations_google_oauth_config():
+    """
+    URI de callback que la API envía a Google (sin secretos).
+    Debe estar **idéntica** en Google Cloud → Credentials → Authorized redirect URIs.
+    """
+    return {
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "client_id_configured": bool(GOOGLE_CLIENT_ID),
+        "client_id_suffix": (GOOGLE_CLIENT_ID or "")[-20:] if GOOGLE_CLIENT_ID else None,
+        "hint": (
+            "Si ves redirect_uri_mismatch, copia redirect_uri tal cual en la consola de Google "
+            "(localhost y 127.0.0.1 son distintos)."
+        ),
+    }
 
 
 @app.get("/login-microsoft", tags=["Autenticación Microsoft"])

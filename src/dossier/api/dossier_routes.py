@@ -71,8 +71,8 @@ def person_professional_research(
 ):
     """
     Investigación de persona: elige `research_source` en el cuerpo JSON.
-    `gemini_web`: búsqueda web en vivo + síntesis. `netrows`: perfiles vía Netrows + síntesis
-    (requiere NETROWS_API_KEY) y, si aplica, complemento web.
+    `gemini_web`: búsqueda web en vivo + síntesis. `lusha`: contactos vía Lusha + síntesis
+    (requiere LUSHA_API_KEY) y, si aplica, complemento web.
 
     Si se genera texto de informe, se persiste en `dossiers` (misma organización que el JWT),
     como los dossiers corporativos; la respuesta incluye `saved_dossier` con el `id` creado.

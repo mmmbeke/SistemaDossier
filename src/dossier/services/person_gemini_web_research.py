@@ -1,6 +1,6 @@
 """
 Informe breve de persona usando Gemini con **Grounding con Google Search**
-(cuando Netrows no devuelve perfiles o no está disponible).
+(cuando Lusha no devuelve perfiles o no está disponible).
 
 Requiere GEMINI_API_KEY / GOOGLE_API_KEY y un modelo que admita la herramienta
 `google_search` (p. ej. gemini-2.5-flash). Facturación según política de Google.
