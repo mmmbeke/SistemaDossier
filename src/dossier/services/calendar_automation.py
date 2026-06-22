@@ -26,7 +26,11 @@ from dossier.services.google_calendar_api import (
     obtener_reunion_google_por_id,
 )
 from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
-from dossier.services.graph_calendar import listar_reuniones, obtener_reunion_por_id
+from dossier.services.graph_calendar import (
+    coerce_reunion_payload,
+    listar_reuniones,
+    obtener_reunion_por_id,
+)
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
 
 logger = logging.getLogger(__name__)
@@ -59,10 +63,10 @@ def default_advance_minutes() -> int:
 def effective_advance_minutes(integration: CalendarIntegration) -> int:
     env = os.getenv("CALENDAR_DEFAULT_ADVANCE_MINUTES", "").strip()
     if env.isdigit():
-        return max(1, int(env))
-    allowed = {15, 30, 60, 1440}
-    adv = integration.advance_minutes or 30
-    return adv if adv in allowed else 30
+        return max(1, min(int(env), 7 * 24 * 60))
+    allowed = {15, 20, 30, 60, 1440}
+    adv = integration.advance_minutes or 20
+    return adv if adv in allowed else 20
 
 
 def parse_event_datetime(value: str | None) -> datetime | None:
@@ -99,7 +103,7 @@ def _list_upcoming_reuniones(integration: CalendarIntegration, db: Session) -> l
         return listar_reuniones_google(token, top=40, dias_adelante=3, incluir_pasadas=False)
     if integration.provider == "microsoft":
         token = get_microsoft_graph_access_token_for_user(db, integration.user_id)
-        return listar_reuniones(token, top=40, dias_adelante=3)
+        return listar_reuniones(token, top=40, dias_adelante=3, incluir_pasadas=False)
     return []
 
 
@@ -115,6 +119,41 @@ def _fetch_reunion(
         token = get_microsoft_graph_access_token_for_user(db, integration.user_id)
         return obtener_reunion_por_id(token, external_event_id)
     return None
+
+
+def _reunion_for_processing(
+    integration: CalendarIntegration,
+    db: Session,
+    event: CalendarEvent,
+) -> dict[str, Any] | None:
+    """Usa snapshot guardado en sync; si falta, pide el evento al proveedor."""
+    snap = event.event_snapshot
+    if isinstance(snap, dict):
+        coerced = coerce_reunion_payload(snap)
+        if coerced:
+            return coerced
+    return _fetch_reunion(integration, db, event.external_event_id)
+
+
+def reschedule_user_calendar_events(
+    db: Session,
+    user_id: UUID,
+    advance_minutes: int,
+) -> int:
+    """Recalcula ``dossier_scheduled_at`` para reuniones futuras aún no procesadas."""
+    now = datetime.now(timezone.utc)
+    rows = db.execute(
+        select(CalendarEvent).where(
+            CalendarEvent.user_id == user_id,
+            CalendarEvent.processing_status == "scheduled",
+            CalendarEvent.starts_at > now,
+        )
+    ).scalars().all()
+    for row in rows:
+        row.dossier_scheduled_at = row.starts_at - timedelta(minutes=advance_minutes)
+    if rows:
+        db.commit()
+    return len(rows)
 
 
 def sync_calendar_events_for_integration(db: Session, integration: CalendarIntegration) -> int:
@@ -160,6 +199,7 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
             row.starts_at = starts
             row.ends_at = ends
             row.external_attendees = _attendees_from_participantes(reunion.get("participantes") or "")
+            row.event_snapshot = reunion
             touched += 1
             continue
 
@@ -178,6 +218,7 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
         row.ends_at = ends
         row.meeting_url = (reunion.get("ubicacion") or None)
         row.external_attendees = _attendees_from_participantes(reunion.get("participantes") or "")
+        row.event_snapshot = reunion
         row.dossier_scheduled_at = scheduled_at
         row.processing_status = "scheduled"
         row.skip_reason = None
@@ -274,11 +315,13 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
         .limit(5)
     ).all()
 
+    stats["due"] = len(due)
+
     for event, integration in due:
         event.processing_status = "processing"
         db.commit()
 
-        reunion = _fetch_reunion(integration, db, event.external_event_id)
+        reunion = _reunion_for_processing(integration, db, event)
         if not reunion:
             event.processing_status = "failed"
             event.skip_reason = "No se pudo leer el evento en el calendario."

@@ -38,6 +38,7 @@ def serialize_dossier_list_item(d: Dossier) -> dict[str, Any]:
         "subject_name": d.subject_name,
         "subject_email": d.subject_email,
         "status": d.status,
+        "status_message": d.status_message,
         "depth_level": d.depth_level,
         "credits_consumed": d.credits_consumed,
         "created_at": d.created_at.isoformat() if d.created_at else None,

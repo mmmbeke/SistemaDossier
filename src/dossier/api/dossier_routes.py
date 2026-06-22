@@ -26,6 +26,8 @@ from dossier.schemas.dossier_generation import (
 )
 from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.corporate_company_search import search_corporate_company_candidates
+from dossier.gemini.analyze import normalize_person_report_text
+from dossier.services.calendar_event_dossiers import _person_failure_message
 from dossier.services.person_research_service import run_person_research
 from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
 from dossier.services.dossier_folder_utils import (
@@ -97,11 +99,11 @@ def person_professional_research(
         raise HTTPException(status_code=503, detail=str(e)) from e
 
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
-    md = (result.get("gemini_analysis_markdown") or "").strip()
+    md = normalize_person_report_text((result.get("gemini_analysis_markdown") or "").strip())
     saved: dict | None = None
+    now = datetime.now(timezone.utc)
 
     if md:
-        now = datetime.now(timezone.utc)
         is_err = md.lstrip().startswith("# Error")
         status = "failed" if is_err else "complete"
         dossier_id = uuid.uuid4()
@@ -139,7 +141,7 @@ def person_professional_research(
             status_message="Error en el informe generado." if is_err else None,
             dossier_data=dossier_data_body,
             agents_activated=[],
-            agents_failed=[],
+            agents_failed=(["deepseek_person_analysis"] if is_err else []),
             data_sources_used=[],
             generation_started_at=now,
             generation_completed_at=now,
@@ -154,6 +156,63 @@ def person_professional_research(
             "id": str(dossier.id),
             "organization_id": str(org.id),
             "status": dossier.status,
+            "credits_consumed": dossier.credits_consumed,
+            "generation_duration_ms": dossier.generation_duration_ms,
+        }
+    else:
+        status_message = _person_failure_message(
+            person_payload=result,
+            errors=None,
+            person_md=None,
+        )
+        dossier_id = uuid.uuid4()
+        dossier = Dossier(
+            id=dossier_id,
+            organization_id=org.id,
+            requested_by_user_id=user.id,
+            contact_id=None,
+            subject_name=body.full_name.strip()[:255],
+            subject_email=None,
+            module_identity=True,
+            module_corporate=False,
+            module_media=False,
+            depth_level="standard",
+            credits_consumed=0,
+            status="failed",
+            status_message=status_message,
+            dossier_data={
+                "format": "markdown",
+                "body": "",
+                "pipeline": "person_research",
+                "success": False,
+                "billing": "none",
+                "person_filters": {
+                    "full_name": body.full_name,
+                    "job_area": body.job_area,
+                    "company": body.company,
+                    "country": body.country,
+                    "city": body.city,
+                    "extra_keywords": body.extra_keywords,
+                    "research_source": body.research_source.value,
+                },
+            },
+            agents_activated=[],
+            agents_failed=(["deepseek_person_analysis"]),
+            data_sources_used=[],
+            generation_started_at=now,
+            generation_completed_at=now,
+            generation_duration_ms=elapsed_ms,
+            trigger_source="manual",
+        )
+        db.add(dossier)
+        db.commit()
+        db.refresh(dossier)
+
+        saved = {
+            "id": str(dossier.id),
+            "organization_id": str(org.id),
+            "status": dossier.status,
+            "status_message": dossier.status_message,
             "credits_consumed": dossier.credits_consumed,
             "generation_duration_ms": dossier.generation_duration_ms,
         }

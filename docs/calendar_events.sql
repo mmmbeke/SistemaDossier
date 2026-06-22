@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
     ends_at             TIMESTAMPTZ,
     meeting_url         TEXT,
     external_attendees  JSONB           NOT NULL DEFAULT '[]',
+    event_snapshot      JSONB,
     dossier_scheduled_at TIMESTAMPTZ,
     processing_status   VARCHAR(20)     NOT NULL DEFAULT 'detected'
                         CHECK (processing_status IN ('detected', 'scheduled', 'processing', 'completed', 'skipped', 'failed')),
@@ -26,3 +27,11 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 CREATE INDEX IF NOT EXISTS idx_calendar_events_user ON calendar_events(user_id);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_scheduled ON calendar_events(dossier_scheduled_at)
     WHERE processing_status = 'scheduled';
+
+-- Si la tabla ya existía sin event_snapshot:
+-- ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS event_snapshot JSONB;
+
+-- Permitir 20 min de anticipación en integraciones (si el CHECK antiguo no lo incluía):
+-- ALTER TABLE calendar_integrations DROP CONSTRAINT IF EXISTS calendar_integrations_advance_minutes_check;
+-- ALTER TABLE calendar_integrations ADD CONSTRAINT calendar_integrations_advance_minutes_check
+--     CHECK (advance_minutes IN (15, 20, 30, 60, 1440));

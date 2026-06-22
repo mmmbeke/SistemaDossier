@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from dossier.llm.common import normalize_person_report_text
+from dossier.llm.client import deepseek_api_key
 from dossier.schemas.person_research import PersonResearchRequest, PersonResearchSource
 from dossier.services.lusha_client import LushaApiError, LushaClient
 from dossier.services.person_gemini_analysis import analyze_person_profile_bundle
@@ -47,17 +49,17 @@ def _filters_for_person_gemini(
     return filters
 
 
-def _google_search_disabled() -> bool:
-    return (os.getenv("GEMINI_DISABLE_GOOGLE_SEARCH") or "").strip().lower() in (
+def _person_web_disabled() -> bool:
+    return (os.getenv("DEEPSEEK_DISABLE_PERSON_WEB") or os.getenv("GEMINI_DISABLE_GOOGLE_SEARCH") or "").strip().lower() in (
         "1",
         "true",
         "yes",
     )
 
 
-def _gemini_web_search_for_person_always() -> bool:
-    """Por defecto sí: Gemini + Google Search en cada búsqueda (además de Lusha si hay datos)."""
-    v = (os.getenv("GEMINI_PERSON_WEB_ALWAYS") or "1").strip().lower()
+def _person_web_always() -> bool:
+    """Por defecto sí: DeepSeek en cada búsqueda de persona (además de Lusha si hay datos)."""
+    v = (os.getenv("DEEPSEEK_PERSON_WEB_ALWAYS") or os.getenv("GEMINI_PERSON_WEB_ALWAYS") or "1").strip().lower()
     return v not in ("0", "false", "no")
 
 
@@ -187,6 +189,7 @@ def run_person_research(
     req: PersonResearchRequest,
     *,
     organization_context_block: str | None = None,
+    meeting_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     warnings: list[str] = []
     gemini_only = req.research_source == PersonResearchSource.gemini_web
@@ -296,52 +299,56 @@ def run_person_research(
 
     gemini_md: str | None = None
     gemini_google_search_used = False
-    has_gemini_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY"))
+    has_llm_key = bool(deepseek_api_key())
     filters_gem = _filters_for_person_gemini(req, organization_context_block)
 
     md_web: str | None = None
-    run_web = has_gemini_key and not _google_search_disabled() and (
-        gemini_only or _gemini_web_search_for_person_always() or not profiles
+    run_web = has_llm_key and not _person_web_disabled() and (
+        gemini_only or _person_web_always() or not profiles
     )
     if run_web:
         try:
-            md_web = analyze_person_with_google_search(filters=filters_gem)
+            md_web = analyze_person_with_google_search(
+                filters=filters_gem,
+                meeting_context=meeting_context,
+            )
             gemini_google_search_used = True
-            if not gemini_only:
+            if not gemini_only and not profiles:
                 warnings.append(
-                    "Se ha añadido un bloque complementario desde fuentes públicas en la web "
-                    "(además de los datos de perfiles)."
+                    "Informe generado con DeepSeek a partir del encargo (sin datos Lusha)."
                 )
         except RuntimeError as e:
             warnings.append(str(e))
         except Exception as e:  # noqa: BLE001
-            warnings.append(f"Error en búsqueda web complementaria: {e!s}")
+            warnings.append(f"Error en análisis complementario con DeepSeek: {e!s}")
 
     if gemini_only:
         if md_web:
             gemini_md = md_web
-        elif not has_gemini_key:
+        elif not has_llm_key:
             warnings.append(
-                "Sin GEMINI_API_KEY / GOOGLE_API_KEY no se puede ejecutar la búsqueda por IA (Gemini + web)."
+                "Sin DEEPSEEK_API_KEY no se puede ejecutar la búsqueda por IA."
             )
-        elif _google_search_disabled():
+        elif _person_web_disabled():
             warnings.append(
-                "GEMINI_DISABLE_GOOGLE_SEARCH=1: con «búsqueda por IA» no hay otra fuente; no se generó informe."
+                "DEEPSEEK_DISABLE_PERSON_WEB=1: con «búsqueda por IA» no hay otra fuente; no se generó informe."
             )
-    elif profiles and not has_gemini_key:
-        warnings.append("GEMINI_API_KEY no configurada: se omitió el análisis con IA sobre datos Lusha.")
+    elif profiles and not has_llm_key:
+        warnings.append("DEEPSEEK_API_KEY no configurada: se omitió el análisis con IA sobre datos Lusha.")
     elif profiles:
         try:
             gemini_md = analyze_person_profile_bundle(
                 filters=filters_gem,
                 profiles=profiles,
                 posts_by_url={},
+                meeting_context=meeting_context,
             )
-            if md_web:
-                gemini_md = (
-                    gemini_md
-                    + "\n\n---\n\n### Complemento (fuentes públicas en la web)\n\n"
-                    + md_web
+            if md_web and not gemini_md:
+                gemini_md = md_web
+            elif md_web and gemini_md:
+                warnings.append(
+                    "Búsqueda web complementaria omitida en el informe: el análisis Lusha "
+                    "ya incluye la estructura completa."
                 )
         except RuntimeError as e:
             warnings.append(str(e))
@@ -352,14 +359,13 @@ def run_person_research(
     elif req.research_source == PersonResearchSource.lusha and not profiles:
         if md_web:
             gemini_md = md_web
-        elif not has_gemini_key:
+        elif not has_llm_key:
             warnings.append(
-                "Sin perfiles de Lusha y sin GEMINI_API_KEY / GOOGLE_API_KEY: no se pudo ejecutar "
-                "la búsqueda con Gemini en la web."
+                "Sin perfiles de Lusha y sin DEEPSEEK_API_KEY: no se pudo ejecutar el análisis con IA."
             )
-        elif _google_search_disabled():
+        elif _person_web_disabled():
             warnings.append(
-                "Sin perfiles de Lusha y GEMINI_DISABLE_GOOGLE_SEARCH=1: no se ejecutó la búsqueda web con Gemini."
+                "Sin perfiles de Lusha y DEEPSEEK_DISABLE_PERSON_WEB=1: no se ejecutó el análisis con IA."
             )
 
     if req.research_source == PersonResearchSource.lusha and not ordered_contacts and attempts:
@@ -389,6 +395,8 @@ def run_person_research(
             warnings.append(
                 "No se encontraron contactos en Lusha. Prueba afinar nombre, empresa, país o ciudad."
             )
+
+    gemini_md = normalize_person_report_text(gemini_md)
 
     return {
         "filters_applied": {

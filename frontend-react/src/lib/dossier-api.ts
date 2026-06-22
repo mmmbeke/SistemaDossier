@@ -46,6 +46,7 @@ export type DossierListItem = {
   subject_name: string | null;
   subject_email: string | null;
   status: string;
+  status_message?: string | null;
   depth_level: string;
   credits_consumed: number;
   created_at: string | null;
@@ -842,11 +843,14 @@ export async function deleteDossierFromApi(dossierId: string): Promise<void> {
   }
 }
 
-/** Respuesta de ``GET /integrations/microsoft/start?as_json=true``. */
-export type MicrosoftOAuthStartJson = { authorize_url: string };
+/** Respuesta de ``GET /integrations/{google|microsoft}/start?as_json=true``. */
+export type CalendarOAuthStartJson = { authorize_url: string; redirect_uri?: string | null };
+
+/** @deprecated Usa ``CalendarOAuthStartJson``. */
+export type MicrosoftOAuthStartJson = CalendarOAuthStartJson;
 
 /** Inicia OAuth Microsoft (usuario de la app); devuelve la URL a la que redirigir el navegador. */
-export async function fetchMicrosoftIntegrationStartAsJson(): Promise<MicrosoftOAuthStartJson> {
+export async function fetchMicrosoftIntegrationStartAsJson(): Promise<CalendarOAuthStartJson> {
   const token = getStoredAccessToken();
   if (!token) {
     throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
@@ -878,11 +882,11 @@ export async function fetchMicrosoftIntegrationStartAsJson(): Promise<MicrosoftO
   ) {
     throw new DossierApiError(502, "La API no devolvió authorize_url.", parsed);
   }
-  return parsed as MicrosoftOAuthStartJson;
+  return parsed as CalendarOAuthStartJson;
 }
 
 /** Inicia OAuth Google Calendar (usuario de la app); devuelve la URL de autorización. */
-export async function fetchGoogleIntegrationStartAsJson(): Promise<MicrosoftOAuthStartJson> {
+export async function fetchGoogleIntegrationStartAsJson(): Promise<CalendarOAuthStartJson> {
   const token = getStoredAccessToken();
   if (!token) {
     throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
@@ -914,7 +918,49 @@ export async function fetchGoogleIntegrationStartAsJson(): Promise<MicrosoftOAut
   ) {
     throw new DossierApiError(502, "La API no devolvió authorize_url.", parsed);
   }
-  return parsed as MicrosoftOAuthStartJson;
+  return parsed as CalendarOAuthStartJson;
+}
+
+export type CalendarProvider = "google" | "microsoft";
+
+export type CalendarDiagnosticoResponse = Record<string, unknown>;
+
+/** Diagnóstico de calendario vacío (Google o Outlook). */
+export async function fetchCalendarDiagnostico(
+  provider: CalendarProvider,
+): Promise<CalendarDiagnosticoResponse> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const path =
+    provider === "google"
+      ? "/calendario/diagnostico-google"
+      : "/calendario/diagnostico-outlook";
+  const url = `${getApiBaseUrl()}${path}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new DossierApiError(502, "Respuesta inválida de diagnóstico de calendario.", parsed);
+  }
+  return parsed as CalendarDiagnosticoResponse;
 }
 
 /** Fila normalizada de ``GET /calendario/eventos`` (Graph). */
@@ -1061,25 +1107,32 @@ export type CalendarGenerarDossiersResponse = {
 
 /**
  * Genera dossier(es) con IA a partir del calendario Outlook (token Microsoft en servidor + JWT de la app).
- * Con ``eventId`` solo procesa esa reunión de Graph.
+ * Usa POST para evitar corrupción de ids largos de Graph en la URL.
  */
 export async function fetchGenerarDossiersDesdeCalendario(options?: {
   eventId?: string;
+  reunion?: OutlookReunionApi;
   top?: number;
 }): Promise<CalendarGenerarDossiersResponse> {
   const token = getStoredAccessToken();
   if (!token) {
     throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
   }
-  const sp = new URLSearchParams();
-  if (options?.eventId) sp.set("event_id", options.eventId);
-  if (options?.top != null) sp.set("top", String(options.top));
-  const qs = sp.toString();
-  const pathUrl = `${getApiBaseUrl()}/calendario/generar-dossiers-outlook${qs ? `?${qs}` : ""}`;
+  const pathUrl = `${getApiBaseUrl()}/calendario/generar-dossiers-outlook`;
   let res: Response;
   try {
     res = await fetch(pathUrl, {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        event_id: options?.eventId ?? null,
+        reunion: options?.reunion ?? null,
+        top: options?.top ?? null,
+      }),
     });
   } catch {
     throwFetchFailed();
@@ -1113,21 +1166,28 @@ export const fetchGenerarDossiersDesdeOutlookCalendar = fetchGenerarDossiersDesd
  */
 export async function fetchGenerarDossiersDesdeGoogleCalendar(options?: {
   eventId?: string;
+  reunion?: OutlookReunionApi;
   top?: number;
 }): Promise<CalendarGenerarDossiersResponse> {
   const token = getStoredAccessToken();
   if (!token) {
     throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
   }
-  const sp = new URLSearchParams();
-  if (options?.eventId) sp.set("event_id", options.eventId);
-  if (options?.top != null) sp.set("top", String(options.top));
-  const qs = sp.toString();
-  const pathUrl = `${getApiBaseUrl()}/calendario/generar-dossiers-google${qs ? `?${qs}` : ""}`;
+  const pathUrl = `${getApiBaseUrl()}/calendario/generar-dossiers-google`;
   let res: Response;
   try {
     res = await fetch(pathUrl, {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        event_id: options?.eventId ?? null,
+        reunion: options?.reunion ?? null,
+        top: options?.top ?? null,
+      }),
     });
   } catch {
     throwFetchFailed();

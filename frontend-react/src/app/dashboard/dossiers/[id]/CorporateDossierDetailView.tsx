@@ -11,10 +11,19 @@ import { DossierApiError, deleteDossierFromApi, type DossierDetailResponse } fro
 import { useTranslation } from "@/providers/PreferencesProvider";
 import { formatLongDate } from "@/lib/format";
 
+const EMPTY_REPORT_MARKERS = new Set([
+  "(No se generó texto de informe tras la búsqueda.)",
+  "(Gemini devolvió texto vacío.)",
+]);
+
+function reportBodyIsPresent(body: string): boolean {
+  const t = body.trim();
+  return Boolean(t) && !EMPTY_REPORT_MARKERS.has(t);
+}
+
 type Props = {
   dossier: DossierDetailResponse;
 };
-
 
 function parseDossierData(data: unknown): {
   body: string;
@@ -69,6 +78,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
   }, [dossier.alerts]);
 
   const statusOk = dossier.status === "complete" && meta.success !== false;
+  const statusFailed = dossier.status === "failed" || meta.success === false;
   const statusMsg = dossier.status_message?.trim();
 
   async function handleDelete() {
@@ -115,11 +125,15 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             <span
               className="rounded-full border px-3 py-0.5 text-xs font-semibold uppercase tracking-wide"
               style={{
-                borderColor: statusOk ? "rgba(52,211,153,0.35)" : "rgba(251,191,36,0.4)",
-                color: statusOk ? "#34d399" : "#fbbf24",
+                borderColor: statusOk
+                  ? "rgba(52,211,153,0.35)"
+                  : statusFailed
+                    ? "rgba(248,113,113,0.45)"
+                    : "rgba(251,191,36,0.4)",
+                color: statusOk ? "#34d399" : statusFailed ? "#f87171" : "#fbbf24",
               }}
             >
-              {dossier.status}
+              {statusFailed ? t("dossiers.status_failed") : dossier.status}
             </span>
           </div>
           <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
@@ -178,13 +192,17 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
 
       <div className="flex flex-col gap-6">
           <DashboardCard title={t("detail.api_report_title")}>
-            {meta.body.trim() ? (
+            {reportBodyIsPresent(meta.body) ? (
               <div
                 className="api-md max-w-none text-sm leading-relaxed"
                 style={{ color: "var(--text-primary)" }}
               >
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{meta.body}</ReactMarkdown>
               </div>
+            ) : statusMsg ? (
+              <p className="text-sm text-red-300/90" role="alert">
+                {statusMsg}
+              </p>
             ) : (
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                 {t("detail.api_no_body")}

@@ -1,20 +1,22 @@
 """
-Informe breve de persona usando Gemini con **Grounding con Google Search**
-(cuando Lusha no devuelve perfiles o no está disponible).
+Informe de persona con DeepSeek (sin búsqueda web en vivo).
 
-Requiere GEMINI_API_KEY / GOOGLE_API_KEY y un modelo que admita la herramienta
-`google_search` (p. ej. gemini-2.5-flash). Facturación según política de Google.
+Cuando Lusha no devuelve perfiles o no está disponible, el modelo redacta
+el informe a partir del encargo, contexto de reunión y conocimiento público
+del modelo (sin grounding Google Search).
 """
 from __future__ import annotations
 
 import os
-import time
 from datetime import datetime, timezone
 from typing import Any
 
 from dossier.config import load_env
-from dossier.gemini.analyze import DEFAULT_MODEL, _api_key, _retry_after_seconds, _should_retry
-from dossier.services.person_analysis_prompts import PERSON_EXHAUSTIVE_SYSTEM_PROMPT
+from dossier.llm.client import chat_completion, deepseek_api_key, deepseek_model
+from dossier.services.person_analysis_prompts import (
+    format_meeting_context_block,
+    person_dossier_system_prompt,
+)
 
 
 def _fv(filters: dict[str, Any], key: str, default: str = "No indicado") -> str:
@@ -36,7 +38,6 @@ def _geo_line(filters: dict[str, Any]) -> str:
 
 
 def _name_title_case_words(name: str) -> str:
-    """Mayúsculas iniciales por palabra (p. ej. victor escobar jeria → Victor Escobar Jeria)."""
     return " ".join((w[:1].upper() + w[1:].lower()) if w else "" for w in name.split())
 
 
@@ -53,7 +54,10 @@ def _context_line(filters: dict[str, Any]) -> str:
     return " | ".join(parts)
 
 
-def _build_user_prompt(filters: dict[str, Any]) -> str:
+def _build_user_prompt(
+    filters: dict[str, Any],
+    meeting_context: dict[str, Any] | None = None,
+) -> str:
     fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     nombre = _fv(filters, "full_name")
     nombre_fmt = _name_title_case_words(nombre)
@@ -61,101 +65,62 @@ def _build_user_prompt(filters: dict[str, Any]) -> str:
     cargo = _fv(filters, "job_area")
     geo = _geo_line(filters)
     ctx = _context_line(filters)
-
-    nombre_q = nombre.replace('"', "'")
-    nombre_fmt_q = nombre_fmt.replace('"', "'")
-    emp_tail = empresa if empresa != "No indicado" else ""
-    cargo_tail = cargo if cargo != "No indicado" else ""
-    geo_tail = geo if geo != "No indicado" else ""
+    reunion_block = format_meeting_context_block(meeting_context)
 
     return f"""Datos del encargo (fecha: {fecha}):
 
-- Nombre: {nombre} (búsqueda sugerida: {nombre_fmt})
+- Nombre: {nombre} (variante sugerida: {nombre_fmt})
 - Contexto: {ctx}
 - País/ciudad: {geo}
 - Empresa: {empresa}
 - Cargo/área: {cargo}
 
----
+{reunion_block}---
 
-## Fase de recopilación (usa búsqueda web; no la listes en el informe final)
+## Instrucciones
 
-Antes de redactar, consulta fuentes públicas variadas para desambiguar homónimos. Como mínimo explora variantes de:
-- LinkedIn y trayectoria: `{nombre_fmt_q}` linkedin {emp_tail} {cargo_tail}
-- Noticias y menciones: `"{nombre_fmt_q}"` noticias entrevista {emp_tail}
-- Redes y presencia: X/Twitter, Instagram u otras si son relevantes al cargo
-- Riesgo reputacional prudente: `"{nombre_fmt_q}"` demanda fraude (solo reportar si aparece en resultados; sin presumir culpabilidad)
-
-Prioriza resultados que encajen con empresa, cargo o ubicación indicados.
-
----
-
-## Fase de informe
-
-Con lo encontrado, redacta el informe **exhaustivo** en el formato del sistema. Profundiza en:
-- Inconsistencias entre puestos, fechas, empresas o proyectos.
-- Publicaciones o situaciones públicas que llamen la atención.
-- Análisis integrado de la persona y recomendaciones accionables.
-- Si conviene relacionarse o hacer tratos (Recomendable / Solo con salvaguardas / No recomendable).
-
-No incluyas en la salida el inventario de búsquedas realizadas."""
+Redacta el dossier ejecutivo en el formato **exacto** del sistema (8 secciones con encabezados ###).
+Desambigua homónimos usando empresa, cargo y ubicación indicados.
+Completa todas las secciones; donde falte evidencia escribe "No disponible" o "Sin evidencia disponible".
+No incluyas listas de búsquedas ni metadatos técnicos del pipeline."""
 
 
 def analyze_person_with_google_search(
     *,
     filters: dict[str, Any],
+    meeting_context: dict[str, Any] | None = None,
     model: str | None = None,
     max_retries: int = 3,
 ) -> str:
     """
-    Una llamada a Gemini con herramienta Google Search (grounding).
+    Informe OSINT de persona vía DeepSeek (nombre histórico de la función).
     """
     load_env()
-    key = _api_key()
-    if not key:
+    if not deepseek_api_key():
         raise RuntimeError(
-            "Falta GEMINI_API_KEY (o GOOGLE_API_KEY) en .env para el informe con búsqueda web."
+            "Falta DEEPSEEK_API_KEY en `.env` para el informe de persona con IA."
         )
 
-    if (os.getenv("GEMINI_DISABLE_GOOGLE_SEARCH") or "").strip().lower() in (
+    if (os.getenv("DEEPSEEK_DISABLE_PERSON_WEB") or os.getenv("GEMINI_DISABLE_GOOGLE_SEARCH") or "").strip().lower() in (
         "1",
         "true",
         "yes",
     ):
         raise RuntimeError(
-            "La búsqueda web con Gemini está desactivada (GEMINI_DISABLE_GOOGLE_SEARCH=1)."
+            "El informe de persona por IA está desactivado (DEEPSEEK_DISABLE_PERSON_WEB=1)."
         )
 
-    from google import genai
-    from google.genai.types import GenerateContentConfig, GoogleSearch, HttpOptions, Tool
+    m = (
+        model
+        or os.getenv("DEEPSEEK_PERSON_WEB_MODEL")
+        or os.getenv("DEEPSEEK_MODEL")
+        or deepseek_model()
+    ).strip()
 
-    m = (model or os.getenv("GEMINI_PERSON_WEB_MODEL") or os.getenv("GEMINI_MODEL") or DEFAULT_MODEL).strip()
-    timeout_ms = int(os.getenv("GEMINI_PERSON_WEB_TIMEOUT_MS", "240000"))
-    client = genai.Client(api_key=key, http_options=HttpOptions(timeout=timeout_ms))
-
-    user_prompt = _build_user_prompt(filters)
-    config = GenerateContentConfig(
-        system_instruction=PERSON_EXHAUSTIVE_SYSTEM_PROMPT.strip(),
-        tools=[Tool(google_search=GoogleSearch())],
+    user_prompt = _build_user_prompt(filters, meeting_context)
+    return chat_completion(
+        user_prompt,
+        system_instruction=person_dossier_system_prompt(meeting_context=meeting_context),
+        model=m,
+        max_retries=max_retries,
     )
-
-    last_err: BaseException | None = None
-    for attempt in range(max(1, max_retries)):
-        try:
-            response = client.models.generate_content(
-                model=m,
-                contents=user_prompt,
-                config=config,
-            )
-            text = getattr(response, "text", None) or ""
-            out = text.strip()
-            return out or "(No se generó texto de informe tras la búsqueda.)"
-        except Exception as e:
-            last_err = e
-            if attempt < max_retries - 1 and _should_retry(e):
-                time.sleep(_retry_after_seconds(e))
-                continue
-            raise
-    if last_err:
-        raise last_err
-    return ""

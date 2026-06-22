@@ -138,7 +138,7 @@ class CalendarIntegration(Base):
     provider: Mapped[str] = mapped_column(String(20))
     calendar_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    advance_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    advance_minutes: Mapped[int] = mapped_column(Integer, default=20)
     skip_internal_meetings: Mapped[bool] = mapped_column(Boolean, default=True)
     skip_recurring_after_first: Mapped[bool] = mapped_column(Boolean, default=True)
     min_attendees: Mapped[int] = mapped_column(Integer, default=1)
@@ -202,6 +202,7 @@ class CalendarEvent(Base):
     external_attendees: Mapped[list | dict] = mapped_column(
         JSONB, nullable=False, server_default=text("'[]'::jsonb")
     )
+    event_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     dossier_scheduled_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )

@@ -29,8 +29,7 @@ def _automation_loop(stop: threading.Event) -> None:
         db = _factory()()
         try:
             summary = run_calendar_automation_tick(db)
-            if summary.get("processed") or summary.get("failed"):
-                logger.info("Tick automatización calendario: %s", summary)
+            logger.info("Automatización calendario: tick %s", summary)
         except Exception:
             logger.exception("Error en tick de automatización de calendario")
         finally:

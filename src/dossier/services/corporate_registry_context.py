@@ -459,7 +459,7 @@ def _ch_gemini_filing_markdown(
             category=category,
             description=desc,
         )
-        logger.info("Gemini: analizando primer filing CH %s (%s)", company_number, filename)
+        logger.info("DeepSeek: analizando primer filing CH %s (%s)", company_number, filename)
         analysis = _analyze_ch_document_with_retries(data, filename, prompt)
         return (
             "\n\n### Lectura del formulario Companies House\n\n"
@@ -467,7 +467,7 @@ def _ch_gemini_filing_markdown(
             + "\n"
         )
     except Exception as e:
-        logger.warning("Gemini CH filing analysis failed: %s", e)
+        logger.warning("DeepSeek CH filing analysis failed: %s", e)
         if _is_gemini_429_or_quota(e):
             return (
                 "\n\n### Lectura del formulario regulatorio (Reino Unido)\n\n"
@@ -609,7 +609,7 @@ def _sec_gemini_filing_markdown(
         document_name=chosen_doc,
     )
     try:
-        logger.info("Gemini: analizando filing SEC CIK=%s accession=%s (%s)", cik, chosen_acc, filename)
+        logger.info("DeepSeek: analizando filing SEC CIK=%s accession=%s (%s)", cik, chosen_acc, filename)
         analysis = _gemini_analyze_bytes_with_retries(
             doc_bytes, filename, prompt, log_prefix="Gemini filing SEC"
         )
@@ -622,7 +622,7 @@ def _sec_gemini_filing_markdown(
             + "\n"
         )
     except Exception as e:
-        logger.warning("Gemini SEC filing analysis failed: %s", e)
+        logger.warning("DeepSeek SEC filing analysis failed: %s", e)
         if _is_gemini_429_or_quota(e):
             return (
                 "\n\n### Lectura del informe periódico SEC\n\n"

@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS calendar_integrations (
 
     is_enabled          BOOLEAN         NOT NULL DEFAULT TRUE,
 
-    advance_minutes     INTEGER         NOT NULL DEFAULT 30
-                        CHECK (advance_minutes IN (15, 30, 60, 1440)),
+    advance_minutes     INTEGER         NOT NULL DEFAULT 20
+                        CHECK (advance_minutes IN (15, 20, 30, 60, 1440)),
 
     skip_internal_meetings  BOOLEAN     NOT NULL DEFAULT TRUE,
     skip_recurring_after_first BOOLEAN  NOT NULL DEFAULT TRUE,
