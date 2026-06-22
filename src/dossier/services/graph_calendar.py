@@ -15,6 +15,7 @@ import requests
 GRAPH_EVENTS_URL = "https://graph.microsoft.com/v1.0/me/calendar/events"
 GRAPH_CALENDAR_VIEW_URL = "https://graph.microsoft.com/v1.0/me/calendar/calendarView"
 GRAPH_EVENT_BY_ID_URL = "https://graph.microsoft.com/v1.0/me/events/{event_id}"
+GRAPH_CALENDAR_EVENT_BY_ID_URL = "https://graph.microsoft.com/v1.0/me/calendar/events/{event_id}"
 
 _SELECT = "id,subject,body,bodyPreview,start,end,attendees,organizer,location,isAllDay"
 
@@ -94,8 +95,22 @@ def obtener_eventos_proximos(
     Usa calendarView: forma recomendada por Microsoft para eventos en un rango de fechas.
     """
     inicio = datetime.now(timezone.utc)
-    fin = inicio + timedelta(days=dias_adelante)
+    return obtener_eventos_en_rango(
+        access_token,
+        top=top,
+        inicio=inicio,
+        fin=inicio + timedelta(days=dias_adelante),
+    )
 
+
+def obtener_eventos_en_rango(
+    access_token: str,
+    *,
+    top: int = 10,
+    inicio: datetime,
+    fin: datetime,
+) -> dict:
+    """Eventos en ``[inicio, fin]`` vía calendarView (paridad con Google ``timeMin``/``timeMax``)."""
     params = {
         "startDateTime": _iso_utc(inicio),
         "endDateTime": _iso_utc(fin),
@@ -103,7 +118,6 @@ def obtener_eventos_proximos(
         "$orderby": "start/dateTime",
         "$select": _SELECT,
     }
-
     return _get_graph(GRAPH_CALENDAR_VIEW_URL, access_token, params)
 
 
@@ -119,6 +133,89 @@ def obtener_todos_los_eventos(access_token: str, top: int = 50) -> dict:
         "$select": _SELECT,
     }
     return _get_graph(GRAPH_EVENTS_URL, access_token, params)
+
+
+def merge_reunion_payload(client: dict | None, fresh: dict | None) -> dict | None:
+    """
+    Combina el evento del listado (cliente) con uno recién leído del proveedor.
+
+    Prioriza la descripción más larga (suele traer «Contacto:» desde Graph).
+    """
+    if not client and not fresh:
+        return None
+    if not fresh:
+        return client
+    if not client:
+        return fresh
+
+    client_desc = str(client.get("descripcion") or "").strip()
+    fresh_desc = str(fresh.get("descripcion") or "").strip()
+    descripcion = fresh_desc if len(fresh_desc) >= len(client_desc) else client_desc
+    if not descripcion:
+        descripcion = fresh_desc or client_desc
+
+    return {
+        "id": client.get("id") or fresh.get("id"),
+        "tema": fresh.get("tema") or client.get("tema") or "Sin asunto",
+        "descripcion": descripcion[:_MAX_DESCRIPCION],
+        "participantes": fresh.get("participantes") or client.get("participantes") or "No especificados",
+        "inicio": fresh.get("inicio") or client.get("inicio") or "",
+        "fin": fresh.get("fin") or client.get("fin") or "",
+        "ubicacion": fresh.get("ubicacion") or client.get("ubicacion") or "",
+        "todo_el_dia": bool(fresh.get("todo_el_dia") if "todo_el_dia" in fresh else client.get("todo_el_dia")),
+    }
+
+
+def coerce_reunion_payload(data: dict | None) -> dict | None:
+    """Valida reunión enviada por el cliente (listado ya cargado)."""
+    if not data or not isinstance(data, dict):
+        return None
+    event_id = data.get("id")
+    tema = data.get("tema") or data.get("subject")
+    if not event_id and not tema:
+        return None
+    return {
+        "id": event_id,
+        "tema": tema or "Sin asunto",
+        "descripcion": str(data.get("descripcion") or data.get("description") or "")[:_MAX_DESCRIPCION],
+        "participantes": data.get("participantes") or "No especificados",
+        "inicio": data.get("inicio") or "",
+        "fin": data.get("fin") or "",
+        "ubicacion": data.get("ubicacion") or "",
+        "todo_el_dia": bool(data.get("todo_el_dia")),
+    }
+
+
+def _normalize_graph_event_id(event_id: str) -> str:
+    """Graph usa ids base64; en query strings el ``+`` a veces llega como espacio."""
+    eid = (event_id or "").strip()
+    if not eid:
+        return eid
+    if " " in eid and "+" not in eid:
+        eid = eid.replace(" ", "+")
+    return eid
+
+
+def _fetch_graph_event(access_token: str, event_id: str) -> dict | None:
+    encoded = quote(event_id, safe="")
+    for template in (GRAPH_EVENT_BY_ID_URL, GRAPH_CALENDAR_EVENT_BY_ID_URL):
+        url = template.format(event_id=encoded)
+        response = requests.get(
+            url,
+            headers=_headers(access_token),
+            params={"$select": _SELECT},
+            timeout=30,
+        )
+        if response.status_code == 404:
+            continue
+        if response.status_code == 401:
+            raise ValueError(
+                "Token inválido o expirado. Vuelve a conectar Outlook desde la app."
+            )
+        if not response.ok:
+            continue
+        return response.json()
+    return None
 
 
 def _formatear_participantes(evento: dict) -> str:
@@ -246,7 +343,13 @@ def listar_reuniones(
     Con incluir_pasadas=True: cualquier evento reciente del calendario.
     """
     if incluir_pasadas:
-        datos = obtener_todos_los_eventos(access_token, top=max(top, 50))
+        now = datetime.now(timezone.utc)
+        datos = obtener_eventos_en_rango(
+            access_token,
+            top=max(top, 1),
+            inicio=now - timedelta(days=30),
+            fin=now + timedelta(days=dias_adelante),
+        )
     else:
         datos = obtener_eventos_proximos(
             access_token, top=top, dias_adelante=dias_adelante
@@ -261,23 +364,25 @@ def obtener_reunion_por_id(
     dias_adelante: int = 90,
 ) -> dict | None:
     """GET directo por id en Graph (paridad con ``obtener_reunion_google_por_id``)."""
-    del dias_adelante  # compatibilidad con firma anterior
-    eid = quote(event_id, safe="")
-    url = GRAPH_EVENT_BY_ID_URL.format(event_id=eid)
-    response = requests.get(
-        url,
-        headers=_headers(access_token),
-        params={"$select": _SELECT},
-        timeout=30,
-    )
-    if response.status_code == 404:
+    eid = _normalize_graph_event_id(event_id)
+    if not eid:
         return None
-    if response.status_code == 401:
-        raise ValueError(
-            "Token inválido o expirado. Vuelve a conectar Outlook desde la app."
+
+    raw = _fetch_graph_event(access_token, eid)
+    if raw is not None:
+        return normalizar_evento(raw)
+
+    now = datetime.now(timezone.utc)
+    try:
+        datos = obtener_eventos_en_rango(
+            access_token,
+            top=50,
+            inicio=now - timedelta(days=30),
+            fin=now + timedelta(days=dias_adelante),
         )
-    if not response.ok:
-        raise ValueError(
-            f"Error al consultar Microsoft Graph ({response.status_code}): {response.text}"
-        )
-    return normalizar_evento(response.json())
+        for ev in datos.get("value", []):
+            if ev.get("id") == eid:
+                return normalizar_evento(ev)
+    except ValueError:
+        pass
+    return None

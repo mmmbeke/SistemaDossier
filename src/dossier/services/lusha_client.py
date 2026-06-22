@@ -1,7 +1,6 @@
 """Cliente HTTP mínimo para Lusha API v3 (enriquecimiento de contactos B2B)."""
 from __future__ import annotations
 
-import json
 import os
 from typing import Any
 
@@ -74,3 +73,24 @@ class LushaClient:
         if reveal is not None:
             payload["reveal"] = reveal
         return self.post("/v3/contacts/enrich", payload)
+
+    def search_and_enrich_contacts(
+        self,
+        contacts: list[dict[str, Any]],
+        *,
+        reveal: list[str] | None = None,
+        include_partial_profiles: bool = True,
+    ) -> Any:
+        """POST /v3/contacts/search-and-enrich — búsqueda + revelado en una llamada."""
+        payload: dict[str, Any] = {
+            "contacts": contacts,
+            "options": {"includePartialProfiles": include_partial_profiles},
+        }
+        if reveal:
+            payload["reveal"] = reveal
+        data = self.post("/v3/contacts/search-and-enrich", payload)
+        if isinstance(data, dict):
+            results = data.get("results")
+            if isinstance(results, list) and len(results) == 0:
+                return {**data, "_lushaEmptySearch": True}
+        return data

@@ -32,6 +32,10 @@ class PersonResearchRequest(BaseModel):
     )
     start: int = Field(0, ge=0, le=10_000)
     max_profiles: int = Field(1, ge=1, le=5, description="Cuántos perfiles Lusha usar en el análisis")
+    reveal_contact_details: bool = Field(
+        False,
+        description="Si true, Lusha revela email/teléfono al enriquecer (consume créditos). Solo lusha.",
+    )
     include_posts: bool = Field(
         False,
         description="Reservado; Lusha no expone publicaciones (se ignora con research_source=lusha)",

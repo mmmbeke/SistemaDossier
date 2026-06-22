@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from dossier.llm.common import normalize_person_report_text
+from dossier.llm.client import deepseek_api_key
 from dossier.schemas.person_research import PersonResearchRequest, PersonResearchSource
 from dossier.services.lusha_client import LushaApiError, LushaClient
 from dossier.services.person_gemini_analysis import analyze_person_profile_bundle
@@ -30,17 +32,6 @@ def _merge_geo(country: str | None, city: str | None) -> str | None:
     return c or ci
 
 
-def _clean_params(raw: dict[str, Any]) -> dict[str, Any]:
-    out: dict[str, Any] = {}
-    for k, v in raw.items():
-        if v is None:
-            continue
-        if isinstance(v, str) and not v.strip():
-            continue
-        out[k] = v
-    return out
-
-
 def _filters_for_person_gemini(
     req: PersonResearchRequest, organization_context_block: str | None
 ) -> dict[str, Any]:
@@ -58,17 +49,17 @@ def _filters_for_person_gemini(
     return filters
 
 
-def _google_search_disabled() -> bool:
-    return (os.getenv("GEMINI_DISABLE_GOOGLE_SEARCH") or "").strip().lower() in (
+def _person_web_disabled() -> bool:
+    return (os.getenv("DEEPSEEK_DISABLE_PERSON_WEB") or os.getenv("GEMINI_DISABLE_GOOGLE_SEARCH") or "").strip().lower() in (
         "1",
         "true",
         "yes",
     )
 
 
-def _gemini_web_search_for_person_always() -> bool:
-    """Por defecto sí: Gemini + Google Search en cada búsqueda (además de Lusha si hay datos)."""
-    v = (os.getenv("GEMINI_PERSON_WEB_ALWAYS") or "1").strip().lower()
+def _person_web_always() -> bool:
+    """Por defecto sí: DeepSeek en cada búsqueda de persona (además de Lusha si hay datos)."""
+    v = (os.getenv("DEEPSEEK_PERSON_WEB_ALWAYS") or os.getenv("GEMINI_PERSON_WEB_ALWAYS") or "1").strip().lower()
     return v not in ("0", "false", "no")
 
 
@@ -87,20 +78,21 @@ def _warnings_for_empty_lusha(attempts: list[dict[str, Any]]) -> list[str]:
         codes = {int(a["http_status"]) for a in failed if isinstance(a.get("http_status"), int)}
         if codes and codes <= {401, 403}:
             out.append(
-                "No se pudo acceder al servicio de registros profesionales (credenciales inválidas o expiradas). "
-                "Contacta al administrador del sistema."
+                "Lusha respondió 401/403: revisa LUSHA_API_KEY en `.env` y el panel de Lusha."
             )
         elif 429 in codes:
             out.append(
-                "Demasiadas consultas al servicio de registros profesionales. Espera unos minutos e inténtalo de nuevo."
+                "Lusha respondió 429 (demasiadas peticiones o cuota agotada). "
+                "Espera unos minutos o revisa tu plan."
             )
         elif 402 in codes:
             out.append(
-                "El servicio de registros profesionales no tiene créditos o plan activo. Comprueba la suscripción."
+                "Lusha respondió 402 (créditos insuficientes o pago requerido). "
+                "Comprueba facturación o límites de tu cuenta."
             )
         elif 451 in codes:
             out.append(
-                "Restricción legal o de privacidad para esta consulta. Prueba con otros filtros o contacto."
+                "Lusha respondió 451 (bloqueo por GDPR). El contacto puede no estar disponible."
             )
         else:
             snippet = ""
@@ -111,14 +103,13 @@ def _warnings_for_empty_lusha(attempts: list[dict[str, Any]]) -> list[str]:
                     break
             codes_txt = ", ".join(str(c) for c in sorted(codes)) if codes else "?"
             out.append(
-                f"El servicio de registros profesionales no respondió correctamente (HTTP: {codes_txt}). {snippet}"
+                f"Todas las llamadas a Lusha fallaron (HTTP: {codes_txt}). {snippet}"
             )
     elif failed and (
         401 in {a.get("http_status") for a in failed} or 403 in {a.get("http_status") for a in failed}
     ):
         out.append(
-            "Hubo un problema de acceso al servicio de registros profesionales; "
-            "revisa la configuración del servidor aunque otras peticiones no hayan devuelto perfiles."
+            "Al menos una llamada a Lusha devolvió 401/403: conviene revisar LUSHA_API_KEY."
         )
 
     if succeeded and not failed:
@@ -130,8 +121,7 @@ def _warnings_for_empty_lusha(attempts: list[dict[str, Any]]) -> list[str]:
                 break
         if all_empty:
             out.append(
-                "No se encontraron perfiles en los registros profesionales. "
-                "Prueba afinar nombre, empresa, país o ciudad."
+                "Lusha no devolvió contactos. Prueba afinar nombre, empresa, país o ciudad."
             )
 
     return out
@@ -139,52 +129,42 @@ def _warnings_for_empty_lusha(attempts: list[dict[str, Any]]) -> list[str]:
 
 def _lusha_search_strategies(req: PersonResearchRequest) -> list[tuple[str, dict[str, Any]]]:
     name = req.full_name.strip()
-    first, last, _single = split_person_name(name)
+    first, last, single = split_person_name(name)
     comp = _s(req.company)
     geo = _merge_geo(req.country, req.city)
 
     strategies: list[tuple[str, dict[str, Any]]] = []
 
-    def add(label: str, d: dict[str, Any]) -> None:
-        p = _clean_params(d)
-        if not p:
-            return
-        strategies.append((label, p))
+    def add(label: str, contact: dict[str, Any]) -> None:
+        clean = {k: v for k, v in contact.items() if v is not None and str(v).strip()}
+        if clean:
+            strategies.append((label, clean))
 
     if first and last:
-        add(
-            "nombre + empresa",
-            {"firstName": first, "lastName": last, "companyName": comp},
-        )
-        add(
-            "nombre + empresa + país (texto)",
-            {"firstName": first, "lastName": last, "companyName": comp, "country": geo},
-        )
-        add(
-            "solo nombre",
-            {"firstName": first, "lastName": last},
-        )
+        if comp:
+            add(
+                "nombre + empresa",
+                {"firstName": first, "lastName": last, "companyName": comp},
+            )
+            if geo:
+                add(
+                    "nombre + empresa + geo",
+                    {"firstName": first, "lastName": last, "companyName": comp, "country": geo},
+                )
+        add("solo nombre", {"firstName": first, "lastName": last})
+    elif single:
+        add("nombre único", {"firstName": single})
     elif name:
         add("nombre en una palabra", {"fullName": name, "companyName": comp})
 
-    if comp and first and last:
-        add(
-            "nombre + dominio inferido (si aplica)",
-            {
-                "firstName": first,
-                "lastName": last,
-                "companyName": comp,
-            },
-        )
-
     seen: set[frozenset[tuple[str, str]]] = set()
     unique: list[tuple[str, dict[str, Any]]] = []
-    for label, p in strategies:
-        key = frozenset((k, str(v)) for k, v in sorted(p.items()))
+    for label, contact in strategies:
+        key = frozenset((k, str(v)) for k, v in sorted(contact.items()))
         if key in seen:
             continue
         seen.add(key)
-        unique.append((label, p))
+        unique.append((label, contact))
     return unique
 
 
@@ -209,6 +189,7 @@ def run_person_research(
     req: PersonResearchRequest,
     *,
     organization_context_block: str | None = None,
+    meeting_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     warnings: list[str] = []
     gemini_only = req.research_source == PersonResearchSource.gemini_web
@@ -225,8 +206,8 @@ def run_person_research(
             client = LushaClient()
         except ValueError as e:
             warnings.append(
-                "El servicio de registros profesionales no está disponible en el servidor. "
-                "Se intentará informe por búsqueda web si está configurada."
+                f"Búsqueda Lusha solicitada pero no está disponible ({e}). "
+                "Configura LUSHA_API_KEY en el servidor. Si hay Gemini, se intentará informe por búsqueda web."
             )
 
         max_collect = max(16, req.max_profiles * 4)
@@ -278,9 +259,10 @@ def run_person_research(
                     break
 
         enriched_by_id: dict[str, dict[str, Any]] = {}
+        reveal = ["emails", "phones"] if req.reveal_contact_details else []
         if client is not None and enrich_ids:
             try:
-                enrich_resp = client.enrich_contacts(enrich_ids, reveal=[])
+                enrich_resp = client.enrich_contacts(enrich_ids, reveal=reveal)
                 for ec in extract_lusha_contacts(enrich_resp, max_items=len(enrich_ids) + 4):
                     eid = None
                     for key in ("id", "contactId", "personId"):
@@ -289,8 +271,8 @@ def run_person_research(
                             break
                     if eid:
                         enriched_by_id[eid] = ec
-            except LushaApiError as e:
-                warnings.append("No se pudo enriquecer el perfil con datos adicionales.")
+            except LushaApiError:
+                warnings.append("No se pudo enriquecer el perfil con datos adicionales de Lusha.")
 
         for c in selected:
             cid = None
@@ -312,57 +294,61 @@ def run_person_research(
 
         if req.include_posts:
             warnings.append(
-                "La opción «incluir posts» no está disponible con registros profesionales; se ignoró."
+                "La opción «incluir posts» no está disponible con Lusha; se ignoró."
             )
 
     gemini_md: str | None = None
     gemini_google_search_used = False
-    has_gemini_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY"))
+    has_llm_key = bool(deepseek_api_key())
     filters_gem = _filters_for_person_gemini(req, organization_context_block)
 
     md_web: str | None = None
-    run_web = has_gemini_key and not _google_search_disabled() and (
-        gemini_only or _gemini_web_search_for_person_always() or not profiles
+    run_web = has_llm_key and not _person_web_disabled() and (
+        gemini_only or _person_web_always() or not profiles
     )
     if run_web:
         try:
-            md_web = analyze_person_with_google_search(filters=filters_gem)
+            md_web = analyze_person_with_google_search(
+                filters=filters_gem,
+                meeting_context=meeting_context,
+            )
             gemini_google_search_used = True
-            if not gemini_only:
+            if not gemini_only and not profiles:
                 warnings.append(
-                    "Se ha añadido un bloque complementario desde fuentes públicas en la web "
-                    "(además de los datos de perfiles)."
+                    "Informe generado con DeepSeek a partir del encargo (sin datos Lusha)."
                 )
         except RuntimeError as e:
             warnings.append(str(e))
         except Exception as e:  # noqa: BLE001
-            warnings.append(f"Error en búsqueda web complementaria: {e!s}")
+            warnings.append(f"Error en análisis complementario con DeepSeek: {e!s}")
 
     if gemini_only:
         if md_web:
             gemini_md = md_web
-        elif not has_gemini_key:
+        elif not has_llm_key:
             warnings.append(
-                "No está configurado el servicio de análisis; no se puede ejecutar la búsqueda en web pública."
+                "Sin DEEPSEEK_API_KEY no se puede ejecutar la búsqueda por IA."
             )
-        elif _google_search_disabled():
+        elif _person_web_disabled():
             warnings.append(
-                "La búsqueda en web pública está desactivada; no se generó informe."
+                "DEEPSEEK_DISABLE_PERSON_WEB=1: con «búsqueda por IA» no hay otra fuente; no se generó informe."
             )
-    elif profiles and not has_gemini_key:
-        warnings.append("Servicio de análisis no configurado: se omitió la síntesis sobre los perfiles.")
+    elif profiles and not has_llm_key:
+        warnings.append("DEEPSEEK_API_KEY no configurada: se omitió el análisis con IA sobre datos Lusha.")
     elif profiles:
         try:
             gemini_md = analyze_person_profile_bundle(
                 filters=filters_gem,
                 profiles=profiles,
                 posts_by_url={},
+                meeting_context=meeting_context,
             )
-            if md_web:
-                gemini_md = (
-                    gemini_md
-                    + "\n\n---\n\n### Complemento (fuentes públicas en la web)\n\n"
-                    + md_web
+            if md_web and not gemini_md:
+                gemini_md = md_web
+            elif md_web and gemini_md:
+                warnings.append(
+                    "Búsqueda web complementaria omitida en el informe: el análisis Lusha "
+                    "ya incluye la estructura completa."
                 )
         except RuntimeError as e:
             warnings.append(str(e))
@@ -373,13 +359,13 @@ def run_person_research(
     elif req.research_source == PersonResearchSource.lusha and not profiles:
         if md_web:
             gemini_md = md_web
-        elif not has_gemini_key:
+        elif not has_llm_key:
             warnings.append(
-                "No se encontraron perfiles y la búsqueda en web pública no está disponible."
+                "Sin perfiles de Lusha y sin DEEPSEEK_API_KEY: no se pudo ejecutar el análisis con IA."
             )
-        elif _google_search_disabled():
+        elif _person_web_disabled():
             warnings.append(
-                "No se encontraron perfiles y la búsqueda en web pública está desactivada."
+                "Sin perfiles de Lusha y DEEPSEEK_DISABLE_PERSON_WEB=1: no se ejecutó el análisis con IA."
             )
 
     if req.research_source == PersonResearchSource.lusha and not ordered_contacts and attempts:
@@ -402,13 +388,15 @@ def run_person_research(
         )
         if only_402:
             warnings.append(
-                "No se obtendrán perfiles hasta activar o renovar el plan del servicio de registros profesionales."
+                "No se obtendrán perfiles mientras Lusha devuelva 402: el bloqueo es por "
+                "créditos o facturación, no por los filtros de búsqueda."
             )
         elif not gemini_google_search_used:
             warnings.append(
-                "No se encontraron contactos en los registros profesionales. "
-                "Prueba afinar país, ciudad, empresa o palabras clave."
+                "No se encontraron contactos en Lusha. Prueba afinar nombre, empresa, país o ciudad."
             )
+
+    gemini_md = normalize_person_report_text(gemini_md)
 
     return {
         "filters_applied": {
@@ -423,6 +411,7 @@ def run_person_research(
             "geo_effective": _merge_geo(req.country, req.city),
             "start": req.start,
             "max_profiles": req.max_profiles,
+            "reveal_contact_details": req.reveal_contact_details,
             "include_posts": req.include_posts,
             "research_source": req.research_source.value,
             "research_mode": research_mode,

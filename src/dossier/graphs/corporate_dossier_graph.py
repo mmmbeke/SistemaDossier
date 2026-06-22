@@ -127,7 +127,7 @@ def _node_agent_corporate_usa(state: CorporateDossierState) -> dict[str, Any]:
 
 def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
     """Síntesis Gemini según alcance UK / US / dual."""
-    from dossier.gemini.text_generate import generate_text_with_gemini
+    from dossier.llm.text_generate import generate_text_with_llm
 
     tema = state.get("tema_reunion", "").strip()
     participantes = state.get("participantes", "").strip()
@@ -236,9 +236,9 @@ En el **resumen ejecutivo** (apartado 1), separa en bullets breves lo que aplica
 """
 
     try:
-        texto = generate_text_with_gemini(user, system_instruction=system)
+        texto = generate_text_with_llm(user, system_instruction=system)
     except Exception as e:
-        logger.exception("Fallo síntesis Gemini en LangGraph")
+        logger.exception("Fallo síntesis DeepSeek en LangGraph")
         err = f"Error en la síntesis del informe: {e}"
         return {
             "final_dossier_markdown": f"# Error en síntesis\n\n{err}",

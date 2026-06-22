@@ -42,6 +42,7 @@ from dossier.security.jwt_tokens import (
     decode_google_oauth_state,
     decode_microsoft_oauth_state,
 )
+from dossier.schemas.calendar_dossier import CalendarGenerarDossiersBody
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.services import generar_dossier_ejecutivo, listar_reuniones, obtener_reunion_por_id
 from dossier.services.calendar_event_dossiers import (
@@ -52,9 +53,16 @@ from dossier.services.calendar_integrations import (
     upsert_google_calendar_tokens,
     upsert_microsoft_calendar_tokens,
 )
-from dossier.services.google_calendar_api import listar_reuniones_google, obtener_reunion_google_por_id
+from dossier.services.google_calendar_api import (
+    diagnostico_google_calendar,
+    listar_reuniones_google,
+    obtener_reunion_google_por_id,
+)
 from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
-from dossier.services.graph_calendar import diagnostico_microsoft_calendar
+from dossier.services.graph_calendar import (
+    coerce_reunion_payload,
+    diagnostico_microsoft_calendar,
+)
 from dossier.services.calendar_automation_worker import start_calendar_automation_thread
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
 
@@ -180,11 +188,16 @@ app.include_router(google_calendar_router)
 CLIENT_ID = os.getenv("MICROSOFT_CLIENT_ID")
 CLIENT_SECRET = os.getenv("MICROSOFT_CLIENT_SECRET")
 TENANT_ID = os.getenv("MICROSOFT_TENANT_ID", "common")
-REDIRECT_URI = os.getenv("MICROSOFT_REDIRECT_URI")
+REDIRECT_URI = (
+    (os.getenv("MICROSOFT_REDIRECT_URI") or os.getenv("MICROSOFT_REDIRECT_URL") or "").strip() or None
+)
 
 GOOGLE_CLIENT_ID = (os.getenv("GOOGLE_CLIENT_ID") or "").strip() or None
 GOOGLE_CLIENT_SECRET = (os.getenv("GOOGLE_CLIENT_SECRET") or "").strip() or None
-GOOGLE_REDIRECT_URI = (os.getenv("GOOGLE_REDIRECT_URI") or "").strip() or None
+# Acepta GOOGLE_REDIRECT_URL por si el .env usa el nombre antiguo (typo).
+GOOGLE_REDIRECT_URI = (
+    (os.getenv("GOOGLE_REDIRECT_URI") or os.getenv("GOOGLE_REDIRECT_URL") or "").strip() or None
+)
 GOOGLE_OAUTH_SCOPES = (
     "openid https://www.googleapis.com/auth/userinfo.email "
     "https://www.googleapis.com/auth/calendar.readonly"
@@ -299,16 +312,22 @@ def _google_token_for_calendar_route(
     return get_google_calendar_access_token_for_user(db, user.id)
 
 
-def _oauth_frontend_base() -> str:
+def _oauth_frontend_base(*, for_calendar_callback: bool = False) -> str:
     """URL del front (sin barra final) para redirigir tras OAuth con ``state``."""
-    return (
+    base = (
         os.getenv("FRONTEND_URL", "").strip().rstrip("/")
         or os.getenv("MICROSOFT_OAUTH_SUCCESS_URL", "").strip().rstrip("/")
     )
+    if not base or not for_calendar_callback:
+        return base
+    # El banner ``calendar_*=ok|error`` vive en el dashboard del SPA.
+    if not base.endswith("/dashboard"):
+        base = f"{base}/dashboard"
+    return base
 
 
 def _redirect_calendar_oauth(**params: str) -> RedirectResponse | None:
-    base = _oauth_frontend_base()
+    base = _oauth_frontend_base(for_calendar_callback=True)
     if not base:
         return None
     return RedirectResponse(f"{base}?{urlencode(params)}", status_code=302)
@@ -322,7 +341,8 @@ def read_root():
         "project_root": str(PROJECT_ROOT),
         "config_check": {
             "companies_house": _status("COMPANIES_HOUSE_API_KEY"),
-            "gemini": _status("GEMINI_API_KEY"),
+            "gemini": _status("DEEPSEEK_API_KEY"),
+            "deepseek": _status("DEEPSEEK_API_KEY"),
             "lusha": _status("LUSHA_API_KEY"),
             "openai": _status("OPENAI_API_KEY"),
             "google_oauth": _status("GOOGLE_CLIENT_ID"),
@@ -370,8 +390,26 @@ def integrations_microsoft_start(
         state=state,
     )
     if as_json:
-        return JSONResponse({"authorize_url": auth_url})
+        return JSONResponse({"authorize_url": auth_url, "redirect_uri": REDIRECT_URI})
     return RedirectResponse(auth_url)
+
+
+@app.get("/integrations/microsoft/oauth-config", tags=["Integraciones"])
+def integrations_microsoft_oauth_config():
+    """
+    URI de callback que la API envía a Microsoft (sin secretos).
+    Debe estar **idéntica** en Azure → App registration → Redirect URIs.
+    """
+    return {
+        "redirect_uri": REDIRECT_URI,
+        "client_id_configured": bool(CLIENT_ID),
+        "client_id_suffix": (CLIENT_ID or "")[-20:] if CLIENT_ID else None,
+        "tenant_id": TENANT_ID,
+        "hint": (
+            "Si ves redirect_uri_mismatch, copia redirect_uri tal cual en Azure "
+            "(localhost y 127.0.0.1 son distintos)."
+        ),
+    }
 
 
 @app.get("/integrations/google/start", tags=["Integraciones"])
@@ -400,8 +438,30 @@ def integrations_google_start(
     )
     auth_url = _google_authorize_url(state)
     if as_json:
-        return JSONResponse({"authorize_url": auth_url})
+        return JSONResponse(
+            {
+                "authorize_url": auth_url,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+            }
+        )
     return RedirectResponse(auth_url)
+
+
+@app.get("/integrations/google/oauth-config", tags=["Integraciones"])
+def integrations_google_oauth_config():
+    """
+    URI de callback que la API envía a Google (sin secretos).
+    Debe estar **idéntica** en Google Cloud → Credentials → Authorized redirect URIs.
+    """
+    return {
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "client_id_configured": bool(GOOGLE_CLIENT_ID),
+        "client_id_suffix": (GOOGLE_CLIENT_ID or "")[-20:] if GOOGLE_CLIENT_ID else None,
+        "hint": (
+            "Si ves redirect_uri_mismatch, copia redirect_uri tal cual en la consola de Google "
+            "(localhost y 127.0.0.1 son distintos)."
+        ),
+    }
 
 
 @app.get("/login-microsoft", tags=["Autenticación Microsoft"])
@@ -419,6 +479,7 @@ def login_microsoft():
 
 
 @app.get("/callback", tags=["Autenticación Microsoft"])
+@app.get("/callback-microsoft", tags=["Autenticación Microsoft"])
 def callback(
     code: Optional[str] = None,
     error: Optional[str] = None,
@@ -677,6 +738,7 @@ def api_listar_eventos_google_calendar(
 
 
 @app.get("/calendario/diagnostico-microsoft", tags=["Calendario"])
+@app.get("/calendario/diagnostico-outlook", tags=["Calendario"])
 def api_diagnostico_microsoft_calendario(
     access_token: Optional[str] = Query(
         None,
@@ -694,6 +756,110 @@ def api_diagnostico_microsoft_calendario(
         return diagnostico_microsoft_calendar(token)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@app.get("/calendario/diagnostico-google", tags=["Calendario"])
+def api_diagnostico_google_calendario(
+    access_token: Optional[str] = Query(
+        None,
+        description="Opcional: access token de Google (legado). Si se omite, Authorization es el JWT de la app.",
+    ),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db_if_configured),
+):
+    """
+    Calendario principal de Google y eventos recientes
+    (si /calendario/eventos-google viene vacío).
+    """
+    token = _google_token_for_calendar_route(db, authorization, access_token)
+    try:
+        return diagnostico_google_calendar(token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+def _run_calendar_dossier_batch(
+    db: Session,
+    *,
+    user: User,
+    org: Organization,
+    reuniones: list,
+    calendar_provider: str,
+    org_ctx: str,
+) -> list:
+    dossiers = []
+    for reunion in reuniones:
+        t0 = time.perf_counter()
+        item = generate_dossiers_from_calendar_event(
+            reunion,
+            organization_context_block=org_ctx,
+        )
+        elapsed_ms = int((time.perf_counter() - t0) * 1000)
+        item = persist_calendar_dossiers(
+            db,
+            user_id=user.id,
+            org_id=org.id,
+            result=item,
+            calendar_provider=calendar_provider,
+            generation_duration_ms=elapsed_ms,
+        )
+        dossiers.append(item)
+    return dossiers
+
+
+def _resolve_outlook_reuniones(
+    token: str,
+    *,
+    event_id: Optional[str],
+    reunion_payload: Optional[dict],
+    top: int,
+) -> list:
+    from dossier.services.graph_calendar import merge_reunion_payload
+
+    from_client = coerce_reunion_payload(reunion_payload)
+    if event_id:
+        fresh = obtener_reunion_por_id(token, event_id)
+        if fresh:
+            merged = merge_reunion_payload(from_client, fresh)
+            if merged:
+                return [merged]
+        if from_client:
+            return [from_client]
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró la reunión con ese event_id en el calendario.",
+        )
+    if from_client:
+        return [from_client]
+    reuniones = listar_reuniones(token, top=top, dias_adelante=90)
+    return reuniones
+
+
+def _resolve_google_reuniones(
+    token: str,
+    *,
+    event_id: Optional[str],
+    reunion_payload: Optional[dict],
+    top: int,
+) -> list:
+    from dossier.services.graph_calendar import merge_reunion_payload
+
+    from_client = coerce_reunion_payload(reunion_payload)
+    if event_id:
+        fresh = obtener_reunion_google_por_id(token, event_id)
+        if fresh:
+            merged = merge_reunion_payload(from_client, fresh)
+            if merged:
+                return [merged]
+        if from_client:
+            return [from_client]
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró el evento con ese id en Google Calendar.",
+        )
+    if from_client:
+        return [from_client]
+    return listar_reuniones_google(token, top=top, dias_adelante=90)
 
 
 @app.get("/calendario/generar-dossiers", tags=["Calendario"])
@@ -717,16 +883,9 @@ def api_generar_dossiers_desde_calendario(
     token = _graph_token_for_calendar_route(db, authorization, access_token)
 
     try:
-        if event_id:
-            reunion = obtener_reunion_por_id(token, event_id)
-            if not reunion:
-                raise HTTPException(
-                    status_code=404,
-                    detail="No se encontró la reunión con ese event_id en el calendario.",
-                )
-            reuniones = [reunion]
-        else:
-            reuniones = listar_reuniones(token, top=top, dias_adelante=90)
+        reuniones = _resolve_outlook_reuniones(
+            token, event_id=event_id, reunion_payload=None, top=top
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -736,23 +895,67 @@ def api_generar_dossiers_desde_calendario(
             "dossiers": [],
         }
 
-    dossiers = []
-    for reunion in reuniones:
-        t0 = time.perf_counter()
-        item = generate_dossiers_from_calendar_event(
-            reunion,
-            organization_context_block=org_ctx,
+    dossiers = _run_calendar_dossier_batch(
+        db,
+        user=user,
+        org=org,
+        reuniones=reuniones,
+        calendar_provider="microsoft",
+        org_ctx=org_ctx,
+    )
+
+    return {
+        "total": len(dossiers),
+        "dossiers": dossiers,
+    }
+
+
+@app.post("/calendario/generar-dossiers", tags=["Calendario"])
+@app.post("/calendario/generar-dossiers-outlook", tags=["Calendario"])
+def api_generar_dossiers_desde_calendario_post(
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    body: CalendarGenerarDossiersBody,
+    access_token: Optional[str] = Query(
+        None,
+        description="Opcional: token de Graph (legado).",
+    ),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db_if_configured),
+):
+    """
+    Igual que GET pero el ``event_id`` va en el cuerpo JSON (ids de Outlook son largos
+    y pueden corromperse en query string). Si el cliente envía ``reunion`` del listado,
+    no se vuelve a pedir el evento a Graph.
+    """
+    user, org = user_org
+    org_ctx = format_dossier_context_for_prompt(org)
+    token = _graph_token_for_calendar_route(db, authorization, access_token)
+    top = body.top if body.top is not None else 5
+
+    try:
+        reuniones = _resolve_outlook_reuniones(
+            token,
+            event_id=body.event_id,
+            reunion_payload=body.reunion,
+            top=top,
         )
-        elapsed_ms = int((time.perf_counter() - t0) * 1000)
-        item = persist_calendar_dossiers(
-            db,
-            user_id=user.id,
-            org_id=org.id,
-            result=item,
-            calendar_provider="microsoft",
-            generation_duration_ms=elapsed_ms,
-        )
-        dossiers.append(item)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    if not reuniones:
+        return {
+            "mensaje": "No hay reuniones próximas en el calendario.",
+            "dossiers": [],
+        }
+
+    dossiers = _run_calendar_dossier_batch(
+        db,
+        user=user,
+        org=org,
+        reuniones=reuniones,
+        calendar_provider="microsoft",
+        org_ctx=org_ctx,
+    )
 
     return {
         "total": len(dossiers),
@@ -780,16 +983,9 @@ def api_generar_dossiers_desde_google_calendar(
     token = _google_token_for_calendar_route(db, authorization, access_token)
 
     try:
-        if event_id:
-            reunion = obtener_reunion_google_por_id(token, event_id)
-            if not reunion:
-                raise HTTPException(
-                    status_code=404,
-                    detail="No se encontró el evento con ese id en Google Calendar.",
-                )
-            reuniones = [reunion]
-        else:
-            reuniones = listar_reuniones_google(token, top=top, dias_adelante=90)
+        reuniones = _resolve_google_reuniones(
+            token, event_id=event_id, reunion_payload=None, top=top
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -799,23 +995,58 @@ def api_generar_dossiers_desde_google_calendar(
             "dossiers": [],
         }
 
-    dossiers = []
-    for reunion in reuniones:
-        t0 = time.perf_counter()
-        item = generate_dossiers_from_calendar_event(
-            reunion,
-            organization_context_block=org_ctx,
+    dossiers = _run_calendar_dossier_batch(
+        db,
+        user=user,
+        org=org,
+        reuniones=reuniones,
+        calendar_provider="google",
+        org_ctx=org_ctx,
+    )
+
+    return {
+        "total": len(dossiers),
+        "dossiers": dossiers,
+    }
+
+
+@app.post("/calendario/generar-dossiers-google", tags=["Calendario"])
+def api_generar_dossiers_desde_google_calendar_post(
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    body: CalendarGenerarDossiersBody,
+    access_token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db_if_configured),
+):
+    user, org = user_org
+    org_ctx = format_dossier_context_for_prompt(org)
+    token = _google_token_for_calendar_route(db, authorization, access_token)
+    top = body.top if body.top is not None else 5
+
+    try:
+        reuniones = _resolve_google_reuniones(
+            token,
+            event_id=body.event_id,
+            reunion_payload=body.reunion,
+            top=top,
         )
-        elapsed_ms = int((time.perf_counter() - t0) * 1000)
-        item = persist_calendar_dossiers(
-            db,
-            user_id=user.id,
-            org_id=org.id,
-            result=item,
-            calendar_provider="google",
-            generation_duration_ms=elapsed_ms,
-        )
-        dossiers.append(item)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    if not reuniones:
+        return {
+            "mensaje": "No hay eventos próximos en Google Calendar.",
+            "dossiers": [],
+        }
+
+    dossiers = _run_calendar_dossier_batch(
+        db,
+        user=user,
+        org=org,
+        reuniones=reuniones,
+        calendar_provider="google",
+        org_ctx=org_ctx,
+    )
 
     return {
         "total": len(dossiers),
@@ -896,7 +1127,7 @@ def calendar_automation_status(
     env_raw = os.getenv("CALENDAR_DEFAULT_ADVANCE_MINUTES", "").strip()
     advance_from_env = env_raw.isdigit()
     stored_advances = [i.advance_minutes for i in integrations if i.advance_minutes]
-    stored = stored_advances[0] if stored_advances else 30
+    stored = stored_advances[0] if stored_advances else 20
 
     pending = db.execute(
         select(CalendarEvent).where(
@@ -926,7 +1157,7 @@ def calendar_automation_status(
     }
 
 
-_ALLOWED_ADVANCE_MINUTES = {15, 30, 60, 1440}
+_ALLOWED_ADVANCE_MINUTES = {15, 20, 30, 60, 1440}
 
 
 @app.patch("/calendario/automation/settings", tags=["Calendario"])
@@ -936,16 +1167,18 @@ def update_calendar_automation_settings(
     advance_minutes: int = Body(..., embed=True),
 ):
     """Anticipación (minutos antes de la reunión) para las integraciones del usuario."""
-    from dossier.services.calendar_automation import default_advance_minutes
-
     if advance_minutes not in _ALLOWED_ADVANCE_MINUTES:
         raise HTTPException(
             status_code=400,
-            detail="advance_minutes debe ser 15, 30, 60 o 1440.",
+            detail="advance_minutes debe ser 15, 20, 30, 60 o 1440.",
         )
 
     user, _org = user_org
     from dossier.db.models import CalendarIntegration
+    from dossier.services.calendar_automation import (
+        default_advance_minutes,
+        reschedule_user_calendar_events,
+    )
 
     rows = db.execute(
         select(CalendarIntegration).where(
@@ -962,11 +1195,15 @@ def update_calendar_automation_settings(
         row.advance_minutes = advance_minutes
     db.commit()
 
+    effective = default_advance_minutes()
+    rescheduled = reschedule_user_calendar_events(db, user.id, effective)
+
     env_override = os.getenv("CALENDAR_DEFAULT_ADVANCE_MINUTES", "").strip().isdigit()
     return {
         "advance_minutes_stored": advance_minutes,
-        "advance_minutes_effective": default_advance_minutes(),
+        "advance_minutes_effective": effective,
         "advance_minutes_from_env": env_override,
+        "events_rescheduled": rescheduled,
         "message": (
             "Guardado. Nota: CALENDAR_DEFAULT_ADVANCE_MINUTES en el servidor tiene prioridad."
             if env_override

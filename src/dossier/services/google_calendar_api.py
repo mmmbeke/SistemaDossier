@@ -96,6 +96,63 @@ def listar_reuniones_google(
     return [normalizar_evento_google(e) for e in items[:top]]
 
 
+def diagnostico_google_calendar(access_token: str) -> dict:
+    """
+    Resumen no sensible: calendario principal y eventos recientes
+    (útil si /calendario/eventos-google devuelve vacío).
+    """
+    resultado: dict = {
+        "calendar": None,
+        "events_raw_count": None,
+        "events_preview": None,
+        "errors": [],
+    }
+    try:
+        r = requests.get(
+            "https://www.googleapis.com/calendar/v3/calendars/primary",
+            headers=_headers(access_token),
+            timeout=30,
+        )
+        if r.ok:
+            j = r.json()
+            resultado["calendar"] = {
+                "id": j.get("id"),
+                "summary": j.get("summary"),
+                "timeZone": j.get("timeZone"),
+            }
+        else:
+            resultado["errors"].append(f"GET calendars/primary → {r.status_code}: {r.text[:300]}")
+    except requests.RequestException as e:
+        resultado["errors"].append(f"GET calendars/primary → {e}")
+
+    now = datetime.now(timezone.utc)
+    try:
+        params = {
+            "timeMin": _iso_z(now - timedelta(days=7)),
+            "timeMax": _iso_z(now + timedelta(days=7)),
+            "maxResults": 10,
+            "singleEvents": True,
+            "orderBy": "startTime",
+        }
+        datos = _get(access_token, params)
+        items = datos.get("items") or []
+        resultado["events_raw_count"] = len(items)
+        resultado["events_preview"] = [
+            {
+                "summary": e.get("summary"),
+                "start": (e.get("start") or {}).get("dateTime")
+                or (e.get("start") or {}).get("date"),
+            }
+            for e in items
+        ]
+    except ValueError as e:
+        resultado["errors"].append(str(e))
+    except requests.RequestException as e:
+        resultado["errors"].append(f"GET events → {e}")
+
+    return resultado
+
+
 def obtener_reunion_google_por_id(access_token: str, event_id: str) -> dict | None:
     """GET un evento por id en ``primary``."""
     eid = quote(event_id, safe="")

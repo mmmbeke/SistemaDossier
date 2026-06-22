@@ -29,6 +29,7 @@ export default function PersonResearchPage() {
   const [city, setCity] = useState("");
   const [extraKeywords, setExtraKeywords] = useState("");
   const [maxProfiles, setMaxProfiles] = useState(1);
+  const [revealContactDetails, setRevealContactDetails] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<PersonResearchApiResponse | null>(null);
@@ -53,7 +54,7 @@ export default function PersonResearchPage() {
       research_source: researchSource,
       max_profiles:
         researchSource === "lusha" ? Math.min(5, Math.max(1, maxProfiles)) : 1,
-      include_posts: false,
+      reveal_contact_details: researchSource === "lusha" ? revealContactDetails : false,
     };
     const ja = jobArea.trim();
     const co = company.trim();
@@ -198,6 +199,16 @@ export default function PersonResearchPage() {
                     onChange={(e) => setMaxProfiles(Number(e.target.value))}
                   />
                 </div>
+                <label className="flex cursor-pointer items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  <input
+                    type="checkbox"
+                    checked={revealContactDetails}
+                    onChange={(e) => setRevealContactDetails(e.target.checked)}
+                    className="rounded border"
+                    style={{ borderColor: "var(--border-default)" }}
+                  />
+                  {t("person_research.reveal_contact_details")}
+                </label>
               </>
             ) : null}
 
@@ -272,7 +283,6 @@ export default function PersonResearchPage() {
 
           {result &&
           (result.filters_applied?.research_source === "lusha" ||
-            result.filters_applied?.research_source === "netrows" ||
             (Array.isArray(result.search_attempts) && result.search_attempts.length > 0) ||
             (Array.isArray(result.profile_urls) && result.profile_urls.length > 0)) ? (
             <DashboardCard title={t("person_research.section_raw")}>

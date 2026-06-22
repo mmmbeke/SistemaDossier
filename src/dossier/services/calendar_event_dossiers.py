@@ -20,6 +20,7 @@ from dossier.db.models import Dossier
 from dossier.graphs.corporate_dossier_graph import JurisdictionScope, run_corporate_dossier_langgraph
 from dossier.schemas.person_research import PersonResearchRequest, PersonResearchSource
 from dossier.services.corporate_company_search import find_companies_house_matches, find_sec_matches
+from dossier.gemini.analyze import normalize_person_report_text
 from dossier.services.person_research_service import run_person_research
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ _SUBJECT_WITH = re.compile(
 _SUBJECT_CON = re.compile(r"(?i)^(?:reunión|reunion|meeting|call)\s+con\s+(.+)$")
 
 _EMPRESA_DESC = re.compile(
-    r"(?i)(?:empresa|company|cliente|client|organización|organization|organizacion):\s*(.+?)(?:\n|$)"
+    r"(?i)(?:empresa|company|cliente|client|organización|organization|organizacion)\s*:\s*(.+?)(?:\n|$)"
 )
 
 _GENERIC_MEETING_TITLE = re.compile(
@@ -47,12 +48,18 @@ _GENERIC_MEETING_TITLE = re.compile(
 )
 
 _PERSON_PATTERNS = (
-    re.compile(r"(?i)contacto:\s*(.+?)(?:\n|$)"),
+    re.compile(r"(?i)contacto\s*:\s*(.+?)(?:\n|$)"),
+    re.compile(r"(?i)nombre\s*:\s*(.+?)(?:\n|$)"),
+    re.compile(r"(?i)(?:name|contact)\s*:\s*(.+?)(?:\n|$)"),
     re.compile(r"(?i)reunión con\s+(.+?)(?:\n|$)"),
     re.compile(r"(?i)meeting with\s+(.+?)(?:\n|$)"),
 )
 
-_JOB_IN_DESC = re.compile(r"(?i)(?:cargo|puesto|rol|título|titulo|área|area):\s*(.+?)(?:\n|$)")
+_EMAIL_IN_DESC = re.compile(r"(?i)email\s*[:.]\s*(.+?)(?:\n|$)")
+
+_JOB_IN_DESC = re.compile(
+    r"(?i)(?:cargo|puesto|rol|título|titulo|área|area)\s*:\s*(.+?)(?:\n|$)"
+)
 
 _COUNTRY_IN_DESC = re.compile(
     r"(?i)(?:país|pais|country)(?:\s*\([^)]*\))?\s*:\s*(.+?)(?:\n|$)"
@@ -168,6 +175,19 @@ def resolve_corporate_company(tema: str, descripcion: str) -> tuple[str, str]:
     return "", ""
 
 
+def _split_job_and_country(job_raw: str | None, country: str | None) -> tuple[str | None, str | None]:
+    """«Cargo: Gerente País: Chile» en una línea → cargo y país separados."""
+    job = _clean_optional_field(job_raw)
+    if not job:
+        return None, country
+    m = re.search(r"(?i)\s+pa[ií]s\s*:\s*(.+)$", job)
+    if m:
+        parsed_country = _clean_optional_field(m.group(1))
+        parsed_job = _clean_optional_field(job[: m.start()])
+        return parsed_job, parsed_country or country
+    return job, country
+
+
 def extract_person_from_description(descripcion: str) -> tuple[str, str | None, str | None]:
     """
     Contacto, cargo y país opcional en la descripción.
@@ -207,7 +227,19 @@ def extract_person_from_description(descripcion: str) -> tuple[str, str | None, 
                 name = chunk
             break
 
-    return name, job, country
+    if not name:
+        em = _EMAIL_IN_DESC.search(d)
+        if em:
+            email = em.group(1).strip().rstrip(".")
+            if "@" in email:
+                local = email.split("@", 1)[0]
+                parts = [p for p in re.split(r"[._-]+", local) if p]
+                if len(parts) >= 2:
+                    name = " ".join(p[:1].upper() + p[1:].lower() for p in parts)
+
+    job, country = _split_job_and_country(job, country)
+
+    return name.strip(), job, country
 
 
 def parse_calendar_event_for_dossiers(reunion: dict[str, Any]) -> dict[str, Any]:
@@ -218,6 +250,12 @@ def parse_calendar_event_for_dossiers(reunion: dict[str, Any]) -> dict[str, Any]
     company_corporate, company_corporate_source = resolve_corporate_company(tema, descripcion)
     company_person = extract_company_from_description(descripcion) or company_corporate or company_subject
     person_name, person_job, person_country = extract_person_from_description(descripcion)
+    if not person_name and descripcion:
+        logger.info(
+            "Calendario: descripción sin persona detectable (len=%s). "
+            "Usa «Contacto:» o «Nombre:» en el cuerpo del evento.",
+            len(descripcion),
+        )
     return {
         "company": company_corporate,
         "company_subject": company_subject,
@@ -307,6 +345,16 @@ def generate_dossiers_from_calendar_event(
 
     if person_name and len(person_name) >= 2:
         try:
+            meeting_ctx = {
+                "tema": tema,
+                "descripcion": parsed.get("descripcion") or (reunion.get("descripcion") or ""),
+                "participantes": participantes,
+                "empresa_reunion": company_corporate or company_person or None,
+                "contacto_declarado": person_name,
+                "cargo_declarado": person_job,
+                "inicio": reunion.get("inicio"),
+                "ubicacion": reunion.get("ubicacion"),
+            }
             req = PersonResearchRequest(
                 full_name=person_name,
                 company=company_person or None,
@@ -318,6 +366,7 @@ def generate_dossiers_from_calendar_event(
             person_payload = run_person_research(
                 req,
                 organization_context_block=organization_context_block,
+                meeting_context=meeting_ctx,
             )
             person_md = (person_payload.get("gemini_analysis_markdown") or "").strip() or None
         except Exception as e:
@@ -349,14 +398,44 @@ def generate_dossiers_from_calendar_event(
 
 
 def _markdown_is_persistable(md: str | None) -> bool:
-    if not md or not md.strip():
+    if normalize_person_report_text(md) is None:
         return False
-    s = md.lstrip()
+    s = (md or "").lstrip()
     if s.startswith("# Error"):
         return False
     if s.startswith("No se pudo generar ningún dossier"):
         return False
     return True
+
+
+def _person_failure_message(
+    *,
+    person_payload: dict[str, Any] | None,
+    errors: list[Any] | None,
+    person_md: str | None,
+) -> str:
+    if person_md:
+        s = person_md.lstrip()
+        if s.startswith("# Error"):
+            parts = s.split("\n", 1)
+            if len(parts) > 1 and parts[1].strip():
+                return parts[1].strip()[:500]
+            return "Error al generar el análisis de persona."
+
+    warnings = (person_payload or {}).get("warnings") if isinstance(person_payload, dict) else []
+    if isinstance(warnings, list) and warnings:
+        parts = [str(w).strip() for w in warnings if w and str(w).strip()]
+        if parts:
+            return "; ".join(parts)[:500]
+
+    persona_errors = [e for e in (errors or []) if "Persona" in str(e)]
+    if persona_errors:
+        return str(persona_errors[0])[:500]
+
+    return (
+        "No se pudo generar el análisis de persona. "
+        "Reintenta la generación o usa «Nueva búsqueda de persona» con más datos."
+    )
 
 
 def _format_meeting_datetime(inicio: str | None) -> str:
@@ -494,17 +573,32 @@ def persist_calendar_dossiers(
         saved["folder"] = {"id": str(folder_id), "title": folder_title}
 
     person_md = result.get("dossier_persona")
-    if _markdown_is_persistable(person_md):
-        is_err = str(person_md).lstrip().startswith("# Error")
-        status = "failed" if is_err else "complete"
+    person_payload = result.get("dossier_persona_research")
+    person_name = (parsed.get("person_name") or "").strip()
+    if len(person_name) >= 2:
+        valid_person_md = normalize_person_report_text(person_md)
+        if valid_person_md:
+            status = "complete"
+            status_message = None
+            body = valid_person_md
+            success = True
+        else:
+            status = "failed"
+            status_message = _person_failure_message(
+                person_payload=person_payload if isinstance(person_payload, dict) else None,
+                errors=result.get("errors"),
+                person_md=person_md if isinstance(person_md, str) else None,
+            )
+            body = ""
+            success = False
+
         dossier_id = uuid.uuid4()
-        person_name = (parsed.get("person_name") or "Contacto")[:255]
         dossier = Dossier(
             id=dossier_id,
             organization_id=org_id,
             requested_by_user_id=user_id,
             contact_id=None,
-            subject_name=person_name,
+            subject_name=person_name[:255],
             subject_email=None,
             module_identity=True,
             module_corporate=False,
@@ -512,12 +606,12 @@ def persist_calendar_dossiers(
             depth_level="standard",
             credits_consumed=0,
             status=status,
-            status_message="Error en el informe generado." if is_err else None,
+            status_message=status_message,
             dossier_data={
                 "format": "markdown",
-                "body": person_md,
+                "body": body,
                 "pipeline": "person_research",
-                "success": not is_err,
+                "success": success,
                 "billing": "none",
                 "calendar": cal,
                 "calendar_folder": calendar_folder,
@@ -531,8 +625,8 @@ def persist_calendar_dossiers(
                 },
             },
             agents_activated=[],
-            agents_failed=[],
-            data_sources_used=["lusha", "gemini"],
+            agents_failed=(["deepseek_person_analysis"] if status == "failed" else []),
+            data_sources_used=["lusha", "deepseek"],
             generation_started_at=now,
             generation_completed_at=now,
             generation_duration_ms=generation_duration_ms,
@@ -544,7 +638,8 @@ def persist_calendar_dossiers(
         saved["person"] = {
             "id": str(dossier_id),
             "status": status,
-            "subject_name": person_name,
+            "subject_name": person_name[:255],
+            "status_message": status_message,
         }
         if "folder" not in saved:
             saved["folder"] = {"id": str(folder_id), "title": folder_title}

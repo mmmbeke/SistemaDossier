@@ -15,6 +15,7 @@ import type { TranslationKey } from "@/i18n/types";
 
 const BEFORE_OPTIONS: { value: string; key: TranslationKey }[] = [
   { value: "15", key: "time.15_min" },
+  { value: "20", key: "time.20_min" },
   { value: "30", key: "time.30_min" },
   { value: "60", key: "time.1_hour" },
   { value: "1440", key: "time.1_day" },
@@ -31,7 +32,7 @@ const selectStyle = {
 
 export default function AutomationPage() {
   const { t } = useTranslation();
-  const [beforeMinutes, setBeforeMinutes] = useState("30");
+  const [beforeMinutes, setBeforeMinutes] = useState("20");
   const [effectiveMinutes, setEffectiveMinutes] = useState<number | null>(null);
   const [fromEnv, setFromEnv] = useState(false);
   const [scheduledEvents, setScheduledEvents] = useState(0);

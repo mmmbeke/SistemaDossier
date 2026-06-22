@@ -11,6 +11,15 @@ type Props = {
   onDeleteDossier: (row: DossierListItem) => void;
 };
 
+function statusLabel(
+  status: string,
+  t: ReturnType<typeof useTranslation>["t"]
+): string {
+  if (status === "failed") return t("dossiers.status_failed");
+  if (status === "complete") return t("dossiers.status_complete");
+  return status;
+}
+
 function ChildDossierRow({
   row,
   label,
@@ -23,11 +32,13 @@ function ChildDossierRow({
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
+  const isFailed = row.status === "failed";
+  const statusMsg = row.status_message?.trim();
   return (
     <div
       className="flex gap-1 rounded-lg border"
       style={{
-        borderColor: "var(--border-default)",
+        borderColor: isFailed ? "rgba(248,113,113,0.35)" : "var(--border-default)",
         backgroundColor: "var(--bg-input)",
       }}
     >
@@ -41,9 +52,17 @@ function ChildDossierRow({
         <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
           {row.subject_name || row.subject_email || "—"}
         </span>
-        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-          {row.status} · {row.depth_level}
+        <span
+          className="text-xs"
+          style={{ color: isFailed ? "#f87171" : "var(--text-muted)" }}
+        >
+          {statusLabel(row.status, t)} · {row.depth_level}
         </span>
+        {isFailed && statusMsg ? (
+          <span className="text-xs leading-snug" style={{ color: "var(--text-muted)" }}>
+            {statusMsg}
+          </span>
+        ) : null}
       </Link>
       <button
         type="button"
