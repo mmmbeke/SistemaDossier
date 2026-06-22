@@ -73,6 +73,7 @@ export default function MicrosoftOutlookPanel() {
     person: string | null;
     savedCorporate?: CalendarSavedDossierRef;
     savedPerson?: CalendarSavedDossierRef;
+    savedFolder?: { id: string; title: string };
   } | null>(null);
 
   const loadMeetings = useCallback(async () => {
@@ -150,6 +151,7 @@ export default function MicrosoftOutlookPanel() {
         person,
         savedCorporate: first.saved_dossiers?.corporate,
         savedPerson: first.saved_dossiers?.person,
+        savedFolder: first.saved_dossiers?.folder,
       });
     } catch (e) {
       if (e instanceof DossierApiError) setGenErr(e.message || t("overview.microsoft_generate_error"));
@@ -287,6 +289,7 @@ export default function MicrosoftOutlookPanel() {
                   person={preview.person}
                   savedCorporate={preview.savedCorporate}
                   savedPerson={preview.savedPerson}
+                  savedFolder={preview.savedFolder}
                 />
               ) : null}
             </li>

@@ -41,6 +41,7 @@ export type AuthUser = {
 
 /** Fila devuelta por `GET /dossiers` (tabla `dossiers` en PostgreSQL). */
 export type DossierListItem = {
+  type?: "dossier";
   id: string;
   subject_name: string | null;
   subject_email: string | null;
@@ -52,12 +53,37 @@ export type DossierListItem = {
   dossier_data: unknown;
   trigger_source?: string | null;
   calendar_meeting?: string | null;
+  module_kind?: "corporate" | "person" | "mixed";
+  dossier_folder_id?: string | null;
 };
+
+/** Carpeta con dossiers de empresa + persona (mismo evento de calendario). */
+export type DossierFolderListItem = {
+  type: "folder";
+  id: string;
+  title: string;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+  trigger_source?: string | null;
+  calendar_meeting?: string | null;
+  dossiers: DossierListItem[];
+};
+
+export type DossierListEntry = DossierListItem | DossierFolderListItem;
+
+export function isDossierFolderEntry(
+  entry: DossierListEntry
+): entry is DossierFolderListItem {
+  return entry.type === "folder";
+}
 
 export type DossiersListResponse = {
   organization_id: string;
-  items: DossierListItem[];
+  items: DossierListEntry[];
 };
+
+export type DossierFolderDetailResponse = DossierFolderListItem;
 
 /** Respuesta de `GET /dossiers/{id}` (detalle). */
 export type DossierDetailResponse = {
@@ -725,6 +751,37 @@ export async function fetchDossiersFromApi(limit = 50): Promise<DossiersListResp
   return parsed as DossiersListResponse;
 }
 
+/** Carpeta con dossiers de un mismo evento (`GET /dossiers/folders/{id}`). */
+export async function fetchDossierFolderById(
+  folderId: string
+): Promise<DossierFolderDetailResponse> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/dossiers/folders/${encodeURIComponent(folderId)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as DossierFolderDetailResponse;
+}
+
 /** Detalle de un dossier (`GET /dossiers/{id}`). */
 export async function fetchDossierById(dossierId: string): Promise<DossierDetailResponse> {
   const token = getStoredAccessToken();
@@ -891,7 +948,7 @@ export async function fetchOutlookCalendarEventos(options?: {
   if (options?.top != null) sp.set("top", String(options.top));
   if (options?.incluir_pasadas) sp.set("incluir_pasadas", "true");
   const qs = sp.toString();
-  const pathUrl = `${getApiBaseUrl()}/calendario/eventos${qs ? `?${qs}` : ""}`;
+  const pathUrl = `${getApiBaseUrl()}/calendario/eventos-outlook${qs ? `?${qs}` : ""}`;
   let res: Response;
   try {
     res = await fetch(pathUrl, {
@@ -912,7 +969,7 @@ export async function fetchOutlookCalendarEventos(options?: {
     throw new DossierApiError(res.status, msg, parsed);
   }
   if (!parsed || typeof parsed !== "object") {
-    throw new DossierApiError(502, "Respuesta inválida de /calendario/eventos.", parsed);
+    throw new DossierApiError(502, "Respuesta inválida de /calendario/eventos-outlook.", parsed);
   }
   const o = parsed as Record<string, unknown>;
   const reuniones = Array.isArray(o.reuniones) ? (o.reuniones as OutlookReunionApi[]) : [];
@@ -981,6 +1038,7 @@ export type CalendarGenerarDossierItem = {
   saved_dossiers?: {
     corporate?: CalendarSavedDossierRef;
     person?: CalendarSavedDossierRef;
+    folder?: { id: string; title: string };
   };
   parse?: {
     company?: string;
@@ -1017,7 +1075,7 @@ export async function fetchGenerarDossiersDesdeCalendario(options?: {
   if (options?.eventId) sp.set("event_id", options.eventId);
   if (options?.top != null) sp.set("top", String(options.top));
   const qs = sp.toString();
-  const pathUrl = `${getApiBaseUrl()}/calendario/generar-dossiers${qs ? `?${qs}` : ""}`;
+  const pathUrl = `${getApiBaseUrl()}/calendario/generar-dossiers-outlook${qs ? `?${qs}` : ""}`;
   let res: Response;
   try {
     res = await fetch(pathUrl, {
@@ -1038,7 +1096,7 @@ export async function fetchGenerarDossiersDesdeCalendario(options?: {
     throw new DossierApiError(res.status, msg, parsed);
   }
   if (!parsed || typeof parsed !== "object") {
-    throw new DossierApiError(502, "Respuesta inválida de /calendario/generar-dossiers.", parsed);
+    throw new DossierApiError(502, "Respuesta inválida de /calendario/generar-dossiers-outlook.", parsed);
   }
   const o = parsed as Record<string, unknown>;
   const dossiers = Array.isArray(o.dossiers) ? (o.dossiers as CalendarGenerarDossierItem[]) : [];
@@ -1046,6 +1104,9 @@ export async function fetchGenerarDossiersDesdeCalendario(options?: {
   const mensaje = typeof o.mensaje === "string" ? o.mensaje : undefined;
   return { total, dossiers, mensaje };
 }
+
+/** Alias con naming simétrico a ``fetchGenerarDossiersDesdeGoogleCalendar``. */
+export const fetchGenerarDossiersDesdeOutlookCalendar = fetchGenerarDossiersDesdeCalendario;
 
 /**
  * Genera dossier(es) con IA a partir de Google Calendar (token en servidor + JWT de la app).
@@ -1090,4 +1151,92 @@ export async function fetchGenerarDossiersDesdeGoogleCalendar(options?: {
   const total = typeof o.total === "number" ? o.total : dossiers.length;
   const mensaje = typeof o.mensaje === "string" ? o.mensaje : undefined;
   return { total, dossiers, mensaje };
+}
+
+export type CalendarAutomationStatus = {
+  enabled: boolean;
+  poll_seconds: number;
+  advance_minutes: number;
+  advance_minutes_stored?: number;
+  advance_minutes_from_env?: boolean;
+  scheduled_events: number;
+  next_due: string | null;
+  integrations?: {
+    provider: string;
+    email: string | null;
+    is_enabled: boolean;
+    advance_minutes: number;
+  }[];
+};
+
+export async function fetchCalendarAutomationStatus(): Promise<CalendarAutomationStatus> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/calendario/automation/status`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as CalendarAutomationStatus;
+}
+
+export async function patchCalendarAutomationSettings(advanceMinutes: number): Promise<{
+  advance_minutes_stored: number;
+  advance_minutes_effective: number;
+  advance_minutes_from_env: boolean;
+  message: string;
+}> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/calendario/automation/settings`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ advance_minutes: advanceMinutes }),
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as {
+    advance_minutes_stored: number;
+    advance_minutes_effective: number;
+    advance_minutes_from_env: boolean;
+    message: string;
+  };
 }

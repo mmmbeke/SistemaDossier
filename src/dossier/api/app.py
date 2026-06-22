@@ -14,7 +14,7 @@ from uuid import UUID
 
 import msal
 import requests
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from jwt.exceptions import PyJWTError
@@ -633,6 +633,7 @@ def callback_google(
 
 
 @app.get("/calendario/eventos", tags=["Calendario"])
+@app.get("/calendario/eventos-outlook", tags=["Calendario"])
 def api_listar_eventos_calendario(
     top: int = Query(10, ge=1, le=50, description="Cantidad máxima de reuniones"),
     dias: int = Query(90, ge=1, le=365, description="Días hacia adelante a buscar"),
@@ -727,6 +728,7 @@ def api_diagnostico_microsoft_calendario(
 
 
 @app.get("/calendario/generar-dossiers", tags=["Calendario"])
+@app.get("/calendario/generar-dossiers-outlook", tags=["Calendario"])
 def api_generar_dossiers_desde_calendario(
     user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
     top: int = Query(5, ge=1, le=10, description="Máximo de reuniones a procesar con IA"),
@@ -902,25 +904,105 @@ def db_health():
 
 
 @app.get("/calendario/automation/status", tags=["Calendario"])
-def calendar_automation_status(db: Session = Depends(get_db_if_configured)):
-    """Estado de la automatización (solo lectura; no dispara generación)."""
+def calendar_automation_status(
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    db: Session = Depends(get_db_if_configured),
+):
+    """Estado de la automatización del usuario (integraciones, anticipación, cola)."""
     from dossier.services.calendar_automation import (
         automation_enabled,
         default_advance_minutes,
         poll_interval_seconds,
     )
-    from dossier.db.models import CalendarEvent
+    from dossier.db.models import CalendarEvent, CalendarIntegration
+
+    user, _org = user_org
+    integrations = db.execute(
+        select(CalendarIntegration).where(
+            CalendarIntegration.user_id == user.id,
+            CalendarIntegration.revoked_at.is_(None),
+        )
+    ).scalars().all()
+
+    env_raw = os.getenv("CALENDAR_DEFAULT_ADVANCE_MINUTES", "").strip()
+    advance_from_env = env_raw.isdigit()
+    stored_advances = [i.advance_minutes for i in integrations if i.advance_minutes]
+    stored = stored_advances[0] if stored_advances else 30
 
     pending = db.execute(
-        select(CalendarEvent).where(CalendarEvent.processing_status == "scheduled")
+        select(CalendarEvent).where(
+            CalendarEvent.user_id == user.id,
+            CalendarEvent.processing_status == "scheduled",
+        )
     ).scalars().all()
     due_times = [e.dossier_scheduled_at for e in pending if e.dossier_scheduled_at]
+
     return {
         "enabled": automation_enabled(),
         "poll_seconds": poll_interval_seconds(),
         "advance_minutes": default_advance_minutes(),
+        "advance_minutes_stored": stored,
+        "advance_minutes_from_env": advance_from_env,
         "scheduled_events": len(pending),
         "next_due": min(due_times).isoformat() if due_times else None,
+        "integrations": [
+            {
+                "provider": row.provider,
+                "email": row.provider_email,
+                "is_enabled": row.is_enabled,
+                "advance_minutes": row.advance_minutes,
+            }
+            for row in integrations
+        ],
+    }
+
+
+_ALLOWED_ADVANCE_MINUTES = {15, 30, 60, 1440}
+
+
+@app.patch("/calendario/automation/settings", tags=["Calendario"])
+def update_calendar_automation_settings(
+    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    db: Session = Depends(get_db_if_configured),
+    advance_minutes: int = Body(..., embed=True),
+):
+    """Anticipación (minutos antes de la reunión) para las integraciones del usuario."""
+    from dossier.services.calendar_automation import default_advance_minutes
+
+    if advance_minutes not in _ALLOWED_ADVANCE_MINUTES:
+        raise HTTPException(
+            status_code=400,
+            detail="advance_minutes debe ser 15, 30, 60 o 1440.",
+        )
+
+    user, _org = user_org
+    from dossier.db.models import CalendarIntegration
+
+    rows = db.execute(
+        select(CalendarIntegration).where(
+            CalendarIntegration.user_id == user.id,
+            CalendarIntegration.revoked_at.is_(None),
+        )
+    ).scalars().all()
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail="No hay calendarios conectados. Conecta Google u Outlook primero.",
+        )
+    for row in rows:
+        row.advance_minutes = advance_minutes
+    db.commit()
+
+    env_override = os.getenv("CALENDAR_DEFAULT_ADVANCE_MINUTES", "").strip().isdigit()
+    return {
+        "advance_minutes_stored": advance_minutes,
+        "advance_minutes_effective": default_advance_minutes(),
+        "advance_minutes_from_env": env_override,
+        "message": (
+            "Guardado. Nota: CALENDAR_DEFAULT_ADVANCE_MINUTES en el servidor tiene prioridad."
+            if env_override
+            else "Anticipación actualizada."
+        ),
     }
 
 

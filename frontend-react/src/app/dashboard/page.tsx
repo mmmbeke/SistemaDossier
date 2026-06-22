@@ -14,9 +14,11 @@ import {
   getStoredAccessToken,
   readDossierUserPreview,
   type AuthUser,
-  type DossierListItem,
+  type DossierListEntry,
+  isDossierFolderEntry,
 } from "@/lib/dossier-api";
 import { getCalendarMeetingLabel } from "@/lib/calendar-dossier-meta";
+import { countListEntries } from "@/lib/dossier-list-utils";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 
@@ -111,7 +113,7 @@ export default function OverviewPage() {
   });
 
   const [me, setMe] = useState<AuthUser | null>(null);
-  const [dossierRows, setDossierRows] = useState<DossierListItem[]>([]);
+  const [dossierRows, setDossierRows] = useState<DossierListEntry[]>([]);
   const [dashError, setDashError] = useState<string | null>(null);
   const [dashLoad, setDashLoad] = useState<"idle" | "loading" | "ready">("idle");
   const [msOAuthBanner, setMsOAuthBanner] = useState<
@@ -208,10 +210,8 @@ export default function OverviewPage() {
   }, [t]);
 
   const stats = useMemo(() => {
-    const total = dossierRows.length;
-    const complete = dossierRows.filter((r) => r.status === "complete").length;
-    const pending = dossierRows.filter((r) => r.status !== "complete").length;
-    return { total, complete, pending };
+    const c = countListEntries(dossierRows);
+    return { total: c.all, complete: c.complete, pending: c.needs_update };
   }, [dossierRows]);
 
   const activityItems = useMemo(() => {
@@ -222,13 +222,24 @@ export default function OverviewPage() {
         return tb - ta;
       })
       .slice(0, 6)
-      .map((row) => ({
-        id: row.id,
-        title: row.subject_name || row.subject_email || "—",
-        subtitle: getCalendarMeetingLabel(row) || row.status,
-        dateLabel: formatActivityDate(row.updated_at || row.created_at),
-        href: `/dashboard/dossiers/${row.id}`,
-      }));
+      .map((row) => {
+        if (isDossierFolderEntry(row)) {
+          return {
+            id: row.id,
+            title: row.title,
+            subtitle: getCalendarMeetingLabel(row) || row.status,
+            dateLabel: formatActivityDate(row.updated_at || row.created_at),
+            href: `/dashboard/dossiers/folder/${row.id}`,
+          };
+        }
+        return {
+          id: row.id,
+          title: row.subject_name || row.subject_email || "—",
+          subtitle: getCalendarMeetingLabel(row) || row.status,
+          dateLabel: formatActivityDate(row.updated_at || row.created_at),
+          href: `/dashboard/dossiers/${row.id}`,
+        };
+      });
   }, [dossierRows]);
 
   const titleName = welcomeName || t("overview.anonymous");

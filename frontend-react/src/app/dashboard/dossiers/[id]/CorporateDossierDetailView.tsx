@@ -15,6 +15,7 @@ type Props = {
   dossier: DossierDetailResponse;
 };
 
+
 function parseDossierData(data: unknown): {
   body: string;
   pipeline: string | null;
