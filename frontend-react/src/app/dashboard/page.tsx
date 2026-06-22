@@ -16,6 +16,7 @@ import {
   type AuthUser,
   type DossierListItem,
 } from "@/lib/dossier-api";
+import { getCalendarMeetingLabel } from "@/lib/calendar-dossier-meta";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 
@@ -224,7 +225,7 @@ export default function OverviewPage() {
       .map((row) => ({
         id: row.id,
         title: row.subject_name || row.subject_email || "—",
-        subtitle: row.status,
+        subtitle: getCalendarMeetingLabel(row) || row.status,
         dateLabel: formatActivityDate(row.updated_at || row.created_at),
         href: `/dashboard/dossiers/${row.id}`,
       }));

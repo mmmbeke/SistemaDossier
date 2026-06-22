@@ -27,8 +27,29 @@ from dossier.schemas.dossier_generation import (
 from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.corporate_company_search import search_corporate_company_candidates
 from dossier.services.person_research_service import run_person_research
+from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
 
 router = APIRouter(tags=["Dossiers"])
+
+
+def _serialize_dossier_list_item(d: Dossier) -> dict:
+    data = d.dossier_data if isinstance(d.dossier_data, dict) else None
+    return {
+        "id": str(d.id),
+        "subject_name": d.subject_name,
+        "subject_email": d.subject_email,
+        "status": d.status,
+        "depth_level": d.depth_level,
+        "credits_consumed": d.credits_consumed,
+        "created_at": d.created_at.isoformat() if d.created_at else None,
+        "updated_at": d.updated_at.isoformat() if d.updated_at else None,
+        "dossier_data": d.dossier_data,
+        "trigger_source": d.trigger_source,
+        "calendar_meeting": calendar_meeting_summary_from_dossier_data(
+            data,
+            trigger_source=d.trigger_source,
+        ),
+    }
 
 
 def _corporate_credit_charging_enabled() -> bool:
@@ -70,9 +91,8 @@ def person_professional_research(
     db: Session = Depends(get_db_if_configured),
 ):
     """
-    Investigación de persona: elige `research_source` en el cuerpo JSON.
-    `gemini_web`: búsqueda web en vivo + síntesis. `lusha`: contactos vía Lusha + síntesis
-    (requiere LUSHA_API_KEY) y, si aplica, complemento web.
+    Investigación de persona: por defecto **Lusha** (`research_source=lusha`).
+    Alternativa: `gemini_web` (IA + Google Search). Requiere `LUSHA_API_KEY` para Lusha.
 
     Si se genera texto de informe, se persiste en `dossiers` (misma organización que el JWT),
     como los dossiers corporativos; la respuesta incluye `saved_dossier` con el `id` creado.
@@ -298,6 +318,11 @@ def get_dossier_by_id(
         "data_sources_used": list(d.data_sources_used or []),
         "generation_duration_ms": d.generation_duration_ms,
         "status_message": d.status_message,
+        "trigger_source": d.trigger_source,
+        "calendar_meeting": calendar_meeting_summary_from_dossier_data(
+            d.dossier_data if isinstance(d.dossier_data, dict) else None,
+            trigger_source=d.trigger_source,
+        ),
     }
 
 
@@ -338,18 +363,5 @@ def list_dossiers_for_org(
     rows = db.execute(stmt).scalars().all()
     return {
         "organization_id": str(org.id),
-        "items": [
-            {
-                "id": str(r.id),
-                "subject_name": r.subject_name,
-                "subject_email": r.subject_email,
-                "status": r.status,
-                "depth_level": r.depth_level,
-                "credits_consumed": r.credits_consumed,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
-                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
-                "dossier_data": r.dossier_data,
-            }
-            for r in rows
-        ],
+        "items": [_serialize_dossier_list_item(r) for r in rows],
     }

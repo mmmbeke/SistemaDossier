@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import DashboardCard from "@/components/dashboard/DashboardCard";
+import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import { DossierApiError, deleteDossierFromApi, type DossierDetailResponse } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import { formatLongDate } from "@/lib/format";
@@ -14,65 +15,23 @@ type Props = {
   dossier: DossierDetailResponse;
 };
 
-const KNOWN_DOSSIER_DATA_KEYS = new Set([
-  "body",
-  "format",
-  "pipeline",
-  "depth_requested",
-  "success",
-  "billing",
-  "resolution",
-  "person_filters",
-]);
-
-function formatExtraValue(v: unknown): string {
-  if (v === null || v === undefined) return "";
-  if (typeof v === "string") return v;
-  if (typeof v === "number" || typeof v === "boolean") return String(v);
-  try {
-    return JSON.stringify(v);
-  } catch {
-    return String(v);
-  }
-}
-
 function parseDossierData(data: unknown): {
   body: string;
-  format: string | null;
   pipeline: string | null;
-  depthRequested: string | null;
   success: boolean | null;
-  billing: string | null;
-  extraRows: { key: string; value: string }[];
 } {
   if (!data || typeof data !== "object") {
     return {
       body: "",
-      format: null,
       pipeline: null,
-      depthRequested: null,
       success: null,
-      billing: null,
-      extraRows: [],
     };
   }
   const o = data as Record<string, unknown>;
-  const body = typeof o.body === "string" ? o.body : "";
-  const extraRows: { key: string; value: string }[] = [];
-  for (const [key, val] of Object.entries(o)) {
-    if (KNOWN_DOSSIER_DATA_KEYS.has(key)) continue;
-    const value = formatExtraValue(val);
-    if (value) extraRows.push({ key, value });
-  }
-  extraRows.sort((a, b) => a.key.localeCompare(b.key));
   return {
-    body,
-    format: typeof o.format === "string" ? o.format : null,
+    body: typeof o.body === "string" ? o.body : "",
     pipeline: typeof o.pipeline === "string" ? o.pipeline : null,
-    depthRequested: typeof o.depth_requested === "string" ? o.depth_requested : null,
     success: typeof o.success === "boolean" ? o.success : null,
-    billing: typeof o.billing === "string" ? o.billing : null,
-    extraRows,
   };
 }
 
@@ -89,7 +48,6 @@ function refineHrefForDossier(subject: string | null, pipeline: string | null): 
 export default function CorporateDossierDetailView({ dossier }: Props) {
   const { t, preferences } = useTranslation();
   const router = useRouter();
-  const [showRaw, setShowRaw] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
@@ -109,20 +67,8 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
     return [];
   }, [dossier.alerts]);
 
-  const agentsOk = dossier.agents_activated ?? [];
-  const agentsFail = dossier.agents_failed ?? [];
-  const sources = dossier.data_sources_used ?? [];
-  const genMs = dossier.generation_duration_ms;
-  const statusMsg = dossier.status_message?.trim();
-
-  const hasPipelineCard =
-    agentsOk.length > 0 ||
-    agentsFail.length > 0 ||
-    sources.length > 0 ||
-    (typeof genMs === "number" && genMs >= 0) ||
-    Boolean(statusMsg);
-
   const statusOk = dossier.status === "complete" && meta.success !== false;
+  const statusMsg = dossier.status_message?.trim();
 
   async function handleDelete() {
     if (deleting) return;
@@ -174,18 +120,15 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             >
               {dossier.status}
             </span>
-            {meta.pipeline && (
-              <span
-                className="rounded-full border px-3 py-0.5 text-xs"
-                style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}
-              >
-                {isPersonPipeline ? t("detail.pipeline_person") : meta.pipeline}
-              </span>
-            )}
           </div>
           <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
             {dossier.subject_name || t("detail.api_no_subject")}
           </h1>
+          <CalendarMeetingLabel
+            trigger_source={dossier.trigger_source}
+            calendar_meeting={dossier.calendar_meeting}
+            dossier_data={dossier.dossier_data}
+          />
           {dossier.subject_email && (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
               {dossier.subject_email}
@@ -194,6 +137,11 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
           <p className="text-xs" style={{ color: "var(--text-subtle)" }}>
             {t("detail.api_dates", { created, updated })}
           </p>
+          {!statusOk && statusMsg ? (
+            <p className="text-sm text-amber-200/90" role="alert">
+              {statusMsg}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 flex-col gap-2 lg:items-end">
@@ -227,8 +175,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+      <div className="flex flex-col gap-6">
           <DashboardCard title={t("detail.api_report_title")}>
             {meta.body.trim() ? (
               <div
@@ -259,160 +206,6 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
                   </li>
                 ))}
               </ul>
-            </DashboardCard>
-          )}
-
-          {meta.extraRows.length > 0 && (
-            <DashboardCard title={t("detail.api_extra_payload")}>
-              <dl className="flex flex-col gap-3 text-sm">
-                {meta.extraRows.map((row) => (
-                  <div key={row.key}>
-                    <dt className="text-xs uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
-                      {row.key}
-                    </dt>
-                    <dd
-                      className="mt-0.5 whitespace-pre-wrap break-words font-mono text-xs"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      {row.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </DashboardCard>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-6">
-          <DashboardCard title={t("detail.api_meta_title")}>
-            <dl className="flex flex-col gap-3 text-sm">
-              <div>
-                <dt className="text-xs uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
-                  {t("generate.depth_label")}
-                </dt>
-                <dd style={{ color: "var(--text-primary)" }}>{dossier.depth_level}</dd>
-              </div>
-              {meta.depthRequested && (
-                <div>
-                  <dt className="text-xs uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
-                    {t("detail.api_depth_requested")}
-                  </dt>
-                  <dd style={{ color: "var(--text-primary)" }}>{meta.depthRequested}</dd>
-                </div>
-              )}
-              <div>
-                <dt className="text-xs uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
-                  {t("detail.api_credits")}
-                </dt>
-                <dd style={{ color: "var(--text-primary)" }}>{dossier.credits_consumed}</dd>
-              </div>
-              {meta.billing && (
-                <div>
-                  <dt className="text-xs uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
-                    {t("detail.api_billing")}
-                  </dt>
-                  <dd style={{ color: "var(--text-primary)" }}>{meta.billing}</dd>
-                </div>
-              )}
-              {meta.format && (
-                <div>
-                  <dt className="text-xs uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
-                    {t("detail.api_format")}
-                  </dt>
-                  <dd style={{ color: "var(--text-primary)" }}>{meta.format}</dd>
-                </div>
-              )}
-              {meta.success !== null && (
-                <div>
-                  <dt className="text-xs uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
-                    {t("detail.api_success")}
-                  </dt>
-                  <dd style={{ color: "var(--text-primary)" }}>
-                    {meta.success ? t("detail.api_success_yes") : t("detail.api_success_no")}
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </DashboardCard>
-
-          {hasPipelineCard && (
-            <DashboardCard title={t("detail.api_pipeline_sources")}>
-              <div className="flex flex-col gap-4 text-sm">
-                {statusMsg && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
-                      {t("detail.api_status_message")}
-                    </p>
-                    <p className="mt-1 leading-relaxed" style={{ color: "var(--text-primary)" }}>
-                      {statusMsg}
-                    </p>
-                  </div>
-                )}
-                {typeof genMs === "number" && genMs >= 0 && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
-                      {t("detail.api_duration_ms")}
-                    </p>
-                    <p className="mt-1 tabular-nums" style={{ color: "var(--text-primary)" }}>
-                      {genMs.toLocaleString()}
-                    </p>
-                  </div>
-                )}
-                {agentsOk.length > 0 && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
-                      {t("detail.api_agents")}
-                    </p>
-                    <ul className="mt-1 flex flex-wrap gap-1.5">
-                      {agentsOk.map((a) => (
-                        <li
-                          key={a}
-                          className="rounded-md border px-2 py-0.5 text-xs"
-                          style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}
-                        >
-                          {a}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {agentsFail.length > 0 && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide" style={{ color: "#fbbf24" }}>
-                      {t("detail.api_agents_failed")}
-                    </p>
-                    <ul className="mt-1 flex flex-wrap gap-1.5">
-                      {agentsFail.map((a) => (
-                        <li
-                          key={a}
-                          className="rounded-md border px-2 py-0.5 text-xs"
-                          style={{ borderColor: "rgba(251,191,36,0.35)", color: "#fbbf24" }}
-                        >
-                          {a}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {sources.length > 0 && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
-                      {t("detail.api_sources")}
-                    </p>
-                    <ul className="mt-1 flex flex-wrap gap-1.5">
-                      {sources.map((s) => (
-                        <li
-                          key={s}
-                          className="rounded-md border px-2 py-0.5 text-xs"
-                          style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}
-                        >
-                          {s}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
             </DashboardCard>
           )}
 
@@ -447,30 +240,6 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
               {isPersonPipeline ? t("detail.person_refine_cta") : t("detail.refine_cta")}
             </Link>
           </DashboardCard>
-
-          <div>
-            <button
-              type="button"
-              className="text-xs font-medium underline"
-              style={{ color: "var(--text-muted)" }}
-              onClick={() => setShowRaw((v) => !v)}
-            >
-              {showRaw ? t("detail.hide_raw_json") : t("detail.show_raw_json")}
-            </button>
-            {showRaw && (
-              <pre
-                className="mt-2 max-h-80 overflow-auto rounded-lg border p-3 text-[11px]"
-                style={{
-                  borderColor: "var(--border-default)",
-                  backgroundColor: "var(--bg-surface)",
-                  color: "var(--text-muted)",
-                }}
-              >
-                {JSON.stringify(dossier, null, 2)}
-              </pre>
-            )}
-          </div>
-        </div>
       </div>
 
       <style jsx global>{`

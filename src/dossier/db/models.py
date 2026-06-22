@@ -168,6 +168,53 @@ class CalendarIntegration(Base):
     )
 
 
+class CalendarEvent(Base):
+    """Evento de calendario detectado para automatización (DDL: ``Migracion.md`` sección 11)."""
+
+    __tablename__ = "calendar_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "calendar_integration_id",
+            "external_event_id",
+            name="calendar_events_integration_external_key",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    calendar_integration_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("calendar_integrations.id", ondelete="CASCADE"),
+        index=True,
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    external_event_id: Mapped[str] = mapped_column(String(500))
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    meeting_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    external_attendees: Mapped[list | dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    dossier_scheduled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    processing_status: Mapped[str] = mapped_column(String(20), default="detected")
+    skip_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class Contact(Base):
     """Address book por organización; referenciado por `dossiers.contact_id`."""
 

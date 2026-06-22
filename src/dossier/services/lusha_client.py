@@ -1,7 +1,6 @@
-"""Cliente HTTP mínimo para Lusha API V3 (enriquecimiento de contactos)."""
+"""Cliente HTTP mínimo para Lusha API v3 (enriquecimiento de contactos B2B)."""
 from __future__ import annotations
 
-import json
 import os
 from typing import Any
 
@@ -53,6 +52,28 @@ class LushaClient:
             return None
         return r.json()
 
+    def search_contacts(self, contacts: list[dict[str, Any]]) -> Any:
+        """POST /v3/contacts/search — vista previa sin revelar email/teléfono (menor coste)."""
+        if not contacts:
+            return {"contacts": []}
+        return self.post("/v3/contacts/search", {"contacts": contacts})
+
+    def enrich_contacts(
+        self,
+        contact_ids: list[str],
+        *,
+        reveal: list[str] | None = None,
+    ) -> Any:
+        """POST /v3/contacts/enrich — datos ampliados por id de Lusha."""
+        if not contact_ids:
+            return {"contacts": []}
+        payload: dict[str, Any] = {
+            "contacts": [{"id": cid} for cid in contact_ids],
+        }
+        if reveal is not None:
+            payload["reveal"] = reveal
+        return self.post("/v3/contacts/enrich", payload)
+
     def search_and_enrich_contacts(
         self,
         contacts: list[dict[str, Any]],
@@ -60,11 +81,7 @@ class LushaClient:
         reveal: list[str] | None = None,
         include_partial_profiles: bool = True,
     ) -> Any:
-        """
-        ``POST /v3/contacts/search-and-enrich`` — busca por identificadores y opcionalmente revela PII.
-
-        ``reveal``: p. ej. ``["emails", "phones"]`` (consume créditos Lusha).
-        """
+        """POST /v3/contacts/search-and-enrich — búsqueda + revelado en una llamada."""
         payload: dict[str, Any] = {
             "contacts": contacts,
             "options": {"includePartialProfiles": include_partial_profiles},

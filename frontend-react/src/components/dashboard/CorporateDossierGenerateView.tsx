@@ -38,14 +38,6 @@ const SCOPE_KEY_BY_DEPTH: Record<DossierDepth, TranslationKey> = {
   deep: "generate.scope_deep",
 };
 
-const PIPELINE_STEP_KEYS: TranslationKey[] = [
-  "gen.step.starting",
-  "gen.step.corporate",
-  "gen.step.news",
-  "gen.step.synthesis",
-  "gen.step.complete",
-];
-
 const WARN_I18N: Partial<Record<string, TranslationKey>> = {
   missing_companies_house_api_key: "generate.warn_missing_ch",
   companies_house_request_failed: "generate.warn_ch_http",
@@ -614,19 +606,6 @@ export default function CorporateDossierGenerateView({
                 </dd>
               </div>
             </dl>
-          </DashboardCard>
-
-          <DashboardCard title={t("generate.pipeline_title")}>
-            <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
-              {t("generate.pipeline_desc")}
-            </p>
-            <ul className="flex flex-col gap-2 text-xs" style={{ color: "var(--text-subtle)" }}>
-              {PIPELINE_STEP_KEYS.map((key, i) => (
-                <li key={key}>
-                  {i + 1}. {t(key)}
-                </li>
-              ))}
-            </ul>
           </DashboardCard>
 
           {phase === "done" && resultId && (

@@ -21,7 +21,7 @@ type ResearchSourceUi = "gemini_web" | "lusha";
 
 export default function PersonResearchPage() {
   const { t } = useTranslation();
-  const [researchSource, setResearchSource] = useState<ResearchSourceUi>("gemini_web");
+  const [researchSource, setResearchSource] = useState<ResearchSourceUi>("lusha");
   const [fullName, setFullName] = useState("");
   const [jobArea, setJobArea] = useState("");
   const [company, setCompany] = useState("");
@@ -110,21 +110,6 @@ export default function PersonResearchPage() {
                 <input
                   type="radio"
                   name="research_source"
-                  checked={researchSource === "gemini_web"}
-                  onChange={() => setResearchSource("gemini_web")}
-                  className="mt-1"
-                />
-                <span>
-                  <span className="font-medium">{t("person_research.source_gemini")}</span>
-                  <span className="mt-0.5 block text-xs" style={{ color: "var(--text-muted)" }}>
-                    {t("person_research.source_gemini_hint")}
-                  </span>
-                </span>
-              </label>
-              <label className="flex cursor-pointer items-start gap-2" style={{ color: "var(--text-primary)" }}>
-                <input
-                  type="radio"
-                  name="research_source"
                   checked={researchSource === "lusha"}
                   onChange={() => setResearchSource("lusha")}
                   className="mt-1"
@@ -133,6 +118,21 @@ export default function PersonResearchPage() {
                   <span className="font-medium">{t("person_research.source_lusha")}</span>
                   <span className="mt-0.5 block text-xs" style={{ color: "var(--text-muted)" }}>
                     {t("person_research.source_lusha_hint")}
+                  </span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2" style={{ color: "var(--text-primary)" }}>
+                <input
+                  type="radio"
+                  name="research_source"
+                  checked={researchSource === "gemini_web"}
+                  onChange={() => setResearchSource("gemini_web")}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-medium">{t("person_research.source_gemini")}</span>
+                  <span className="mt-0.5 block text-xs" style={{ color: "var(--text-muted)" }}>
+                    {t("person_research.source_gemini_hint")}
                   </span>
                 </span>
               </label>

@@ -2,12 +2,17 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getStoredAccessToken } from "@/lib/dossier-api";
+import {
+  clearAuthSession,
+  DossierApiError,
+  fetchAuthMe,
+  getStoredAccessToken,
+} from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 /**
  * Exige sesión (JWT en localStorage o sessionStorage) para ver el dashboard.
- * Evita entrar por URL directa sin haber iniciado sesión.
+ * Valida el token contra la API; si está expirado o es inválido, fuerza nuevo login.
  */
 export default function DashboardAuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -16,13 +21,36 @@ export default function DashboardAuthGate({ children }: { children: ReactNode })
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
-    const token = getStoredAccessToken();
-    if (!token) {
+    let cancelled = false;
+
+    async function check() {
+      const token = getStoredAccessToken();
       const next = pathname && pathname.startsWith("/dashboard") ? pathname : "/dashboard";
-      router.replace(`/login?next=${encodeURIComponent(next)}`);
-      return;
+      if (!token) {
+        router.replace(`/login?next=${encodeURIComponent(next)}`);
+        return;
+      }
+      try {
+        await fetchAuthMe();
+        if (!cancelled) setAllowed(true);
+      } catch (e) {
+        if (cancelled) return;
+        if (e instanceof DossierApiError && e.status === 401) {
+          clearAuthSession();
+          router.replace(
+            `/login?next=${encodeURIComponent(next)}&reason=session_expired`
+          );
+          return;
+        }
+        // Red u otro error: dejar entrar; las vistas mostrarán su propio aviso.
+        setAllowed(true);
+      }
     }
-    setAllowed(true);
+
+    void check();
+    return () => {
+      cancelled = true;
+    };
   }, [router, pathname]);
 
   if (!allowed) {

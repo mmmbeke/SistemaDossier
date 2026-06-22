@@ -14,44 +14,7 @@ from typing import Any
 
 from dossier.config import load_env
 from dossier.gemini.analyze import DEFAULT_MODEL, _api_key, _retry_after_seconds, _should_retry
-
-_SYSTEM_PROMPT = """Eres un analista de due diligence para clientes ejecutivos. Tienes acceso a búsqueda web
-en tiempo real; no simulas acceso privado a redes ni a perfiles cerrados.
-
-Reglas de contenido (salida al cliente):
-- Redacta en español, tono profesional y directo.
-- Sé breve: como guía, el informe no debe superar unas 400 palabras en total (listas incluidas).
-- No menciones nombres de productos de IA, APIs, «grounding», fragmentos técnicos ni limitaciones internas del sistema.
-- No incluyas listados de consultas de búsqueda, anexos técnicos ni meta-comentarios sobre herramientas.
-- Objetividad: solo afirmaciones que puedas respaldar con fuentes que aparezcan en los resultados de esta sesión;
-  cita dominio o URL breve entre paréntesis cuando aporte valor.
-- Si no hay datos suficientes, indícalo con claridad en una línea; no inventes.
-- Respeta privacidad: solo información claramente pública.
-
-LinkedIn y homónimos (proceso interno; no lo expliques al cliente):
-- Desambiguar con empresa, cargo, ciudad o país antes de atribuir identidad.
-- No concluyas «no tiene LinkedIn» si hay señales ambiguas; si no hay URL fiable, dilo como «perfil no verificado
-  en fuentes consultadas» sin tecnicismos.
-
-Estructura OBLIGATORIA de la salida (usa exactamente estos encabezados en Markdown ###):
-
-### Resumen ejecutivo
-4–6 líneas: quién es en contexto del encargo, nivel de confianza en la identidad (bajo/medio/alto) y riesgo
-general en una frase.
-
-### Identidad y rol
-2–5 viñetas con hechos concretos (empleador, cargo, trayectoria relevante). Cada viñeta con fuente breve (dominio o URL).
-
-### Riesgos y señales
-Hasta 5 viñetas; si no hay riesgos relevantes en fuentes consultadas, una sola línea indicándolo.
-
-### ¿Conviene relacionarse o hacer tratos?
-Una línea en negritas con una de: **Recomendable** | **Solo con salvaguardas** | **No recomendable**.
-Seguido de 2–4 frases con matices (comercial, laboral o colaboración profesional), siempre basadas en evidencia citada.
-
-### Preguntas sugeridas
-Exactamente 2 o 3 preguntas numeradas (1. 2. 3.), cada una en una sola frase, para profundizar antes de decidir.
-"""
+from dossier.services.person_analysis_prompts import PERSON_EXHAUSTIVE_SYSTEM_PROMPT
 
 
 def _fv(filters: dict[str, Any], key: str, default: str = "No indicado") -> str:
@@ -99,18 +62,43 @@ def _build_user_prompt(filters: dict[str, Any]) -> str:
     geo = _geo_line(filters)
     ctx = _context_line(filters)
 
-    return f"""Datos del encargo (fecha de la petición: {fecha}):
+    nombre_q = nombre.replace('"', "'")
+    nombre_fmt_q = nombre_fmt.replace('"', "'")
+    emp_tail = empresa if empresa != "No indicado" else ""
+    cargo_tail = cargo if cargo != "No indicado" else ""
+    geo_tail = geo if geo != "No indicado" else ""
 
-- Nombre (como lo envió el usuario): {nombre}
-- Nombre normalizado para búsqueda: {nombre_fmt}
-- Contexto / acotación: {ctx}
-- País o ciudad: {geo}
-- Empresa (si consta): {empresa}
-- Área o cargo (si consta): {cargo}
+    return f"""Datos del encargo (fecha: {fecha}):
 
-Instrucción: usando búsqueda web pública, elabora el informe en el formato definido en las reglas del sistema.
-Prioriza desambiguar homónimos. Si localizas redes o noticias relevantes, sintetiza con citas breves.
-No superes el límite de extensión indicado en las reglas."""
+- Nombre: {nombre} (búsqueda sugerida: {nombre_fmt})
+- Contexto: {ctx}
+- País/ciudad: {geo}
+- Empresa: {empresa}
+- Cargo/área: {cargo}
+
+---
+
+## Fase de recopilación (usa búsqueda web; no la listes en el informe final)
+
+Antes de redactar, consulta fuentes públicas variadas para desambiguar homónimos. Como mínimo explora variantes de:
+- LinkedIn y trayectoria: `{nombre_fmt_q}` linkedin {emp_tail} {cargo_tail}
+- Noticias y menciones: `"{nombre_fmt_q}"` noticias entrevista {emp_tail}
+- Redes y presencia: X/Twitter, Instagram u otras si son relevantes al cargo
+- Riesgo reputacional prudente: `"{nombre_fmt_q}"` demanda fraude (solo reportar si aparece en resultados; sin presumir culpabilidad)
+
+Prioriza resultados que encajen con empresa, cargo o ubicación indicados.
+
+---
+
+## Fase de informe
+
+Con lo encontrado, redacta el informe **exhaustivo** en el formato del sistema. Profundiza en:
+- Inconsistencias entre puestos, fechas, empresas o proyectos.
+- Publicaciones o situaciones públicas que llamen la atención.
+- Análisis integrado de la persona y recomendaciones accionables.
+- Si conviene relacionarse o hacer tratos (Recomendable / Solo con salvaguardas / No recomendable).
+
+No incluyas en la salida el inventario de búsquedas realizadas."""
 
 
 def analyze_person_with_google_search(
@@ -142,12 +130,12 @@ def analyze_person_with_google_search(
     from google.genai.types import GenerateContentConfig, GoogleSearch, HttpOptions, Tool
 
     m = (model or os.getenv("GEMINI_PERSON_WEB_MODEL") or os.getenv("GEMINI_MODEL") or DEFAULT_MODEL).strip()
-    timeout_ms = int(os.getenv("GEMINI_PERSON_WEB_TIMEOUT_MS", "180000"))
+    timeout_ms = int(os.getenv("GEMINI_PERSON_WEB_TIMEOUT_MS", "240000"))
     client = genai.Client(api_key=key, http_options=HttpOptions(timeout=timeout_ms))
 
     user_prompt = _build_user_prompt(filters)
     config = GenerateContentConfig(
-        system_instruction=_SYSTEM_PROMPT.strip(),
+        system_instruction=PERSON_EXHAUSTIVE_SYSTEM_PROMPT.strip(),
         tools=[Tool(google_search=GoogleSearch())],
     )
 
