@@ -674,12 +674,24 @@ export type PersonResearchPayload = {
   country?: string | null;
   city?: string | null;
   extra_keywords?: string | null;
+  email?: string | null;
+  linkedin_url?: string | null;
   start?: number;
   max_profiles?: number;
   reveal_contact_details?: boolean;
   include_posts?: boolean;
-  /** `gemini_web` = solo IA + Google Search; `lusha` = API Lusha + análisis Gemini. */
-  research_source?: "gemini_web" | "lusha";
+  /** `gemini_web` | `pdl` (por defecto) */
+  research_source?: "gemini_web" | "pdl";
+};
+
+export type PdlHealthResponse = {
+  configured: boolean;
+  status: string;
+  message?: string;
+  api_reachable?: boolean;
+  enrich_access?: boolean;
+  search_access?: boolean;
+  test_match?: boolean;
 };
 
 export type PersonSavedDossier = {
@@ -708,6 +720,19 @@ export async function postPersonResearch(
   payload: PersonResearchPayload
 ): Promise<PersonResearchApiResponse> {
   return postJsonWithAuth<PersonResearchApiResponse>("/dossiers/person/research", payload);
+}
+
+export async function getPdlIntegrationHealth(): Promise<PdlHealthResponse> {
+  const res = await fetch(`${getApiBaseUrl()}/integrations/pdl/health`, { cache: "no-store" });
+  const parsed = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg =
+      typeof parsed === "object" && parsed && "detail" in parsed
+        ? String((parsed as { detail?: unknown }).detail)
+        : res.statusText;
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as PdlHealthResponse;
 }
 
 /** Genera dossier con pipeline LangGraph (UK + US + Gemini) y lo persiste en la API. */
@@ -1097,6 +1122,13 @@ export type CalendarGenerarDossierItem = {
     person_country?: string | null;
   };
   errors?: string[];
+  dossier_persona_research?: {
+    warnings?: string[];
+    profiles?: unknown[];
+    profile_urls?: string[];
+    filters_applied?: Record<string, unknown>;
+    gemini_google_search_used?: boolean;
+  };
 };
 
 export type CalendarGenerarDossiersResponse = {
@@ -1211,6 +1243,187 @@ export async function fetchGenerarDossiersDesdeGoogleCalendar(options?: {
   const total = typeof o.total === "number" ? o.total : dossiers.length;
   const mensaje = typeof o.mensaje === "string" ? o.mensaje : undefined;
   return { total, dossiers, mensaje };
+}
+
+export type DossierGenerationJobStatus = "queued" | "running" | "completed" | "failed";
+
+export type DossierGenerationJobApi = {
+  id: string;
+  status: DossierGenerationJobStatus;
+  job_type: string;
+  calendar_provider?: "microsoft" | "google" | null;
+  external_event_id?: string | null;
+  meeting_label?: string | null;
+  credits_estimated?: number;
+  credits_consumed?: number;
+  error_message?: string | null;
+  result?: CalendarGenerarDossierItem | null;
+  created_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+};
+
+export type EnqueueCalendarDossierResponse = {
+  async?: boolean;
+  job_id?: string;
+  status?: DossierGenerationJobStatus;
+  meeting_label?: string | null;
+  credits_estimated?: number;
+  mensaje?: string;
+  total?: number;
+  dossiers?: CalendarGenerarDossierItem[];
+};
+
+async function postCalendarGenerarDossiers(
+  pathUrl: string,
+  body: Record<string, unknown>,
+): Promise<EnqueueCalendarDossierResponse> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  let res: Response;
+  try {
+    res = await fetch(pathUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new DossierApiError(502, "Respuesta inválida del servidor.", parsed);
+  }
+  const o = parsed as Record<string, unknown>;
+  if (o.async === true || typeof o.job_id === "string") {
+    return {
+      async: true,
+      job_id: String(o.job_id),
+      status: (o.status as DossierGenerationJobStatus) || "queued",
+      meeting_label: typeof o.meeting_label === "string" ? o.meeting_label : null,
+      credits_estimated: typeof o.credits_estimated === "number" ? o.credits_estimated : 0,
+      mensaje: typeof o.mensaje === "string" ? o.mensaje : undefined,
+    };
+  }
+  const dossiers = Array.isArray(o.dossiers) ? (o.dossiers as CalendarGenerarDossierItem[]) : [];
+  const total = typeof o.total === "number" ? o.total : dossiers.length;
+  const mensaje = typeof o.mensaje === "string" ? o.mensaje : undefined;
+  return { async: false, total, dossiers, mensaje };
+}
+
+/**
+ * Encola generación asíncrona desde calendario Outlook (por defecto async_mode=true).
+ */
+export async function fetchEnqueueOutlookCalendarDossier(options?: {
+  eventId?: string;
+  reunion?: OutlookReunionApi;
+  top?: number;
+  depth?: "basic" | "standard" | "deep";
+}): Promise<EnqueueCalendarDossierResponse> {
+  return postCalendarGenerarDossiers(`${getApiBaseUrl()}/calendario/generar-dossiers-outlook`, {
+    event_id: options?.eventId ?? null,
+    reunion: options?.reunion ?? null,
+    top: options?.top ?? null,
+    async_mode: true,
+    depth: options?.depth ?? "standard",
+  });
+}
+
+export async function fetchEnqueueGoogleCalendarDossier(options?: {
+  eventId?: string;
+  reunion?: OutlookReunionApi;
+  top?: number;
+  depth?: "basic" | "standard" | "deep";
+}): Promise<EnqueueCalendarDossierResponse> {
+  return postCalendarGenerarDossiers(`${getApiBaseUrl()}/calendario/generar-dossiers-google`, {
+    event_id: options?.eventId ?? null,
+    reunion: options?.reunion ?? null,
+    top: options?.top ?? null,
+    async_mode: true,
+    depth: options?.depth ?? "standard",
+  });
+}
+
+export async function fetchDossierGenerationJobs(options?: {
+  activeOnly?: boolean;
+}): Promise<{ jobs: DossierGenerationJobApi[] }> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const params = new URLSearchParams();
+  if (options?.activeOnly === false) {
+    params.set("active_only", "false");
+  }
+  const qs = params.toString();
+  const url = `${getApiBaseUrl()}/dossier-generation-jobs${qs ? `?${qs}` : ""}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  const o = parsed as { jobs?: DossierGenerationJobApi[] };
+  return { jobs: Array.isArray(o.jobs) ? o.jobs : [] };
+}
+
+export async function fetchDossierGenerationJob(
+  jobId: string,
+): Promise<DossierGenerationJobApi> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/dossier-generation-jobs/${encodeURIComponent(jobId)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as DossierGenerationJobApi;
 }
 
 export type CalendarAutomationStatus = {

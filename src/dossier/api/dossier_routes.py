@@ -82,8 +82,8 @@ def person_professional_research(
     db: Session = Depends(get_db_if_configured),
 ):
     """
-    Investigación de persona: por defecto **Lusha** (`research_source=lusha`).
-    Alternativa: `gemini_web` (IA + Google Search). Requiere `LUSHA_API_KEY` para Lusha.
+    Investigación de persona: por defecto **PDL** (`research_source=pdl`).
+    Alternativa: `gemini_web` (IA + Google Search). Requiere `PDL_API_KEY` para enriquecimiento.
 
     Si se genera texto de informe, se persiste en `dossiers` (misma organización que el JWT),
     como los dossiers corporativos; la respuesta incluye `saved_dossier` con el `id` creado.

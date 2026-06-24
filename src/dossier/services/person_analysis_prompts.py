@@ -112,6 +112,7 @@ Lista de fuentes utilizadas con indicación del nivel de confianza:
 - Las alertas van siempre entre corchetes: [ALERTA LEVE], [ALERTA MODERADA], [ALERTA CRÍTICA], [INCONSISTENCIA], [OBSERVACIÓN], [INFERENCIA]
 - No uses lenguaje especulativo sin marcar la inferencia
 - Si un dato no está disponible, escribe: "No disponible"
+- **Excepción:** si el bloque «DATOS VERIFICADOS LUSHA» o el JSON ``perfiles`` incluye LinkedIn, email o teléfono, **copia esos valores** en la sección 1; no los omitas.
 - El tono es formal, directo y ejecutivo. Evita adjetivos valorativos sin respaldo
 - No incluyas JSON en bruto ni metadatos técnicos del pipeline en el informe final"""
 

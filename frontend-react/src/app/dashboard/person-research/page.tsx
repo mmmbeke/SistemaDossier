@@ -17,23 +17,25 @@ import { useTranslation } from "@/providers/PreferencesProvider";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-type ResearchSourceUi = "gemini_web" | "lusha";
+type ResearchSourceUi = "gemini_web" | "pdl";
 
 export default function PersonResearchPage() {
   const { t } = useTranslation();
-  const [researchSource, setResearchSource] = useState<ResearchSourceUi>("lusha");
+  const [researchSource, setResearchSource] = useState<ResearchSourceUi>("pdl");
   const [fullName, setFullName] = useState("");
   const [jobArea, setJobArea] = useState("");
   const [company, setCompany] = useState("");
+  const [email, setEmail] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
   const [extraKeywords, setExtraKeywords] = useState("");
   const [maxProfiles, setMaxProfiles] = useState(1);
-  const [revealContactDetails, setRevealContactDetails] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<PersonResearchApiResponse | null>(null);
   const [showRaw, setShowRaw] = useState(false);
+  const usesEnrichment = researchSource === "pdl";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,17 +54,19 @@ export default function PersonResearchPage() {
     const payload: PersonResearchPayload = {
       full_name: name,
       research_source: researchSource,
-      max_profiles:
-        researchSource === "lusha" ? Math.min(5, Math.max(1, maxProfiles)) : 1,
-      reveal_contact_details: researchSource === "lusha" ? revealContactDetails : false,
+      max_profiles: usesEnrichment ? Math.min(5, Math.max(1, maxProfiles)) : 1,
     };
     const ja = jobArea.trim();
     const co = company.trim();
+    const em = email.trim();
+    const li = linkedinUrl.trim();
     const cu = country.trim();
     const ci = city.trim();
     const ex = extraKeywords.trim();
     if (ja) payload.job_area = ja;
     if (co) payload.company = co;
+    if (em) payload.email = em;
+    if (li) payload.linkedin_url = li;
     if (cu) payload.country = cu;
     if (ci) payload.city = ci;
     if (ex) payload.extra_keywords = ex;
@@ -110,14 +114,14 @@ export default function PersonResearchPage() {
                 <input
                   type="radio"
                   name="research_source"
-                  checked={researchSource === "lusha"}
-                  onChange={() => setResearchSource("lusha")}
+                  checked={researchSource === "pdl"}
+                  onChange={() => setResearchSource("pdl")}
                   className="mt-1"
                 />
                 <span>
-                  <span className="font-medium">{t("person_research.source_lusha")}</span>
+                  <span className="font-medium">{t("person_research.source_pdl")}</span>
                   <span className="mt-0.5 block text-xs" style={{ color: "var(--text-muted)" }}>
-                    {t("person_research.source_lusha_hint")}
+                    {t("person_research.source_pdl_hint")}
                   </span>
                 </span>
               </label>
@@ -161,6 +165,20 @@ export default function PersonResearchPage() {
               onChange={(e) => setCompany(e.target.value)}
             />
             <FormField
+              label={t("person_research.email")}
+              name="email"
+              placeholder={t("person_research.email_ph")}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <FormField
+              label={t("person_research.linkedin_url")}
+              name="linkedin_url"
+              placeholder={t("person_research.linkedin_url_ph")}
+              value={linkedinUrl}
+              onChange={(e) => setLinkedinUrl(e.target.value)}
+            />
+            <FormField
               label={t("person_research.country")}
               name="country"
               placeholder={t("person_research.country_ph")}
@@ -182,7 +200,7 @@ export default function PersonResearchPage() {
               onChange={(e) => setExtraKeywords(e.target.value)}
             />
 
-            {researchSource === "lusha" ? (
+            {usesEnrichment ? (
               <>
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
@@ -199,16 +217,6 @@ export default function PersonResearchPage() {
                     onChange={(e) => setMaxProfiles(Number(e.target.value))}
                   />
                 </div>
-                <label className="flex cursor-pointer items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-                  <input
-                    type="checkbox"
-                    checked={revealContactDetails}
-                    onChange={(e) => setRevealContactDetails(e.target.checked)}
-                    className="rounded border"
-                    style={{ borderColor: "var(--border-default)" }}
-                  />
-                  {t("person_research.reveal_contact_details")}
-                </label>
               </>
             ) : null}
 
@@ -282,7 +290,8 @@ export default function PersonResearchPage() {
           ) : null}
 
           {result &&
-          (result.filters_applied?.research_source === "lusha" ||
+          (result.filters_applied?.research_source === "pdl" ||
+            result.filters_applied?.research_source === "gemini_web" ||
             (Array.isArray(result.search_attempts) && result.search_attempts.length > 0) ||
             (Array.isArray(result.profile_urls) && result.profile_urls.length > 0)) ? (
             <DashboardCard title={t("person_research.section_raw")}>

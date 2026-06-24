@@ -11,6 +11,7 @@ from dossier.services.person_analysis_prompts import (
     format_meeting_context_block,
     person_dossier_system_prompt,
 )
+from dossier.services.lusha_profile_facts import format_lusha_verified_facts_block
 
 
 def _truncate_json(payload: Any, max_chars: int) -> str:
@@ -35,19 +36,29 @@ def _build_user_prompt(
     filters: dict[str, Any],
     bundle_json: str,
     meeting_context: dict[str, Any] | None = None,
+    lusha_verified_facts: dict[str, Any] | None = None,
+    enrichment_provider: str = "lusha",
 ) -> str:
     fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     cabecera = _header_line(filters)
     reunion_block = format_meeting_context_block(meeting_context)
+    verified_block = format_lusha_verified_facts_block(
+        lusha_verified_facts or {},
+        provider=enrichment_provider,
+    )
+    src = enrichment_provider.upper()
 
     return f"""Persona objeto del encargo: {cabecera}
 Fecha del análisis: {fecha}
 
-{reunion_block}Elabora el dossier siguiendo **exactamente** las 8 secciones del sistema (Ficha de identidad → Fuentes y nivel de confianza).
+{reunion_block}{verified_block}Elabora el dossier siguiendo **exactamente** las 8 secciones del sistema (Ficha de identidad → Fuentes y nivel de confianza).
 Incluye la tabla de análisis de riesgo de la sección 5.
 Completa la sección 6 si hay empresa indicada en el encargo o en el contexto de reunión.
 
-Usa exclusivamente el siguiente JSON como corpus de hechos (datos Lusha y contexto):
+**Prioridad de fuentes:** 1) bloque «DATOS VERIFICADOS {src}» arriba; 2) JSON ``perfiles``; 3) encargo manual.
+Si LinkedIn, email o teléfono aparecen en ese bloque, **debes** incluirlos en la sección 1 (nunca «No disponible»).
+
+Usa el siguiente JSON como corpus de hechos (datos {src} y contexto):
 
 {bundle_json}
 """
@@ -59,6 +70,8 @@ def analyze_person_profile_bundle(
     profiles: list[dict[str, Any]],
     posts_by_url: dict[str, Any],
     meeting_context: dict[str, Any] | None = None,
+    lusha_verified_facts: dict[str, Any] | None = None,
+    enrichment_provider: str = "lusha",
 ) -> str:
     max_chars = int(os.getenv("DEEPSEEK_PERSON_MAX_JSON_CHARS", os.getenv("GEMINI_PERSON_MAX_JSON_CHARS", "120000")))
     bundle: dict[str, Any] = {
@@ -73,6 +86,8 @@ def analyze_person_profile_bundle(
         filters=filters,
         bundle_json=bundle_json,
         meeting_context=meeting_context,
+        lusha_verified_facts=lusha_verified_facts,
+        enrichment_provider=enrichment_provider,
     )
     return generate_text_with_llm(
         user_prompt,

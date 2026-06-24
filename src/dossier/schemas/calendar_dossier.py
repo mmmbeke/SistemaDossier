@@ -13,3 +13,11 @@ class CalendarGenerarDossiersBody(BaseModel):
         description="Evento ya normalizado (desde listado); evita re-fetch por id en Outlook",
     )
     top: Optional[int] = Field(None, ge=1, le=10, description="Máximo de eventos si no hay event_id")
+    async_mode: bool = Field(
+        True,
+        description="Si true, encola la generación y responde de inmediato con job_id",
+    )
+    depth: Optional[str] = Field(
+        "standard",
+        description="Profundidad corporativa (basic=1, standard=3, deep=5 créditos)",
+    )

@@ -30,6 +30,8 @@ from dossier.api.auth_routes import (
     get_db_if_configured,
     router as auth_router,
 )
+from dossier.api.integrations_routes import router as integrations_router
+from dossier.api.dossier_job_routes import router as dossier_jobs_router
 from dossier.api.dossier_routes import router as dossiers_router
 from dossier.api.google_calendar import router as google_calendar_router
 from dossier.config import PROJECT_ROOT, load_env
@@ -64,7 +66,10 @@ from dossier.services.graph_calendar import (
     diagnostico_microsoft_calendar,
 )
 from dossier.services.calendar_automation_worker import start_calendar_automation_thread
+from dossier.services.dossier_generation_job_service import enqueue_calendar_dossier_job
+from dossier.services.dossier_generation_worker import start_dossier_generation_worker
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
+from dossier.schemas.dossier_generation import DEPTH_CREDITS, DossierDepth
 
 load_env()
 
@@ -125,9 +130,11 @@ async def lifespan(app: FastAPI):
         _cors_origins,
     )
     stop_automation = start_calendar_automation_thread()
+    stop_generation = start_dossier_generation_worker()
     try:
         yield
     finally:
+        stop_generation()
         stop_automation()
 
 
@@ -183,6 +190,8 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(dossiers_router)
+app.include_router(dossier_jobs_router)
+app.include_router(integrations_router)
 app.include_router(google_calendar_router)
 
 CLIENT_ID = os.getenv("MICROSOFT_CLIENT_ID")
@@ -343,7 +352,10 @@ def read_root():
             "companies_house": _status("COMPANIES_HOUSE_API_KEY"),
             "gemini": _status("DEEPSEEK_API_KEY"),
             "deepseek": _status("DEEPSEEK_API_KEY"),
-            "lusha": _status("LUSHA_API_KEY"),
+            "pdl": "configurada ✅"
+            if (os.getenv("PDL_API_KEY") or os.getenv("PEOPLE_DATA_LABS_API_KEY") or "").strip()
+            else "no configurada ❌",
+            "person_research_provider": (os.getenv("PERSON_RESEARCH_PROVIDER") or "pdl").strip().lower(),
             "openai": _status("OPENAI_API_KEY"),
             "google_oauth": _status("GOOGLE_CLIENT_ID"),
             "microsoft": _status("MICROSOFT_CLIENT_ID"),
@@ -807,6 +819,54 @@ def _run_calendar_dossier_batch(
     return dossiers
 
 
+def _normalize_calendar_depth(raw: str | None) -> DossierDepth:
+    depth = (raw or "standard").strip().lower()
+    if depth in DEPTH_CREDITS:
+        return depth  # type: ignore[return-value]
+    return "standard"
+
+
+def _enqueue_calendar_dossier_jobs(
+    db: Session,
+    *,
+    user: User,
+    org: Organization,
+    reuniones: list,
+    calendar_provider: str,
+    depth: DossierDepth,
+) -> dict:
+    jobs = []
+    for reunion in reuniones:
+        job = enqueue_calendar_dossier_job(
+            db,
+            user=user,
+            org=org,
+            reunion=reunion,
+            calendar_provider=calendar_provider,
+            depth=depth,
+        )
+        jobs.append(job)
+    first = jobs[0]
+    return {
+        "async": True,
+        "job_id": str(first.id),
+        "status": first.status,
+        "meeting_label": first.meeting_label,
+        "credits_estimated": first.credits_estimated,
+        "jobs": [
+            {
+                "job_id": str(j.id),
+                "status": j.status,
+                "meeting_label": j.meeting_label,
+                "credits_estimated": j.credits_estimated,
+                "external_event_id": j.external_event_id,
+            }
+            for j in jobs
+        ],
+        "mensaje": "Generación en curso. Puedes navegar; te avisaremos cuando esté listo.",
+    }
+
+
 def _resolve_outlook_reuniones(
     token: str,
     *,
@@ -948,6 +1008,17 @@ def api_generar_dossiers_desde_calendario_post(
             "dossiers": [],
         }
 
+    depth = _normalize_calendar_depth(body.depth)
+    if body.async_mode:
+        return _enqueue_calendar_dossier_jobs(
+            db,
+            user=user,
+            org=org,
+            reuniones=reuniones,
+            calendar_provider="microsoft",
+            depth=depth,
+        )
+
     dossiers = _run_calendar_dossier_batch(
         db,
         user=user,
@@ -1038,6 +1109,17 @@ def api_generar_dossiers_desde_google_calendar_post(
             "mensaje": "No hay eventos próximos en Google Calendar.",
             "dossiers": [],
         }
+
+    depth = _normalize_calendar_depth(body.depth)
+    if body.async_mode:
+        return _enqueue_calendar_dossier_jobs(
+            db,
+            user=user,
+            org=org,
+            reuniones=reuniones,
+            calendar_provider="google",
+            depth=depth,
+        )
 
     dossiers = _run_calendar_dossier_batch(
         db,

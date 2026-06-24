@@ -5,8 +5,6 @@ import PrimaryButton from "@/components/PrimaryButton";
 import {
   DossierApiError,
   fetchCalendarDiagnostico,
-  fetchGenerarDossiersDesdeCalendario,
-  fetchGenerarDossiersDesdeGoogleCalendar,
   fetchGoogleCalendarEventos,
   fetchGoogleIntegrationStartAsJson,
   fetchMicrosoftIntegrationStartAsJson,
@@ -17,6 +15,7 @@ import {
   type OutlookReunionApi,
 } from "@/lib/dossier-api";
 import CalendarDossierPreview from "@/components/dashboard/CalendarDossierPreview";
+import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { Locale } from "@/i18n/types";
 import type { TranslationKey } from "@/i18n/types";
@@ -140,8 +139,8 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [includePast, setIncludePast] = useState(false);
-  const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [genErr, setGenErr] = useState<string | null>(null);
+  const { enqueueCalendarJob, isEventGenerating, getJobForEvent } = useDossierJobs();
   const [diagnoseLoading, setDiagnoseLoading] = useState(false);
   const [diagnoseJson, setDiagnoseJson] = useState<string | null>(null);
   const [preview, setPreview] = useState<{
@@ -152,6 +151,7 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
     savedCorporate?: CalendarSavedDossierRef;
     savedPerson?: CalendarSavedDossierRef;
     savedFolder?: { id: string; title: string };
+    lushaWarnings?: string[];
   } | null>(null);
 
   const loadMeetings = useCallback(async () => {
@@ -218,36 +218,44 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
       setGenErr(t(keys.noEventId));
       return;
     }
+    if (isEventGenerating(id)) return;
     setGenErr(null);
-    setGeneratingId(id);
     try {
-      const data =
-        provider === "google"
-          ? await fetchGenerarDossiersDesdeGoogleCalendar({ eventId: id, reunion: r })
-          : await fetchGenerarDossiersDesdeCalendario({ eventId: id, reunion: r });
-      const first = data.dossiers[0];
-      const corporate = first?.dossier_corporativo ?? null;
-      const person = first?.dossier_persona ?? null;
-      if (!first || (!corporate?.trim() && !person?.trim() && !first.dossier_generado?.trim())) {
-        setGenErr(t(keys.generateEmpty));
-        return;
-      }
+      await enqueueCalendarJob(provider, { eventId: id, reunion: r });
+    } catch (e) {
+      if (e instanceof DossierApiError) setGenErr(e.message || t(keys.generateError));
+      else setGenErr(t(keys.generateError));
+    }
+  }
+
+  useEffect(() => {
+    for (const r of rows) {
+      const id = r.id?.trim();
+      if (!id) continue;
+      const job = getJobForEvent(id);
+      if (job?.status !== "completed" || !job.result) continue;
+      const first = job.result;
+      const corporate = first.dossier_corporativo ?? null;
+      const person = first.dossier_persona ?? null;
+      const research = first.dossier_persona_research as
+        | { warnings?: string[] }
+        | undefined;
+      const lushaWarnings = Array.isArray(research?.warnings)
+        ? research!.warnings!.filter((w): w is string => typeof w === "string" && w.trim().length > 0)
+        : undefined;
+      if (!corporate?.trim() && !person?.trim() && !first.dossier_generado?.trim()) continue;
       setPreview({
         eventKey: id,
         tema: first.reunion?.tema || r.tema || "—",
         corporate,
         person,
+        lushaWarnings,
         savedCorporate: first.saved_dossiers?.corporate,
         savedPerson: first.saved_dossiers?.person,
         savedFolder: first.saved_dossiers?.folder,
       });
-    } catch (e) {
-      if (e instanceof DossierApiError) setGenErr(e.message || t(keys.generateError));
-      else setGenErr(t(keys.generateError));
-    } finally {
-      setGeneratingId(null);
     }
-  }
+  }, [rows, getJobForEvent]);
 
   async function onDiagnose() {
     setDiagnoseLoading(true);
@@ -426,7 +434,7 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  disabled={!r.id || generatingId !== null}
+                  disabled={!r.id || isEventGenerating(r.id)}
                   onClick={() => void onGenerateDossier(r)}
                   className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                   style={{
@@ -434,7 +442,7 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
                       "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
                   }}
                 >
-                  {generatingId === r.id ? t(keys.generating) : t(keys.generateDossier)}
+                  {isEventGenerating(r.id) ? t(keys.generating) : t(keys.generateDossier)}
                 </button>
               </div>
               {preview ? (
@@ -444,6 +452,7 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
                   tema={preview.tema}
                   corporate={preview.corporate}
                   person={preview.person}
+                  lushaWarnings={preview.lushaWarnings}
                   savedCorporate={preview.savedCorporate}
                   savedPerson={preview.savedPerson}
                   savedFolder={preview.savedFolder}

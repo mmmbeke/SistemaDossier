@@ -110,6 +110,12 @@ def extract_lusha_contacts(payload: Any, *, max_items: int = 8) -> list[dict[str
         if len(out) >= max_items:
             return
         if isinstance(obj, dict):
+            social = obj.get("socialLinks") or obj.get("social_links")
+            if isinstance(social, dict):
+                for key in ("linkedin", "linkedIn", "linked_in"):
+                    val = social.get(key)
+                    if isinstance(val, str):
+                        maybe_add(val)
             if _contact_id(obj) or obj.get("firstName") or obj.get("fullName"):
                 add_contact(obj)
             for val in obj.values():
