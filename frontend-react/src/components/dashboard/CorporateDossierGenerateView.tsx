@@ -18,7 +18,8 @@ import {
   type CorporateCompanySearchResponse,
 } from "@/lib/dossier-api";
 import { DEPTH_OPTIONS, type DossierDepth, stepsForDepth } from "@/lib/mock-generation";
-import { useTranslation } from "@/providers/PreferencesProvider";
+import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 
 export type CorporateDossierGenerateViewProps = {
@@ -89,6 +90,7 @@ export default function CorporateDossierGenerateView({
 }: CorporateDossierGenerateViewProps) {
   const router = useRouter();
   const { t } = useTranslation();
+  const { preferences } = usePreferences();
   const stepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [query, setQuery] = useState(initialQuery);
   const [email, setEmail] = useState("");
@@ -190,6 +192,7 @@ export default function CorporateDossierGenerateView({
         subject_email: email.trim() || undefined,
         depth,
         resolution: selectedResolution ?? undefined,
+        output_language: resolveDossierOutputLanguage(preferences),
       });
       clearStepInterval();
       setCurrentStepIndex(Math.max(0, steps.length - 1));

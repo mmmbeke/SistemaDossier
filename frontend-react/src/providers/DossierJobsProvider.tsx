@@ -22,7 +22,8 @@ import {
   type DossierGenerationJobStatus,
   type OutlookReunionApi,
 } from "@/lib/dossier-api";
-import { useTranslation } from "@/providers/PreferencesProvider";
+import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 
 const STORAGE_KEY = "dossier_active_job_ids";
 const POLL_MS = 3000;
@@ -77,6 +78,7 @@ function folderHref(job: TrackedJob): string | null {
 }
 
 export function DossierJobsProvider({ children }: { children: ReactNode }) {
+  const { preferences } = usePreferences();
   const [jobs, setJobs] = useState<TrackedJob[]>([]);
   const jobsRef = useRef(jobs);
   jobsRef.current = jobs;
@@ -166,6 +168,7 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
       const res = await enqueue({
         eventId: options.eventId,
         reunion: options.reunion,
+        output_language: resolveDossierOutputLanguage(preferences),
       });
       if (!res.job_id) {
         throw new DossierApiError(502, "La API no devolvió job_id.");
@@ -187,7 +190,7 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
       });
       return res.job_id;
     },
-    [mergeJob, syncActiveIds],
+    [mergeJob, preferences, syncActiveIds],
   );
 
   const isEventGenerating = useCallback(

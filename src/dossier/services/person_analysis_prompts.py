@@ -107,7 +107,7 @@ Lista de fuentes utilizadas con indicación del nivel de confianza:
 ---
 
 ## REGLAS DE FORMATO
-- Redacta en **español**.
+- Redacta en el idioma indicado por la configuración de salida del dossier.
 - Usa encabezados claros con "###" (y "####" en subsecciones 6.x).
 - Las alertas van siempre entre corchetes: [ALERTA LEVE], [ALERTA MODERADA], [ALERTA CRÍTICA], [INCONSISTENCIA], [OBSERVACIÓN], [INFERENCIA]
 - No uses lenguaje especulativo sin marcar la inferencia
@@ -129,11 +129,18 @@ Cuando exista contexto de reunión de calendario:
 PERSON_EXHAUSTIVE_SYSTEM_PROMPT = _PERSON_DOSSIER_SYSTEM
 
 
-def person_dossier_system_prompt(*, meeting_context: dict[str, Any] | None = None) -> str:
+def person_dossier_system_prompt(
+    *,
+    meeting_context: dict[str, Any] | None = None,
+    output_language: str = "es",
+) -> str:
     """Prompt de sistema para dossier de persona (Lusha + OSINT / DeepSeek)."""
+    from dossier.services.output_language import apply_output_language_to_system_prompt
+
+    base = _PERSON_DOSSIER_SYSTEM
     if meeting_context and _meeting_context_active(meeting_context):
-        return _PERSON_DOSSIER_SYSTEM + _MEETING_ADDENDUM
-    return _PERSON_DOSSIER_SYSTEM
+        base += _MEETING_ADDENDUM
+    return apply_output_language_to_system_prompt(base, output_language)
 
 
 def _meeting_context_active(ctx: dict[str, Any]) -> bool:

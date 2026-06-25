@@ -34,6 +34,10 @@ from dossier.api.integrations_routes import router as integrations_router
 from dossier.api.dossier_job_routes import router as dossier_jobs_router
 from dossier.api.dossier_routes import router as dossiers_router
 from dossier.api.google_calendar import router as google_calendar_router
+from dossier.cache.corporate_dossier_redis import (
+    dossier_corporate_redis_health,
+    warmup_corporate_dossier_redis,
+)
 from dossier.config import PROJECT_ROOT, load_env
 from dossier.db import is_database_configured
 from dossier.db.connection import get_engine
@@ -51,6 +55,7 @@ from dossier.services.calendar_event_dossiers import (
     generate_dossiers_from_calendar_event,
     persist_calendar_dossiers,
 )
+from dossier.services.output_language import normalize_output_language, resolve_output_language_from_user_locale
 from dossier.services.calendar_integrations import (
     upsert_google_calendar_tokens,
     upsert_microsoft_calendar_tokens,
@@ -124,6 +129,7 @@ async def lifespan(app: FastAPI):
 
             engine = get_engine()
             Base.metadata.create_all(bind=engine)
+    warmup_corporate_dossier_redis()
     logger.info(
         "CORS: allow_origin_regex=%s, origins=%s",
         "on" if _cors_origin_regex else "off",
@@ -790,6 +796,21 @@ def api_diagnostico_google_calendario(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+def _calendar_output_language(user: User, explicit: str | None) -> str:
+    return normalize_output_language(explicit or user.locale)
+
+
+def _reunion_snapshot_with_output_language(
+    reunion: dict,
+    *,
+    user: User,
+    output_language: str | None,
+) -> dict:
+    snap = dict(reunion)
+    snap["_output_language"] = _calendar_output_language(user, output_language)
+    return snap
+
+
 def _run_calendar_dossier_batch(
     db: Session,
     *,
@@ -798,13 +819,17 @@ def _run_calendar_dossier_batch(
     reuniones: list,
     calendar_provider: str,
     org_ctx: str,
+    output_language: str | None = None,
 ) -> list:
     dossiers = []
+    out_lang = _calendar_output_language(user, output_language)
     for reunion in reuniones:
         t0 = time.perf_counter()
         item = generate_dossiers_from_calendar_event(
             reunion,
             organization_context_block=org_ctx,
+            organization_id=org.id,
+            output_language=out_lang,
         )
         elapsed_ms = int((time.perf_counter() - t0) * 1000)
         item = persist_calendar_dossiers(
@@ -834,14 +859,20 @@ def _enqueue_calendar_dossier_jobs(
     reuniones: list,
     calendar_provider: str,
     depth: DossierDepth,
+    output_language: str | None = None,
 ) -> dict:
     jobs = []
     for reunion in reuniones:
+        snap = _reunion_snapshot_with_output_language(
+            reunion,
+            user=user,
+            output_language=output_language,
+        )
         job = enqueue_calendar_dossier_job(
             db,
             user=user,
             org=org,
-            reunion=reunion,
+            reunion=snap,
             calendar_provider=calendar_provider,
             depth=depth,
         )
@@ -1017,6 +1048,7 @@ def api_generar_dossiers_desde_calendario_post(
             reuniones=reuniones,
             calendar_provider="microsoft",
             depth=depth,
+            output_language=body.output_language,
         )
 
     dossiers = _run_calendar_dossier_batch(
@@ -1026,6 +1058,7 @@ def api_generar_dossiers_desde_calendario_post(
         reuniones=reuniones,
         calendar_provider="microsoft",
         org_ctx=org_ctx,
+        output_language=body.output_language,
     )
 
     return {
@@ -1119,6 +1152,7 @@ def api_generar_dossiers_desde_google_calendar_post(
             reuniones=reuniones,
             calendar_provider="google",
             depth=depth,
+            output_language=body.output_language,
         )
 
     dossiers = _run_calendar_dossier_batch(
@@ -1128,6 +1162,7 @@ def api_generar_dossiers_desde_google_calendar_post(
         reuniones=reuniones,
         calendar_provider="google",
         org_ctx=org_ctx,
+        output_language=body.output_language,
     )
 
     return {
@@ -1304,6 +1339,7 @@ def health_check():
             "vercel_origin_regex": bool(_cors_origin_regex),
             "allowed_origins": _cors_origins,
         },
+        "dossier_redis": dossier_corporate_redis_health(),
     }
 
 

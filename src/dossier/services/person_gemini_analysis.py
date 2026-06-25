@@ -72,6 +72,7 @@ def analyze_person_profile_bundle(
     meeting_context: dict[str, Any] | None = None,
     lusha_verified_facts: dict[str, Any] | None = None,
     enrichment_provider: str = "lusha",
+    output_language: str = "es",
 ) -> str:
     max_chars = int(os.getenv("DEEPSEEK_PERSON_MAX_JSON_CHARS", os.getenv("GEMINI_PERSON_MAX_JSON_CHARS", "120000")))
     bundle: dict[str, Any] = {
@@ -91,5 +92,8 @@ def analyze_person_profile_bundle(
     )
     return generate_text_with_llm(
         user_prompt,
-        system_instruction=person_dossier_system_prompt(meeting_context=meeting_context),
+        system_instruction=person_dossier_system_prompt(
+            meeting_context=meeting_context,
+            output_language=output_language,
+        ),
     )

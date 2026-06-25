@@ -15,12 +15,13 @@ from uuid import UUID
 from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
-from dossier.db.models import CalendarEvent, CalendarIntegration, Dossier, Organization
+from dossier.db.models import CalendarEvent, CalendarIntegration, Dossier, Organization, User
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.services.calendar_event_dossiers import (
     generate_dossiers_from_calendar_event,
     persist_calendar_dossiers,
 )
+from dossier.services.output_language import resolve_output_language_from_user_locale
 from dossier.services.google_calendar_api import (
     listar_reuniones_google,
     obtener_reunion_google_por_id,
@@ -331,12 +332,16 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
 
         org = db.get(Organization, event.organization_id)
         org_ctx = format_dossier_context_for_prompt(org) if org else ""
+        user = db.get(User, event.user_id)
+        out_lang = resolve_output_language_from_user_locale(user.locale if user else None)
 
         t0 = time.perf_counter()
         try:
             result = generate_dossiers_from_calendar_event(
                 reunion,
                 organization_context_block=org_ctx or None,
+                organization_id=event.organization_id,
+                output_language=out_lang,
             )
             elapsed_ms = int((time.perf_counter() - t0) * 1000)
             persist_calendar_dossiers(

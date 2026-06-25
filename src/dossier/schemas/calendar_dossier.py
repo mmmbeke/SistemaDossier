@@ -21,3 +21,7 @@ class CalendarGenerarDossiersBody(BaseModel):
         "standard",
         description="Profundidad corporativa (basic=1, standard=3, deep=5 créditos)",
     )
+    output_language: Optional[str] = Field(
+        None,
+        description="Código de idioma de salida (es, en, …). Si se omite, usa locale de cuenta.",
+    )

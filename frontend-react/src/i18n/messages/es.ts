@@ -210,6 +210,7 @@ const messages = {
   "person_research.no_analysis":
     "Sin informe: revisa la configuración del servidor (clave de modelo y búsqueda web) o los avisos anteriores.",
   "person_research.saved_title": "Guardado en Mis Dossiers",
+  "person_research.cache_badge": "Redis cache · prueba",
   "person_research.saved_body":
     "Este informe quedó registrado en tu organización. Puedes abrirlo cuando quieras desde el listado.",
   "person_research.saved_open": "Abrir dossier",
@@ -271,6 +272,7 @@ const messages = {
   "detail.refresh": "Actualizar dossier",
   "detail.api_no_subject": "Sin nombre",
   "detail.api_dates": "Creado {created} · Actualizado {updated}",
+  "detail.cache_badge": "Redis · prueba",
   "detail.api_report_title": "Informe generado por IA",
   "detail.api_no_body": "No hay cuerpo de informe guardado para este dossier.",
   "detail.api_meta_title": "Metadatos de generación",
@@ -424,6 +426,24 @@ const messages = {
     "Sin descripción en el calendario. Añade en Outlook «Empresa: …» y «Contacto:» o «Nombre: …» en el cuerpo del evento.",
   "overview.calendar_description_no_contact":
     "No se detecta «Contacto:» ni «Nombre:» en la descripción; solo se generará el dossier de empresa.",
+  "calendar.guide.summary": "Guía de formato para reuniones",
+  "calendar.guide.intro":
+    "Pegá este formato en el cuerpo del evento (Outlook o Google Calendar) para generar dossiers de empresa y persona automáticamente. Una línea por campo.",
+  "calendar.guide.template_title": "Ejemplo para copiar",
+  "calendar.guide.copy": "Copiar ejemplo",
+  "calendar.guide.copied": "Copiado",
+  "calendar.guide.fields_title": "Etiquetas aceptadas (español o inglés)",
+  "calendar.guide.field_company":
+    "Empresa: Empresa, Company, Cliente, Organization…",
+  "calendar.guide.field_contact":
+    "Persona: Contacto, Nombre, Name, Contact, Reunión con…",
+  "calendar.guide.field_job":
+    "Cargo: Cargo, Puesto, Rol, Título, Área…",
+  "calendar.guide.field_email": "Email: nombre@empresa.com (opcional, mejora el match)",
+  "calendar.guide.field_country": "País: País, Country… (opcional)",
+  "calendar.guide.subject_title": "Asunto (solo empresa)",
+  "calendar.guide.subject_hint":
+    "Si solo ponés la empresa en el asunto, la detectamos con patrones como:",
   "overview.calendar_enrichment_diagnostics": "PDL / fuentes de datos",
   "overview.microsoft_oauth_ok": "Outlook conectado correctamente.",
   "overview.microsoft_oauth_error": "Falló la conexión con Outlook.",
@@ -624,7 +644,7 @@ const messages = {
   "settings.timezone": "Zona Horaria",
   "settings.date_format": "Formato de Fecha",
   "settings.output_language": "Idioma de Salida del Dossier",
-  "output.auto": "Detectar automáticamente desde el participante",
+  "output.auto": "Español (predeterminado)",
   "output.english": "Siempre Inglés",
   "output.match": "Igualar idioma de la interfaz",
   "settings.output_hint": "Idioma usado al generar los informes de inteligencia",

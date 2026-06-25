@@ -29,19 +29,23 @@ function parseDossierData(data: unknown): {
   body: string;
   pipeline: string | null;
   success: boolean | null;
+  cacheHit: boolean;
 } {
   if (!data || typeof data !== "object") {
     return {
       body: "",
       pipeline: null,
       success: null,
+      cacheHit: false,
     };
   }
   const o = data as Record<string, unknown>;
+  const cache = o.cache && typeof o.cache === "object" ? (o.cache as Record<string, unknown>) : null;
   return {
     body: typeof o.body === "string" ? o.body : "",
     pipeline: typeof o.pipeline === "string" ? o.pipeline : null,
     success: typeof o.success === "boolean" ? o.success : null,
+    cacheHit: cache?.hit === true,
   };
 }
 
@@ -151,6 +155,18 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             >
               {statusFailed ? t("dossiers.status_failed") : dossier.status}
             </span>
+            {meta.cacheHit ? (
+              <span
+                className="rounded-full border px-3 py-0.5 text-xs font-semibold uppercase tracking-wide"
+                style={{
+                  borderColor: "rgba(56,189,248,0.35)",
+                  color: "#7dd3fc",
+                  backgroundColor: "rgba(56,189,248,0.08)",
+                }}
+              >
+                {t("detail.cache_badge")}
+              </span>
+            ) : null}
           </div>
           <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
             {dossier.subject_name || t("detail.api_no_subject")}

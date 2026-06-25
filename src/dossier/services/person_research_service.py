@@ -66,7 +66,11 @@ def run_person_research(
     *,
     organization_context_block: str | None = None,
     meeting_context: dict[str, Any] | None = None,
+    output_language: str | None = None,
 ) -> dict[str, Any]:
+    from dossier.services.output_language import normalize_output_language
+
+    out_lang = normalize_output_language(output_language or req.output_language)
     warnings: list[str] = []
     gemini_only = req.research_source == PersonResearchSource.gemini_web
     research_mode: str = "gemini_web" if gemini_only else "pdl_plus_gemini"
@@ -101,6 +105,7 @@ def run_person_research(
             md_web = analyze_person_with_google_search(
                 filters=filters_gem,
                 meeting_context=meeting_context,
+                output_language=out_lang,
             )
             gemini_google_search_used = True
             if not gemini_only and not profiles:
@@ -137,6 +142,7 @@ def run_person_research(
                 meeting_context=meeting_context,
                 lusha_verified_facts=verified_facts,
                 enrichment_provider="pdl",
+                output_language=out_lang,
             )
             if md_web and not gemini_md:
                 gemini_md = md_web
@@ -184,6 +190,7 @@ def run_person_research(
             "include_posts": req.include_posts,
             "research_source": req.research_source.value,
             "research_mode": research_mode,
+            "output_language": out_lang,
             "enrichment_provider": "pdl" if not gemini_only else None,
             "pdl_used": not gemini_only,
             "profiles_count": len(profiles),

@@ -15,6 +15,7 @@ import {
   type OutlookReunionApi,
 } from "@/lib/dossier-api";
 import CalendarDossierPreview from "@/components/dashboard/CalendarDossierPreview";
+import CalendarMeetingFormatGuide from "@/components/dashboard/CalendarMeetingFormatGuide";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { Locale } from "@/i18n/types";
@@ -336,6 +337,8 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
         </div>
       )}
 
+      {token && connected ? <CalendarMeetingFormatGuide /> : null}
+
       {!token ? (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
           {t("overview.activity_login_hint")}
@@ -421,14 +424,20 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
                     {descripcion}
                   </pre>
                 ) : (
-                  <p className="mt-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-amber-100/90">
-                    {t("overview.calendar_description_empty")}
-                  </p>
+                  <div className="mt-1">
+                    <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-amber-100/90">
+                      {t("overview.calendar_description_empty")}
+                    </p>
+                    <CalendarMeetingFormatGuide variant="inline" defaultOpen />
+                  </div>
                 )}
                 {descripcion && !hasContacto ? (
-                  <p className="mt-1 text-amber-200/85">
-                    {t("overview.calendar_description_no_contact")}
-                  </p>
+                  <div className="mt-1">
+                    <p className="text-amber-200/85">
+                      {t("overview.calendar_description_no_contact")}
+                    </p>
+                    <CalendarMeetingFormatGuide variant="inline" defaultOpen />
+                  </div>
                 ) : null}
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">

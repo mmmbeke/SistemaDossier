@@ -26,6 +26,7 @@ from dossier.services.calendar_event_dossiers import (
     parse_calendar_event_for_dossiers,
     persist_calendar_dossiers,
 )
+from dossier.services.output_language import normalize_output_language
 from dossier.services.google_calendar_api import obtener_reunion_google_por_id
 from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
 from dossier.services.graph_calendar import merge_reunion_payload, obtener_reunion_por_id
@@ -170,15 +171,22 @@ def _refresh_reunion_for_job(
     return base
 
 
-def _credits_consumed_from_saved(saved: dict[str, Any], *, depth: DossierDepth, charge: bool) -> int:
+def _credits_consumed_from_saved(
+    saved: dict[str, Any],
+    *,
+    depth: DossierDepth,
+    charge: bool,
+    result: dict[str, Any] | None = None,
+) -> int:
     if not charge:
         return 0
+    r = result or {}
     total = 0
     corp = saved.get("corporate")
-    if corp and corp.get("status") == "complete":
+    if corp and corp.get("status") == "complete" and not r.get("corporate_cache_hit"):
         total += DEPTH_CREDITS[depth]
     person = saved.get("person")
-    if person and person.get("status") == "complete":
+    if person and person.get("status") == "complete" and not r.get("person_cache_hit"):
         total += PERSON_IDENTITY_CREDITS
     return total
 
@@ -211,9 +219,14 @@ def process_dossier_generation_job(db: Session, job_id: UUID) -> None:
         charge = credit_charging_enabled()
 
         t0 = time.perf_counter()
+        snap_lang = reunion.get("_output_language") if isinstance(reunion, dict) else None
+        out_lang = normalize_output_language(snap_lang or user.locale)
         item = generate_dossiers_from_calendar_event(
             reunion,
             organization_context_block=org_ctx,
+            organization_id=org.id,
+            depth=depth,
+            output_language=out_lang,
         )
         elapsed_ms = int((time.perf_counter() - t0) * 1000)
         item = persist_calendar_dossiers(
@@ -228,7 +241,9 @@ def process_dossier_generation_job(db: Session, job_id: UUID) -> None:
         )
 
         saved = item.get("saved_dossiers") or {}
-        job.credits_consumed = _credits_consumed_from_saved(saved, depth=depth, charge=charge)
+        job.credits_consumed = _credits_consumed_from_saved(
+            saved, depth=depth, charge=charge, result=item
+        )
         job.result_payload = item
         job.status = "completed"
         job.completed_at = datetime.now(timezone.utc)

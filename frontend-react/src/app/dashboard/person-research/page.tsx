@@ -13,7 +13,8 @@ import {
   type PersonResearchApiResponse,
   type PersonResearchPayload,
 } from "@/lib/dossier-api";
-import { useTranslation } from "@/providers/PreferencesProvider";
+import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
+import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -21,6 +22,7 @@ type ResearchSourceUi = "gemini_web" | "pdl";
 
 export default function PersonResearchPage() {
   const { t } = useTranslation();
+  const { preferences } = usePreferences();
   const [researchSource, setResearchSource] = useState<ResearchSourceUi>("pdl");
   const [fullName, setFullName] = useState("");
   const [jobArea, setJobArea] = useState("");
@@ -55,6 +57,7 @@ export default function PersonResearchPage() {
       full_name: name,
       research_source: researchSource,
       max_profiles: usesEnrichment ? Math.min(5, Math.max(1, maxProfiles)) : 1,
+      output_language: resolveDossierOutputLanguage(preferences),
     };
     const ja = jobArea.trim();
     const co = company.trim();
@@ -245,6 +248,18 @@ export default function PersonResearchPage() {
 
           {result?.saved_dossier?.id ? (
             <DashboardCard title={t("person_research.saved_title")}>
+              {result.dossier_source === "redis_cache" ? (
+                <div
+                  className="mb-3 inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold"
+                  style={{
+                    borderColor: "rgba(56,189,248,0.35)",
+                    color: "#7dd3fc",
+                    backgroundColor: "rgba(56,189,248,0.08)",
+                  }}
+                >
+                  {t("person_research.cache_badge")}
+                </div>
+              ) : null}
               <p className="mb-3 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
                 {t("person_research.saved_body")}
               </p>

@@ -604,6 +604,8 @@ export type CreateCorporateDossierPayload = {
   subject_email?: string;
   depth: "basic" | "standard" | "deep";
   resolution?: CorporateCompanyResolutionPayload;
+  /** Código de idioma de salida (es, en, pt, …) desde Configuración. */
+  output_language?: string;
 };
 
 /** Coincidencias UK/US para desambiguar el nombre de empresa. */
@@ -634,6 +636,7 @@ export type CreateCorporateDossierResponse = {
   credits_consumed: number;
   organization_credits_balance: number;
   generation_duration_ms: number | null;
+  cache_hit?: boolean;
 };
 
 /** Búsqueda de empresas (UK + US) para elegir el registro correcto. */
@@ -682,6 +685,8 @@ export type PersonResearchPayload = {
   include_posts?: boolean;
   /** `gemini_web` | `pdl` (por defecto) */
   research_source?: "gemini_web" | "pdl";
+  /** Código de idioma de salida (es, en, pt, …) desde Configuración. */
+  output_language?: string;
 };
 
 export type PdlHealthResponse = {
@@ -714,6 +719,8 @@ export type PersonResearchApiResponse = {
   warnings: string[];
   /** Presente si se guardó fila en `dossiers` (hay cuerpo de informe). */
   saved_dossier: PersonSavedDossier | null;
+  /** `redis_cache` = reutilizado desde Redis; `generated` = pipeline ejecutado. */
+  dossier_source?: "generated" | "redis_cache";
 };
 
 export async function postPersonResearch(
@@ -1335,6 +1342,7 @@ export async function fetchEnqueueOutlookCalendarDossier(options?: {
   reunion?: OutlookReunionApi;
   top?: number;
   depth?: "basic" | "standard" | "deep";
+  output_language?: string;
 }): Promise<EnqueueCalendarDossierResponse> {
   return postCalendarGenerarDossiers(`${getApiBaseUrl()}/calendario/generar-dossiers-outlook`, {
     event_id: options?.eventId ?? null,
@@ -1342,6 +1350,7 @@ export async function fetchEnqueueOutlookCalendarDossier(options?: {
     top: options?.top ?? null,
     async_mode: true,
     depth: options?.depth ?? "standard",
+    output_language: options?.output_language ?? null,
   });
 }
 
@@ -1350,6 +1359,7 @@ export async function fetchEnqueueGoogleCalendarDossier(options?: {
   reunion?: OutlookReunionApi;
   top?: number;
   depth?: "basic" | "standard" | "deep";
+  output_language?: string;
 }): Promise<EnqueueCalendarDossierResponse> {
   return postCalendarGenerarDossiers(`${getApiBaseUrl()}/calendario/generar-dossiers-google`, {
     event_id: options?.eventId ?? null,
@@ -1357,6 +1367,7 @@ export async function fetchEnqueueGoogleCalendarDossier(options?: {
     top: options?.top ?? null,
     async_mode: true,
     depth: options?.depth ?? "standard",
+    output_language: options?.output_language ?? null,
   });
 }
 

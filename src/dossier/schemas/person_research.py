@@ -46,6 +46,11 @@ class PersonResearchRequest(BaseModel):
         False,
         description="Reservado (PDL incluye contacto en el match). Ignorado.",
     )
+    output_language: str | None = Field(
+        default=None,
+        max_length=16,
+        description="Idioma del informe (es, en, pt, …). Desde Configuración → Idioma de salida.",
+    )
     include_posts: bool = Field(
         False,
         description="Reservado; PDL no expone publicaciones en este flujo.",
