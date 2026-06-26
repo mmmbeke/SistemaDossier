@@ -497,7 +497,9 @@ const messages = {
   "automation.rules_desc": "Cuánto antes del inicio se generan los dossiers de empresa y persona.",
   "automation.before_meeting": "Generar dossier antes de la reunión",
   "automation.saving": "Guardando…",
-  "automation.advance_env_active": "Activo en el servidor: {minutes} min (variable CALENDAR_DEFAULT_ADVANCE_MINUTES).",
+  "automation.connect_calendar_hint":
+    "Conecta Google u Outlook para guardar la anticipación y programar dossiers automáticos.",
+  "automation.advance_effective": "Se generarán {minutes} min antes de cada reunión.",
   "automation.status_on": "Automatización activa.",
   "automation.status_off": "Automatización desactivada en el servidor.",
   "automation.queue_summary": "Reuniones en cola: {count}. Próxima generación: {next}.",

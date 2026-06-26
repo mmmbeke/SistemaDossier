@@ -1113,6 +1113,7 @@ def calendar_automation_status(
         automation_enabled,
         default_advance_minutes,
         poll_interval_seconds,
+        user_advance_minutes,
     )
     from dossier.db.models import CalendarEvent, CalendarIntegration
 
@@ -1124,10 +1125,11 @@ def calendar_automation_status(
         )
     ).scalars().all()
 
-    env_raw = os.getenv("CALENDAR_DEFAULT_ADVANCE_MINUTES", "").strip()
-    advance_from_env = env_raw.isdigit()
-    stored_advances = [i.advance_minutes for i in integrations if i.advance_minutes]
-    stored = stored_advances[0] if stored_advances else 20
+    effective = user_advance_minutes(integrations)
+    stored_advances = [
+        i.advance_minutes for i in integrations if i.advance_minutes in {15, 20, 30, 60, 1440}
+    ]
+    stored = stored_advances[0] if stored_advances else effective
 
     pending = db.execute(
         select(CalendarEvent).where(
@@ -1140,11 +1142,13 @@ def calendar_automation_status(
     return {
         "enabled": automation_enabled(),
         "poll_seconds": poll_interval_seconds(),
-        "advance_minutes": default_advance_minutes(),
+        "advance_minutes": effective,
         "advance_minutes_stored": stored,
-        "advance_minutes_from_env": advance_from_env,
+        "advance_minutes_from_env": False,
+        "server_default_minutes": default_advance_minutes(),
         "scheduled_events": len(pending),
         "next_due": min(due_times).isoformat() if due_times else None,
+        "has_calendars": len(integrations) > 0,
         "integrations": [
             {
                 "provider": row.provider,
@@ -1175,10 +1179,7 @@ def update_calendar_automation_settings(
 
     user, _org = user_org
     from dossier.db.models import CalendarIntegration
-    from dossier.services.calendar_automation import (
-        default_advance_minutes,
-        reschedule_user_calendar_events,
-    )
+    from dossier.services.calendar_automation import reschedule_user_calendar_events
 
     rows = db.execute(
         select(CalendarIntegration).where(
@@ -1195,20 +1196,22 @@ def update_calendar_automation_settings(
         row.advance_minutes = advance_minutes
     db.commit()
 
-    effective = default_advance_minutes()
-    rescheduled = reschedule_user_calendar_events(db, user.id, effective)
+    rescheduled = reschedule_user_calendar_events(db, user.id, advance_minutes)
 
-    env_override = os.getenv("CALENDAR_DEFAULT_ADVANCE_MINUTES", "").strip().isdigit()
+    if rescheduled:
+        message = (
+            f"Anticipación actualizada a {advance_minutes} min. "
+            f"{rescheduled} reunión(es) reprogramada(s)."
+        )
+    else:
+        message = f"Anticipación actualizada a {advance_minutes} min."
+
     return {
         "advance_minutes_stored": advance_minutes,
-        "advance_minutes_effective": effective,
-        "advance_minutes_from_env": env_override,
+        "advance_minutes_effective": advance_minutes,
+        "advance_minutes_from_env": False,
         "events_rescheduled": rescheduled,
-        "message": (
-            "Guardado. Nota: CALENDAR_DEFAULT_ADVANCE_MINUTES en el servidor tiene prioridad."
-            if env_override
-            else "Anticipación actualizada."
-        ),
+        "message": message,
     }
 
 
