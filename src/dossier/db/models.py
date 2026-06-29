@@ -329,3 +329,41 @@ class Dossier(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class DossierGenerationJob(Base):
+    """Cola de generación asíncrona (manual desde calendario u otros triggers)."""
+
+    __tablename__ = "dossier_generation_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        index=True,
+    )
+    requested_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
+    job_type: Mapped[str] = mapped_column(String(40), default="calendar_manual")
+    calendar_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    external_event_id: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
+    reunion_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    depth_level: Mapped[str] = mapped_column(String(10), default="standard")
+    meeting_label: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    credits_estimated: Mapped[int] = mapped_column(Integer, default=0)
+    credits_consumed: Mapped[int] = mapped_column(Integer, default=0)
+    result_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

@@ -1,4 +1,4 @@
-"""Solicitud para informe de persona (IA + web o Lusha + Gemini)."""
+"""Solicitud para informe de persona (PDL + IA o solo búsqueda web)."""
 from __future__ import annotations
 
 from enum import Enum
@@ -10,7 +10,7 @@ class PersonResearchSource(str, Enum):
     """Origen de la investigación (elige uno en cada petición)."""
 
     gemini_web = "gemini_web"
-    lusha = "lusha"
+    pdl = "pdl"
 
 
 class PersonResearchRequest(BaseModel):
@@ -20,7 +20,7 @@ class PersonResearchRequest(BaseModel):
     job_area: str | None = Field(
         None,
         max_length=200,
-        description="Área o cargo (contexto para Lusha y el informe)",
+        description="Área o cargo (contexto para PDL y el informe)",
     )
     company: str | None = Field(None, max_length=200)
     country: str | None = Field(None, max_length=120, description="País / región")
@@ -30,24 +30,49 @@ class PersonResearchRequest(BaseModel):
         max_length=400,
         description="Palabras clave adicionales (escuela, sector, etc.)",
     )
+    email: str | None = Field(
+        None,
+        max_length=255,
+        description="Email del contacto (PDL person/enrich)",
+    )
+    linkedin_url: str | None = Field(
+        None,
+        max_length=500,
+        description="URL LinkedIn (PDL profile)",
+    )
     start: int = Field(0, ge=0, le=10_000)
-    max_profiles: int = Field(1, ge=1, le=5, description="Cuántos perfiles Lusha usar en el análisis")
+    max_profiles: int = Field(1, ge=1, le=5, description="Cuántos perfiles PDL usar en el análisis")
     reveal_contact_details: bool = Field(
         False,
-        description="Si true, Lusha revela email/teléfono al enriquecer (consume créditos). Solo lusha.",
+        description="Reservado (PDL incluye contacto en el match). Ignorado.",
+    )
+    output_language: str | None = Field(
+        default=None,
+        max_length=16,
+        description="Idioma del informe (es, en, pt, …). Desde Configuración → Idioma de salida.",
     )
     include_posts: bool = Field(
         False,
-        description="Reservado; Lusha no expone publicaciones (se ignora con research_source=lusha)",
+        description="Reservado; PDL no expone publicaciones en este flujo.",
     )
     research_source: PersonResearchSource = Field(
-        default=PersonResearchSource.lusha,
-        description="lusha: API Lusha + Gemini (por defecto); gemini_web: IA + Google Search",
+        default=PersonResearchSource.pdl,
+        description="pdl (por defecto) | gemini_web (solo IA)",
     )
+
+    @field_validator("email", "linkedin_url", mode="before")
+    @classmethod
+    def _strip_optional_contact_ids(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip()
+            return s or None
+        return str(v).strip() or None
 
     @field_validator("research_source", mode="before")
     @classmethod
-    def _coerce_legacy_netrows(cls, v: object) -> object:
-        if v == "netrows":
-            return "lusha"
+    def _coerce_legacy_sources(cls, v: object) -> object:
+        if v in ("netrows", "apollo", "lusha"):
+            return "pdl"
         return v

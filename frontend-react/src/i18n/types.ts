@@ -24,7 +24,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   locale: "es",
   timezone: "Europe/London",
   dateFormat: "dd/mm/yyyy",
-  outputLanguage: "auto",
+  outputLanguage: "match",
   dossierExpiry: "30",
 };
 

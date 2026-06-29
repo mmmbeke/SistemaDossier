@@ -1,0 +1,299 @@
+"""Servicio de jobs de generación asíncrona de dossiers."""
+from __future__ import annotations
+
+import logging
+import time
+import uuid
+from datetime import datetime, timezone
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from dossier.billing.credit_policy import (
+    PERSON_IDENTITY_CREDITS,
+    calendar_event_credit_estimate,
+    credit_charging_enabled,
+    enterprise_unlimited,
+)
+from dossier.db.models import DossierGenerationJob, Organization, User
+from dossier.org_dossier_context import format_dossier_context_for_prompt
+from dossier.schemas.dossier_generation import DEPTH_CREDITS, DossierDepth
+from dossier.services.calendar_event_dossiers import (
+    build_calendar_meeting_label,
+    generate_dossiers_from_calendar_event,
+    parse_calendar_event_for_dossiers,
+    persist_calendar_dossiers,
+)
+from dossier.services.output_language import normalize_output_language
+from dossier.services.google_calendar_api import obtener_reunion_google_por_id
+from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
+from dossier.services.graph_calendar import merge_reunion_payload, obtener_reunion_por_id
+from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
+
+logger = logging.getLogger(__name__)
+
+_ACTIVE_STATUSES = ("queued", "running")
+
+
+def _iso(dt: datetime | None) -> str | None:
+    if dt is None:
+        return None
+    return dt.astimezone(timezone.utc).isoformat()
+
+
+def serialize_job(job: DossierGenerationJob) -> dict[str, Any]:
+    return {
+        "id": str(job.id),
+        "status": job.status,
+        "job_type": job.job_type,
+        "calendar_provider": job.calendar_provider,
+        "external_event_id": job.external_event_id,
+        "meeting_label": job.meeting_label,
+        "credits_estimated": job.credits_estimated,
+        "credits_consumed": job.credits_consumed,
+        "error_message": job.error_message,
+        "result": job.result_payload,
+        "created_at": _iso(job.created_at),
+        "started_at": _iso(job.started_at),
+        "completed_at": _iso(job.completed_at),
+    }
+
+
+def estimate_reunion_credits(reunion: dict[str, Any], *, depth: DossierDepth = "standard") -> int:
+    parsed = parse_calendar_event_for_dossiers(reunion)
+    has_corporate = bool(parsed.get("company_corporate") or parsed.get("participantes"))
+    has_person = len((parsed.get("person_name") or "").strip()) >= 2
+    return calendar_event_credit_estimate(
+        has_corporate=has_corporate,
+        has_person=has_person,
+        depth=depth,
+    )
+
+
+def find_active_job_for_event(
+    db: Session,
+    *,
+    user_id: UUID,
+    external_event_id: str,
+) -> DossierGenerationJob | None:
+    stmt = (
+        select(DossierGenerationJob)
+        .where(
+            DossierGenerationJob.requested_by_user_id == user_id,
+            DossierGenerationJob.external_event_id == external_event_id,
+            DossierGenerationJob.status.in_(_ACTIVE_STATUSES),
+        )
+        .order_by(DossierGenerationJob.created_at.desc())
+        .limit(1)
+    )
+    return db.scalars(stmt).first()
+
+
+def enqueue_calendar_dossier_job(
+    db: Session,
+    *,
+    user: User,
+    org: Organization,
+    reunion: dict[str, Any],
+    calendar_provider: str,
+    depth: DossierDepth = "standard",
+) -> DossierGenerationJob:
+    event_id = (reunion.get("id") or "").strip() or None
+    if event_id:
+        existing = find_active_job_for_event(db, user_id=user.id, external_event_id=event_id)
+        if existing:
+            return existing
+
+    charge = credit_charging_enabled()
+    credits = estimate_reunion_credits(reunion, depth=depth)
+    db.refresh(org)
+    if charge and credits > 0 and not enterprise_unlimited(org) and org.credits_balance < credits:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                f"Créditos insuficientes: se requieren hasta {credits} y la organización tiene "
+                f"{org.credits_balance}."
+            ),
+        )
+
+    meeting_label = build_calendar_meeting_label(reunion)
+    job = DossierGenerationJob(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        requested_by_user_id=user.id,
+        status="queued",
+        job_type="calendar_manual",
+        calendar_provider=calendar_provider,
+        external_event_id=event_id,
+        reunion_snapshot=dict(reunion),
+        depth_level=depth,
+        meeting_label=meeting_label[:512] if meeting_label else None,
+        credits_estimated=credits,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+def _refresh_reunion_for_job(
+    db: Session,
+    *,
+    user_id: UUID,
+    calendar_provider: str,
+    external_event_id: str | None,
+    snapshot: dict[str, Any] | None,
+) -> dict[str, Any]:
+    base = dict(snapshot or {})
+    if not external_event_id:
+        return base
+    try:
+        if calendar_provider == "google":
+            token = get_google_calendar_access_token_for_user(db, user_id)
+            fresh = obtener_reunion_google_por_id(token, external_event_id)
+        else:
+            token = get_microsoft_graph_access_token_for_user(db, user_id)
+            fresh = obtener_reunion_por_id(token, external_event_id)
+        if fresh:
+            merged = merge_reunion_payload(base, fresh)
+            return merged if merged else fresh
+    except Exception:
+        logger.warning(
+            "Job calendario: no se pudo refrescar evento %s (%s); se usa snapshot",
+            external_event_id,
+            calendar_provider,
+            exc_info=True,
+        )
+    return base
+
+
+def _credits_consumed_from_saved(
+    saved: dict[str, Any],
+    *,
+    depth: DossierDepth,
+    charge: bool,
+    result: dict[str, Any] | None = None,
+) -> int:
+    if not charge:
+        return 0
+    r = result or {}
+    total = 0
+    corp = saved.get("corporate")
+    if corp and corp.get("status") == "complete" and not r.get("corporate_cache_hit"):
+        total += DEPTH_CREDITS[depth]
+    person = saved.get("person")
+    if person and person.get("status") == "complete" and not r.get("person_cache_hit"):
+        total += PERSON_IDENTITY_CREDITS
+    return total
+
+
+def process_dossier_generation_job(db: Session, job_id: UUID) -> None:
+    job = db.get(DossierGenerationJob, job_id)
+    if job is None or job.status != "queued":
+        return
+
+    now = datetime.now(timezone.utc)
+    job.status = "running"
+    job.started_at = now
+    db.commit()
+
+    try:
+        org = db.get(Organization, job.organization_id)
+        user = db.get(User, job.requested_by_user_id)
+        if org is None or user is None:
+            raise RuntimeError("Organización o usuario del job no encontrados.")
+
+        reunion = _refresh_reunion_for_job(
+            db,
+            user_id=user.id,
+            calendar_provider=job.calendar_provider or "microsoft",
+            external_event_id=job.external_event_id,
+            snapshot=job.reunion_snapshot,
+        )
+        org_ctx = format_dossier_context_for_prompt(org)
+        depth: DossierDepth = job.depth_level if job.depth_level in DEPTH_CREDITS else "standard"  # type: ignore[assignment]
+        charge = credit_charging_enabled()
+
+        t0 = time.perf_counter()
+        snap_lang = reunion.get("_output_language") if isinstance(reunion, dict) else None
+        out_lang = normalize_output_language(snap_lang or user.locale)
+        item = generate_dossiers_from_calendar_event(
+            reunion,
+            organization_context_block=org_ctx,
+            organization_id=org.id,
+            depth=depth,
+            output_language=out_lang,
+        )
+        elapsed_ms = int((time.perf_counter() - t0) * 1000)
+        item = persist_calendar_dossiers(
+            db,
+            user_id=user.id,
+            org_id=org.id,
+            result=item,
+            calendar_provider=job.calendar_provider or "microsoft",
+            generation_duration_ms=elapsed_ms,
+            depth=depth,
+            charge_credits=charge,
+        )
+
+        saved = item.get("saved_dossiers") or {}
+        job.credits_consumed = _credits_consumed_from_saved(
+            saved, depth=depth, charge=charge, result=item
+        )
+        job.result_payload = item
+        job.status = "completed"
+        job.completed_at = datetime.now(timezone.utc)
+        job.error_message = None
+        db.commit()
+        logger.info(
+            "Job dossier %s completado (event=%s, credits=%s)",
+            job.id,
+            job.external_event_id,
+            job.credits_consumed,
+        )
+    except Exception as exc:
+        logger.exception("Job dossier %s falló", job_id)
+        db.rollback()
+        job = db.get(DossierGenerationJob, job_id)
+        if job is not None:
+            job.status = "failed"
+            job.error_message = str(exc)[:2000]
+            job.completed_at = datetime.now(timezone.utc)
+            db.commit()
+
+
+def claim_next_queued_job(db: Session) -> DossierGenerationJob | None:
+    """Devuelve el job más antiguo en cola sin cambiar su estado."""
+    stmt = (
+        select(DossierGenerationJob)
+        .where(DossierGenerationJob.status == "queued")
+        .order_by(DossierGenerationJob.created_at.asc())
+        .limit(1)
+    )
+    return db.scalars(stmt).first()
+
+
+def list_jobs_for_user(
+    db: Session,
+    *,
+    user_id: UUID,
+    org_id: UUID,
+    active_only: bool = False,
+    limit: int = 30,
+) -> list[DossierGenerationJob]:
+    stmt = (
+        select(DossierGenerationJob)
+        .where(
+            DossierGenerationJob.requested_by_user_id == user_id,
+            DossierGenerationJob.organization_id == org_id,
+        )
+        .order_by(DossierGenerationJob.created_at.desc())
+        .limit(max(1, min(limit, 100)))
+    )
+    if active_only:
+        stmt = stmt.where(DossierGenerationJob.status.in_(_ACTIVE_STATUSES))
+    return list(db.scalars(stmt).all())

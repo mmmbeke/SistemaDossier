@@ -6,6 +6,8 @@ from typing import Any
 
 import requests
 
+from dossier.services.lusha_contact_parse import extract_lusha_search_results, lusha_result_errors
+
 DEFAULT_BASE = "https://api.lusha.com"
 
 
@@ -52,27 +54,33 @@ class LushaClient:
             return None
         return r.json()
 
-    def search_contacts(self, contacts: list[dict[str, Any]]) -> Any:
-        """POST /v3/contacts/search — vista previa sin revelar email/teléfono (menor coste)."""
-        if not contacts:
-            return {"contacts": []}
-        return self.post("/v3/contacts/search", {"contacts": contacts})
-
     def enrich_contacts(
         self,
         contact_ids: list[str],
         *,
         reveal: list[str] | None = None,
     ) -> Any:
-        """POST /v3/contacts/enrich — datos ampliados por id de Lusha."""
+        """POST /v3/contacts/enrich — revelar email/teléfono por id (OpenAPI: body ``ids``)."""
         if not contact_ids:
-            return {"contacts": []}
-        payload: dict[str, Any] = {
-            "contacts": [{"id": cid} for cid in contact_ids],
-        }
+            return {"results": []}
+        payload: dict[str, Any] = {"ids": contact_ids[:100]}
         if reveal is not None:
             payload["reveal"] = reveal
         return self.post("/v3/contacts/enrich", payload)
+
+    def search_contacts(self, contacts: list[dict[str, Any]]) -> Any:
+        """POST /v3/contacts/search — vista previa sin revelar email/teléfono (menor coste)."""
+        if not contacts:
+            return {"results": []}
+        data = self.post("/v3/contacts/search", {"contacts": contacts})
+        if isinstance(data, dict) and not extract_lusha_search_results(data, max_items=1):
+            errors = lusha_result_errors(data)
+            if errors:
+                return {**data, "_lushaEmptySearch": True, "_lushaErrors": errors}
+            results = data.get("results")
+            if isinstance(results, list) and len(results) == 0:
+                return {**data, "_lushaEmptySearch": True}
+        return data
 
     def search_and_enrich_contacts(
         self,
@@ -90,7 +98,12 @@ class LushaClient:
             payload["reveal"] = reveal
         data = self.post("/v3/contacts/search-and-enrich", payload)
         if isinstance(data, dict):
-            results = data.get("results")
-            if isinstance(results, list) and len(results) == 0:
-                return {**data, "_lushaEmptySearch": True}
+            if not extract_lusha_search_results(data, max_items=1):
+                errors = lusha_result_errors(data)
+                results = data.get("results")
+                if (isinstance(results, list) and len(results) == 0) or errors:
+                    extra: dict[str, Any] = {"_lushaEmptySearch": True}
+                    if errors:
+                        extra["_lushaErrors"] = errors
+                    return {**data, **extra}
         return data

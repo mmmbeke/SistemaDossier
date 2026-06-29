@@ -80,6 +80,11 @@ class CreateCorporateDossierRequest(BaseModel):
         default=None,
         description="Si el usuario eligió un registro concreto (UK o SEC), enriquece el prompt",
     )
+    output_language: str | None = Field(
+        default=None,
+        max_length=16,
+        description="Idioma del informe (es, en, pt, …). Desde Configuración del dashboard.",
+    )
 
     @field_validator("subject_query")
     @classmethod

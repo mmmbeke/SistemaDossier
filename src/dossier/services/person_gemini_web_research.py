@@ -91,6 +91,7 @@ def analyze_person_with_google_search(
     meeting_context: dict[str, Any] | None = None,
     model: str | None = None,
     max_retries: int = 3,
+    output_language: str = "es",
 ) -> str:
     """
     Informe OSINT de persona vía DeepSeek (nombre histórico de la función).
@@ -120,7 +121,10 @@ def analyze_person_with_google_search(
     user_prompt = _build_user_prompt(filters, meeting_context)
     return chat_completion(
         user_prompt,
-        system_instruction=person_dossier_system_prompt(meeting_context=meeting_context),
+        system_instruction=person_dossier_system_prompt(
+            meeting_context=meeting_context,
+            output_language=output_language,
+        ),
         model=m,
         max_retries=max_retries,
     )
