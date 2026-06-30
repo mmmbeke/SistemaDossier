@@ -1443,6 +1443,8 @@ export type CalendarAutomationStatus = {
   advance_minutes: number;
   advance_minutes_stored?: number;
   advance_minutes_from_env?: boolean;
+  server_default_minutes?: number;
+  has_calendars?: boolean;
   scheduled_events: number;
   next_due: string | null;
   integrations?: {
@@ -1485,6 +1487,7 @@ export async function patchCalendarAutomationSettings(advanceMinutes: number): P
   advance_minutes_stored: number;
   advance_minutes_effective: number;
   advance_minutes_from_env: boolean;
+  events_rescheduled?: number;
   message: string;
 }> {
   const token = getStoredAccessToken();
@@ -1521,6 +1524,7 @@ export async function patchCalendarAutomationSettings(advanceMinutes: number): P
     advance_minutes_stored: number;
     advance_minutes_effective: number;
     advance_minutes_from_env: boolean;
+    events_rescheduled?: number;
     message: string;
   };
 }

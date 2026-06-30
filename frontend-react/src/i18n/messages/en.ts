@@ -530,7 +530,9 @@ const messages = {
   "automation.rules_desc": "How long before the meeting starts company and person dossiers are generated.",
   "automation.before_meeting": "Generate dossier before meeting",
   "automation.saving": "Saving…",
-  "automation.advance_env_active": "Active on server: {minutes} min (CALENDAR_DEFAULT_ADVANCE_MINUTES).",
+  "automation.connect_calendar_hint":
+    "Connect Google or Outlook to save lead time and schedule automatic dossiers.",
+  "automation.advance_effective": "Dossiers will generate {minutes} min before each meeting.",
   "automation.status_on": "Automation enabled.",
   "automation.status_off": "Automation disabled on server.",
   "automation.queue_summary": "Meetings queued: {count}. Next run: {next}.",
