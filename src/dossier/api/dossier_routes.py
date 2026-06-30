@@ -1,6 +1,7 @@
 """Listado y generación de dossiers persistidos en PostgreSQL (tabla `dossiers` del schema migrado)."""
 from __future__ import annotations
 
+import logging
 import os
 import time
 import uuid
@@ -13,10 +14,27 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from dossier.api.auth_routes import get_current_user_and_org, get_db_if_configured
+from dossier.cache.corporate_dossier_redis import (
+    build_corporate_cache_key_hash,
+    cached_until_from_now,
+    corporate_cache_redis_key,
+    get_corporate_cached_markdown,
+    redis_corporate_cache_available,
+    run_with_corporate_cache_lock,
+    set_corporate_cached_markdown,
+)
+from dossier.cache.person_dossier_redis import (
+    get_person_cached_payload,
+    person_cache_redis_key,
+    redis_person_cache_available,
+    run_with_person_cache_lock,
+    set_person_cached_payload,
+)
 from dossier.db.models import Dossier, Organization, User
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.graphs.corporate_dossier_graph import (
     JurisdictionScope,
+    infer_jurisdiction_scope,
     run_corporate_dossier_langgraph,
 )
 from dossier.schemas.dossier_generation import (
@@ -28,6 +46,11 @@ from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.corporate_company_search import search_corporate_company_candidates
 from dossier.gemini.analyze import normalize_person_report_text
 from dossier.services.calendar_event_dossiers import _person_failure_message
+from dossier.services.person_dossier_dedup import (
+    person_research_fingerprint,
+    person_research_response_from_redis_cache,
+)
+from dossier.services.output_language import normalize_output_language
 from dossier.services.person_research_service import run_person_research
 from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
 from dossier.services.dossier_folder_utils import (
@@ -37,6 +60,7 @@ from dossier.services.dossier_folder_utils import (
 )
 
 router = APIRouter(tags=["Dossiers"])
+logger = logging.getLogger(__name__)
 
 
 def _serialize_dossier_list_item(d: Dossier) -> dict:
@@ -62,6 +86,18 @@ def _enterprise_effectively_unlimited(org: Organization) -> bool:
     return (org.plan or "").strip().lower() == "enterprise"
 
 
+def _append_corporate_org_context(markdown: str, org_context_block: str) -> str:
+    """Anexa el contexto de la org solicitante (no forma parte de la clave Redis)."""
+    o = (org_context_block or "").strip()
+    if not o:
+        return markdown
+    return (
+        markdown.rstrip()
+        + "\n\n---\n\n### Contexto de la organización solicitante\n\n"
+        + o
+    )
+
+
 # Ruta bajo `/dossiers/corporate/...` para no colisionar con `GET /dossiers/{dossier_id}` (un solo segmento).
 
 
@@ -82,26 +118,97 @@ def person_professional_research(
     db: Session = Depends(get_db_if_configured),
 ):
     """
-    Investigación de persona: por defecto **Lusha** (`research_source=lusha`).
-    Alternativa: `gemini_web` (IA + Google Search). Requiere `LUSHA_API_KEY` para Lusha.
+    Investigación de persona: por defecto **PDL** (`research_source=pdl`).
+    Alternativa: `gemini_web` (IA + Google Search). Requiere `PDL_API_KEY` para enriquecimiento.
 
     Si se genera texto de informe, se persiste en `dossiers` (misma organización que el JWT),
     como los dossiers corporativos; la respuesta incluye `saved_dossier` con el `id` creado.
+
+    Con ``REDIS_URL`` configurado, reutiliza el informe en Redis para la misma organización
+    y mismos filtros. ``dossier_source``: ``redis_cache`` (hit) o ``generated`` (miss).
     """
     user, org = user_org
-    t0 = time.perf_counter()
-    try:
-        result = run_person_research(
-            body,
-            organization_context_block=format_dossier_context_for_prompt(org),
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
+    org_ctx = format_dossier_context_for_prompt(org)
+    out_lang = normalize_output_language(body.output_language or user.locale)
+    fp = person_research_fingerprint(body, org.id, output_language=out_lang)
 
-    elapsed_ms = int((time.perf_counter() - t0) * 1000)
+    cache_hit = False
+    cached_payload: dict | None = None
+    if redis_person_cache_available():
+        hit = get_person_cached_payload(fp)
+        if hit is not None:
+            cached_payload = hit
+            cache_hit = True
+
+    result: dict | None = None
+    elapsed_ms = 0
+    research_error: str | None = None
+
+    if not cache_hit:
+
+        def _compute() -> None:
+            nonlocal cache_hit, cached_payload, result, elapsed_ms, research_error
+            h2 = get_person_cached_payload(fp)
+            if h2 is not None:
+                cached_payload = h2
+                cache_hit = True
+                return
+            t_run = time.perf_counter()
+            try:
+                nr = run_person_research(
+                    body,
+                    organization_context_block=org_ctx,
+                    output_language=out_lang,
+                )
+            except ValueError as e:
+                research_error = str(e)
+                return
+            result = nr
+            elapsed_ms = int((time.perf_counter() - t_run) * 1000)
+            md_new = (result.get("gemini_analysis_markdown") or "").strip()
+            if md_new and not md_new.lstrip().startswith("# Error"):
+                set_person_cached_payload(
+                    fp,
+                    {
+                        "markdown": md_new,
+                        "gemini_google_search_used": result.get("gemini_google_search_used"),
+                    },
+                )
+            cache_hit = False
+
+        run_with_person_cache_lock(fp, _compute)
+        if research_error is not None:
+            raise HTTPException(status_code=503, detail=research_error) from None
+    else:
+        elapsed_ms = 0
+
+    if cache_hit and cached_payload is not None:
+        result = person_research_response_from_redis_cache(
+            body,
+            organization_context_block=org_ctx,
+            markdown=str(cached_payload.get("markdown") or ""),
+            gemini_google_search_used=cached_payload.get("gemini_google_search_used"),
+        )
+        elapsed_ms = 0
+
+    if result is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Respuesta de investigación vacía; revisa logs del servidor.",
+        )
+
+    logger.info(
+        "POST /dossiers/person/research cache=%s redis=%s key_prefix=%s",
+        "hit" if cache_hit else "miss",
+        redis_person_cache_available(),
+        fp[:16],
+    )
+
     md = normalize_person_report_text((result.get("gemini_analysis_markdown") or "").strip())
     saved: dict | None = None
     now = datetime.now(timezone.utc)
+    cache_row_key = person_cache_redis_key(fp) if cache_hit else None
+    cache_expires = cached_until_from_now() if cache_hit else None
 
     if md:
         is_err = md.lstrip().startswith("# Error")
@@ -114,6 +221,12 @@ def person_professional_research(
             "pipeline": "person_research",
             "success": not is_err,
             "billing": "none",
+            "person_dedup_key": fp,
+            "gemini_google_search_used": result.get("gemini_google_search_used"),
+            "cache": {
+                "hit": cache_hit,
+                "redis": redis_person_cache_available(),
+            },
             "person_filters": {
                 "full_name": body.full_name,
                 "job_area": body.job_area,
@@ -123,6 +236,7 @@ def person_professional_research(
                 "extra_keywords": body.extra_keywords,
                 "research_source": body.research_source.value,
             },
+            "output_language": out_lang,
         }
 
         dossier = Dossier(
@@ -131,7 +245,7 @@ def person_professional_research(
             requested_by_user_id=user.id,
             contact_id=None,
             subject_name=body.full_name.strip()[:255],
-            subject_email=None,
+            subject_email=(body.email or "")[:255] or None,
             module_identity=True,
             module_corporate=False,
             module_media=False,
@@ -146,6 +260,8 @@ def person_professional_research(
             generation_started_at=now,
             generation_completed_at=now,
             generation_duration_ms=elapsed_ms,
+            cache_key=cache_row_key,
+            cached_until=cache_expires,
             trigger_source="manual",
         )
         db.add(dossier)
@@ -172,7 +288,7 @@ def person_professional_research(
             requested_by_user_id=user.id,
             contact_id=None,
             subject_name=body.full_name.strip()[:255],
-            subject_email=None,
+            subject_email=(body.email or "")[:255] or None,
             module_identity=True,
             module_corporate=False,
             module_media=False,
@@ -186,6 +302,11 @@ def person_professional_research(
                 "pipeline": "person_research",
                 "success": False,
                 "billing": "none",
+                "person_dedup_key": fp,
+                "cache": {
+                    "hit": cache_hit,
+                    "redis": redis_person_cache_available(),
+                },
                 "person_filters": {
                     "full_name": body.full_name,
                     "job_area": body.job_area,
@@ -218,6 +339,7 @@ def person_professional_research(
         }
 
     result["saved_dossier"] = saved
+    result["dossier_source"] = "redis_cache" if cache_hit else "generated"
     return result
 
 
@@ -231,36 +353,19 @@ def generate_corporate_dossier(
     Genera un dossier con el **agente corporativo** (LangGraph: UK + USA en paralelo,
     síntesis Gemini) y lo guarda en `dossiers`.
 
-    Créditos (informe de producto): basic=1, standard=3, deep=5.
+    Si ``REDIS_URL`` está configurado, reutiliza el Markdown de un encargo equivalente
+    sin volver a ejecutar el grafo: **no consume créditos** en ese caso.
+
+    Créditos (informe de producto): basic=1, standard=3, deep=5 — solo en generación nueva.
     El saldo se descuenta en PostgreSQL (trigger) salvo `billing: none` o cobro desactivado
     (`DOSSIER_CHARGE_CREDITS=0`). Si el pipeline devuelve error, no se cobra.
     """
     user, org = user_org
     charge = _corporate_credit_charging_enabled()
     cost = DEPTH_CREDITS[body.depth] if charge else 0
+    out_lang = normalize_output_language(body.output_language or user.locale)
 
     db.refresh(org)
-    if (
-        charge
-        and cost > 0
-        and not _enterprise_effectively_unlimited(org)
-        and org.credits_balance < cost
-    ):
-        raise HTTPException(
-            status_code=402,
-            detail=(
-                f"Créditos insuficientes: se requieren {cost} y la organización tiene "
-                f"{org.credits_balance}."
-            ),
-        )
-
-    descripcion_parts: list[str] = []
-    if body.subject_email:
-        descripcion_parts.append(f"Email participante: {body.subject_email}")
-    org_ctx = format_dossier_context_for_prompt(org)
-    if org_ctx:
-        descripcion_parts.append(org_ctx)
-    descripcion = "\n".join(descripcion_parts)
 
     participantes, subject_display = build_corporate_generation_strings(body)
 
@@ -269,22 +374,78 @@ def generate_corporate_dossier(
         explicit_scope = (
             "uk_only" if body.resolution.source == "companies_house" else "us_only"
         )
+    scope_for_graph: JurisdictionScope = (
+        explicit_scope if explicit_scope is not None else infer_jurisdiction_scope(participantes)
+    )
+
+    key_hash = build_corporate_cache_key_hash(
+        body=body,
+        participantes=participantes,
+        jurisdiction_scope=scope_for_graph,
+        output_language=out_lang,
+    )
+
+    cache_hit = False
+    markdown_neutral: str | None = None
+    if redis_corporate_cache_available():
+        hit = get_corporate_cached_markdown(key_hash)
+        if hit is not None:
+            markdown_neutral = hit
+            cache_hit = True
+
+    if not cache_hit:
+        if (
+            charge
+            and cost > 0
+            and not _enterprise_effectively_unlimited(org)
+            and org.credits_balance < cost
+        ):
+            raise HTTPException(
+                status_code=402,
+                detail=(
+                    f"Créditos insuficientes: se requieren {cost} y la organización tiene "
+                    f"{org.credits_balance}."
+                ),
+            )
+
+    descripcion_neutral_parts: list[str] = []
+    if body.subject_email:
+        descripcion_neutral_parts.append(f"Email participante: {body.subject_email}")
+    descripcion_neutral = "\n".join(descripcion_neutral_parts)
+    org_ctx = format_dossier_context_for_prompt(org)
 
     t0 = time.perf_counter()
-    markdown = run_corporate_dossier_langgraph(
-        tema_reunion=f"Dossier corporativo — {participantes[:200]}",
-        participantes=participantes,
-        descripcion=descripcion,
-        jurisdiction_scope=explicit_scope,
-    )
-    elapsed_ms = int((time.perf_counter() - t0) * 1000)
+    if not cache_hit:
+
+        def _compute_under_lock() -> None:
+            nonlocal markdown_neutral, cache_hit
+            hit2 = get_corporate_cached_markdown(key_hash)
+            if hit2 is not None:
+                markdown_neutral = hit2
+                cache_hit = True
+                return
+            md = run_corporate_dossier_langgraph(
+                tema_reunion=f"Dossier corporativo — {participantes[:200]}",
+                participantes=participantes,
+                descripcion=descripcion_neutral,
+                jurisdiction_scope=explicit_scope,
+                output_language=out_lang,
+            )
+            if not md.lstrip().startswith("# Error"):
+                set_corporate_cached_markdown(key_hash, md)
+            markdown_neutral = md
+            cache_hit = False
+
+        run_with_corporate_cache_lock(key_hash, _compute_under_lock)
+
+    elapsed_ms = 0 if cache_hit else int((time.perf_counter() - t0) * 1000)
+    markdown = _append_corporate_org_context(markdown_neutral or "", org_ctx)
     now = datetime.now(timezone.utc)
 
     is_err = markdown.lstrip().startswith("# Error")
-    # Alineado con CHECK dossiers_status en Migración: complete | partial | failed | …
     status = "failed" if is_err else "complete"
 
-    will_charge = charge and cost > 0 and not is_err
+    will_charge = charge and cost > 0 and not is_err and not cache_hit
 
     dossier_id = uuid.uuid4()
     dossier_data_body: dict = {
@@ -293,8 +454,13 @@ def generate_corporate_dossier(
         "pipeline": "langgraph_corporate",
         "depth_requested": body.depth,
         "success": not is_err,
-        # Trigger `fn_debit_credits_on_dossier`: solo cobra si billing != 'none' (p. ej. fallo → no cobro).
         "billing": "charged" if will_charge else "none",
+        "cache": {
+            "hit": cache_hit,
+            "redis_configured": redis_corporate_cache_available(),
+            "pipeline_version": (os.getenv("DOSSIER_CACHE_PIPELINE_VERSION") or "1").strip(),
+        },
+        "output_language": out_lang,
     }
     if body.resolution is not None:
         dossier_data_body["resolution"] = body.resolution.model_dump(mode="json")
@@ -320,6 +486,8 @@ def generate_corporate_dossier(
         generation_started_at=now,
         generation_completed_at=now,
         generation_duration_ms=elapsed_ms,
+        cache_key=corporate_cache_redis_key(key_hash) if cache_hit else None,
+        cached_until=cached_until_from_now() if cache_hit else None,
         trigger_source="manual",
     )
 
@@ -335,6 +503,7 @@ def generate_corporate_dossier(
         "credits_consumed": dossier.credits_consumed,
         "organization_credits_balance": org.credits_balance,
         "generation_duration_ms": dossier.generation_duration_ms,
+        "cache_hit": cache_hit,
     }
 
 

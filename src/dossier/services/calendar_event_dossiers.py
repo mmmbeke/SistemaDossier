@@ -3,11 +3,12 @@ Generación de dossiers desde eventos de calendario.
 
 - **Empresa**: LangGraph corporativo → Companies House + SEC Edgar.
   Se detecta en el asunto; si no hay señal clara, en la descripción («Empresa: …»).
-- **Persona** (descripción del evento): Lusha + Gemini.
+- **Persona** (descripción del evento): PDL + análisis IA.
 """
 from __future__ import annotations
 
 import logging
+import os
 import re
 import uuid
 from datetime import datetime, timezone
@@ -18,12 +19,43 @@ from sqlalchemy.orm import Session
 
 from dossier.db.models import Dossier
 from dossier.graphs.corporate_dossier_graph import JurisdictionScope, run_corporate_dossier_langgraph
+from dossier.cache.corporate_dossier_redis import (
+    build_corporate_langgraph_cache_key_hash,
+    cached_until_from_now,
+    corporate_cache_redis_key,
+    get_corporate_cached_markdown,
+    redis_corporate_cache_available,
+    run_with_corporate_cache_lock,
+    set_corporate_cached_markdown,
+)
+from dossier.cache.person_dossier_redis import (
+    get_person_cached_payload,
+    person_cache_redis_key,
+    redis_person_cache_available,
+    run_with_person_cache_lock,
+    set_person_cached_payload,
+)
 from dossier.schemas.person_research import PersonResearchRequest, PersonResearchSource
 from dossier.services.corporate_company_search import find_companies_house_matches, find_sec_matches
 from dossier.gemini.analyze import normalize_person_report_text
+from dossier.services.person_research_config import default_person_research_source
+from dossier.services.person_dossier_dedup import (
+    person_research_fingerprint,
+    person_research_response_from_redis_cache,
+)
+from dossier.services.output_language import normalize_output_language
 from dossier.services.person_research_service import run_person_research
+from dossier.billing.credit_policy import PERSON_IDENTITY_CREDITS, credit_charging_enabled
+from dossier.schemas.dossier_generation import DEPTH_CREDITS
 
 logger = logging.getLogger(__name__)
+
+
+def _lusha_calendar_reveal_contacts() -> bool:
+    """Revelar email/teléfono Lusha al generar desde calendario (consume créditos Lusha)."""
+    raw = os.getenv("LUSHA_CALENDAR_REVEAL_CONTACTS", "1").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
 
 _SUBJECT_PREFIX = re.compile(
     r"^(?:reunión|reunion|demo|llamada|call|meeting|segunda\s+reunión|primera\s+llamada)\s*"
@@ -242,6 +274,35 @@ def extract_person_from_description(descripcion: str) -> tuple[str, str | None, 
     return name.strip(), job, country
 
 
+def extract_email_from_description(descripcion: str) -> str | None:
+    """Email en la descripción: «Email: …» o «Email. …»."""
+    d = (descripcion or "").strip()
+    if not d:
+        return None
+    em = _EMAIL_IN_DESC.search(d)
+    if not em:
+        return None
+    email = em.group(1).strip().rstrip(".")
+    if "@" not in email:
+        return None
+    return email.lower()
+
+
+def extract_corporate_emails_from_text(*texts: str | None) -> list[str]:
+    """Emails en descripción, participantes u otro texto del evento."""
+    from dossier.services.lusha_company import email_to_company_domain
+
+    found: list[str] = []
+    for raw in texts:
+        if not raw:
+            continue
+        for match in re.findall(r"(?i)[\w.+-]+@[\w.-]+\.\w+", raw):
+            em = match.strip().lower()
+            if email_to_company_domain(em) and em not in found:
+                found.append(em)
+    return found
+
+
 def parse_calendar_event_for_dossiers(reunion: dict[str, Any]) -> dict[str, Any]:
     tema = (reunion.get("tema") or "").strip()
     descripcion = (reunion.get("descripcion") or "").strip()
@@ -250,6 +311,10 @@ def parse_calendar_event_for_dossiers(reunion: dict[str, Any]) -> dict[str, Any]
     company_corporate, company_corporate_source = resolve_corporate_company(tema, descripcion)
     company_person = extract_company_from_description(descripcion) or company_corporate or company_subject
     person_name, person_job, person_country = extract_person_from_description(descripcion)
+    person_email = extract_email_from_description(descripcion)
+    if not person_email:
+        corp_emails = extract_corporate_emails_from_text(descripcion, participantes)
+        person_email = corp_emails[0] if corp_emails else None
     if not person_name and descripcion:
         logger.info(
             "Calendario: descripción sin persona detectable (len=%s). "
@@ -265,6 +330,7 @@ def parse_calendar_event_for_dossiers(reunion: dict[str, Any]) -> dict[str, Any]
         "person_name": person_name,
         "person_job": person_job,
         "person_country": person_country,
+        "person_email": person_email,
         "tema": tema,
         "descripcion": descripcion,
         "participantes": participantes,
@@ -305,20 +371,136 @@ def resolve_corporate_brief(company_query: str) -> tuple[str, JurisdictionScope]
     return q, "dual"
 
 
+def _corporate_md_from_cache_or_langgraph(
+    *,
+    participantes_brief: str,
+    tema: str,
+    participantes: str,
+    scope: JurisdictionScope,
+    depth: str,
+    output_language: str = "es",
+) -> tuple[str | None, bool, str | None]:
+    """Devuelve (markdown, cache_hit, cache_key_redis)."""
+    out_lang = normalize_output_language(output_language)
+    key_hash = build_corporate_langgraph_cache_key_hash(
+        participantes=participantes_brief,
+        jurisdiction_scope=scope,
+        depth=depth,
+        output_language=out_lang,
+    )
+    cache_hit = False
+    md: str | None = None
+
+    if redis_corporate_cache_available():
+        hit = get_corporate_cached_markdown(key_hash)
+        if hit is not None:
+            return hit, True, corporate_cache_redis_key(key_hash)
+
+    def _compute() -> None:
+        nonlocal md, cache_hit
+        hit2 = get_corporate_cached_markdown(key_hash)
+        if hit2 is not None:
+            md = hit2
+            cache_hit = True
+            return
+        generated = run_corporate_dossier_langgraph(
+            tema_reunion=tema or "Reunión",
+            participantes=participantes_brief,
+            descripcion="",
+            jurisdiction_scope=scope,
+            output_language=out_lang,
+        )
+        if not generated.lstrip().startswith("# Error"):
+            set_corporate_cached_markdown(key_hash, generated)
+        md = generated
+        cache_hit = False
+
+    run_with_corporate_cache_lock(key_hash, _compute)
+    redis_key = corporate_cache_redis_key(key_hash) if cache_hit else None
+    return md, cache_hit, redis_key
+
+
+def _person_research_from_cache_or_pipeline(
+    *,
+    req: PersonResearchRequest,
+    organization_id: UUID,
+    organization_context_block: str | None,
+    meeting_context: dict[str, Any],
+    output_language: str = "es",
+) -> tuple[dict[str, Any] | None, bool, str | None]:
+    """Devuelve (payload, cache_hit, cache_key_redis)."""
+    out_lang = normalize_output_language(output_language or req.output_language)
+    fp = person_research_fingerprint(req, organization_id, output_language=out_lang)
+    cache_hit = False
+    cached_payload: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+
+    if redis_person_cache_available():
+        hit = get_person_cached_payload(fp)
+        if hit is not None:
+            cached_payload = hit
+            cache_hit = True
+
+    if not cache_hit:
+
+        def _compute() -> None:
+            nonlocal cache_hit, cached_payload, result
+            h2 = get_person_cached_payload(fp)
+            if h2 is not None:
+                cached_payload = h2
+                cache_hit = True
+                return
+            nr = run_person_research(
+                req,
+                organization_context_block=organization_context_block,
+                meeting_context=meeting_context,
+                output_language=out_lang,
+            )
+            result = nr
+            md_new = (nr.get("gemini_analysis_markdown") or "").strip()
+            if md_new and not md_new.lstrip().startswith("# Error"):
+                set_person_cached_payload(
+                    fp,
+                    {
+                        "markdown": md_new,
+                        "gemini_google_search_used": nr.get("gemini_google_search_used"),
+                    },
+                )
+            cache_hit = False
+
+        run_with_person_cache_lock(fp, _compute)
+
+    if cache_hit and cached_payload is not None:
+        result = person_research_response_from_redis_cache(
+            req,
+            organization_context_block=organization_context_block,
+            markdown=str(cached_payload.get("markdown") or ""),
+            gemini_google_search_used=cached_payload.get("gemini_google_search_used"),
+        )
+
+    redis_key = person_cache_redis_key(fp) if cache_hit else None
+    return result, cache_hit, redis_key
+
+
 def generate_dossiers_from_calendar_event(
     reunion: dict[str, Any],
     *,
     organization_context_block: str | None = None,
+    organization_id: UUID | None = None,
+    depth: str = "standard",
+    output_language: str | None = None,
 ) -> dict[str, Any]:
     """
-    Devuelve dossiers corporativo (CH/SEC) y de persona (Lusha) por separado.
+    Devuelve dossiers corporativo (CH/SEC) y de persona (PDL) por separado.
     """
+    out_lang = normalize_output_language(output_language)
     parsed = parse_calendar_event_for_dossiers(reunion)
     company_corporate = parsed["company_corporate"]
     company_person = parsed["company_person"]
     person_name = parsed["person_name"]
     person_job = parsed["person_job"]
     person_country = parsed.get("person_country")
+    person_email = parsed.get("person_email")
     tema = parsed["tema"]
     participantes = parsed["participantes"]
 
@@ -326,17 +508,24 @@ def generate_dossiers_from_calendar_event(
     person_md: str | None = None
     person_payload: dict[str, Any] | None = None
     errors: list[str] = []
+    corporate_cache_hit = False
+    person_cache_hit = False
+    corporate_cache_key: str | None = None
+    person_cache_key: str | None = None
+    depth_key = depth if depth in DEPTH_CREDITS else "standard"
 
     if company_corporate or participantes:
         try:
             participantes_brief, scope = resolve_corporate_brief(company_corporate)
             if participantes:
                 participantes_brief = f"{participantes_brief} Asistentes: {participantes}"
-            corporate_md = run_corporate_dossier_langgraph(
-                tema_reunion=tema or "Reunión",
+            corporate_md, corporate_cache_hit, corporate_cache_key = _corporate_md_from_cache_or_langgraph(
+                participantes_brief=participantes_brief,
+                tema=tema,
                 participantes=participantes_brief,
-                descripcion="",
-                jurisdiction_scope=scope,
+                scope=scope,
+                depth=depth_key,
+                output_language=out_lang,
             )
         except Exception as e:
             logger.exception("Fallo dossier corporativo desde calendario")
@@ -355,22 +544,36 @@ def generate_dossiers_from_calendar_event(
                 "inicio": reunion.get("inicio"),
                 "ubicacion": reunion.get("ubicacion"),
             }
+            person_src = default_person_research_source()
             req = PersonResearchRequest(
                 full_name=person_name,
                 company=company_person or None,
                 job_area=person_job,
                 country=person_country,
-                research_source=PersonResearchSource.lusha,
+                email=person_email,
+                research_source=person_src,
                 max_profiles=1,
+                reveal_contact_details=False,
+                output_language=out_lang,
             )
-            person_payload = run_person_research(
-                req,
-                organization_context_block=organization_context_block,
-                meeting_context=meeting_ctx,
-            )
+            if organization_id is not None:
+                person_payload, person_cache_hit, person_cache_key = _person_research_from_cache_or_pipeline(
+                    req=req,
+                    organization_id=organization_id,
+                    organization_context_block=organization_context_block,
+                    meeting_context=meeting_ctx,
+                    output_language=out_lang,
+                )
+            else:
+                person_payload = run_person_research(
+                    req,
+                    organization_context_block=organization_context_block,
+                    meeting_context=meeting_ctx,
+                    output_language=out_lang,
+                )
             person_md = (person_payload.get("gemini_analysis_markdown") or "").strip() or None
         except Exception as e:
-            logger.exception("Fallo dossier persona (Lusha) desde calendario")
+            logger.exception("Fallo dossier persona desde calendario")
             errors.append(f"Persona: {e}")
             person_md = f"# Error en dossier persona\n\n{e}"
 
@@ -394,6 +597,11 @@ def generate_dossiers_from_calendar_event(
         "dossier_persona_research": person_payload,
         "dossier_generado": corporate_md or person_md or "",
         "errors": errors,
+        "corporate_cache_hit": corporate_cache_hit,
+        "person_cache_hit": person_cache_hit,
+        "corporate_cache_key": corporate_cache_key,
+        "person_cache_key": person_cache_key,
+        "output_language": out_lang,
     }
 
 
@@ -506,6 +714,8 @@ def persist_calendar_dossiers(
     calendar_provider: str,
     generation_duration_ms: int,
     calendar_event_id: UUID | None = None,
+    depth: str = "standard",
+    charge_credits: bool = True,
 ) -> dict[str, Any]:
     """
     Guarda dossier corporativo y/o persona en ``dossiers`` (Mis Dossiers).
@@ -523,11 +733,20 @@ def persist_calendar_dossiers(
         or "Reunión"
     )[:255]
     calendar_folder = {"id": str(folder_id), "title": folder_title}
+    depth_key = depth if depth in DEPTH_CREDITS else "standard"
+    charge = charge_credits and credit_charging_enabled()
+    corp_cost = DEPTH_CREDITS[depth_key]
+    person_cost = PERSON_IDENTITY_CREDITS
+    corporate_cache_hit = bool(result.get("corporate_cache_hit"))
+    person_cache_hit = bool(result.get("person_cache_hit"))
+    cache_expires = cached_until_from_now()
+    output_lang = normalize_output_language(result.get("output_language"))
 
     corporate_md = result.get("dossier_corporativo")
     if _markdown_is_persistable(corporate_md):
         is_err = str(corporate_md).lstrip().startswith("# Error")
         status = "failed" if is_err else "complete"
+        will_charge_corp = charge and not is_err and not corporate_cache_hit
         dossier_id = uuid.uuid4()
         subject = (parsed.get("company_corporate") or parsed.get("company") or parsed.get("tema") or "Empresa")[:255]
         dossier = Dossier(
@@ -540,8 +759,8 @@ def persist_calendar_dossiers(
             module_identity=False,
             module_corporate=True,
             module_media=False,
-            depth_level="standard",
-            credits_consumed=0,
+            depth_level=depth_key,
+            credits_consumed=corp_cost if will_charge_corp else 0,
             status=status,
             status_message="Error en el informe generado." if is_err else None,
             dossier_data={
@@ -549,17 +768,24 @@ def persist_calendar_dossiers(
                 "body": corporate_md,
                 "pipeline": "langgraph_corporate",
                 "success": not is_err,
-                "billing": "none",
+                "billing": "charged" if will_charge_corp else "none",
+                "cache": {
+                    "hit": corporate_cache_hit,
+                    "redis": redis_corporate_cache_available(),
+                },
                 "calendar": cal,
                 "calendar_folder": calendar_folder,
                 "calendar_folder_role": "corporate",
+                "output_language": output_lang,
             },
             agents_activated=["agent_corporate_uk", "agent_corporate_usa", "synthesize_gemini"],
             agents_failed=(["synthesize_gemini"] if is_err else []),
             data_sources_used=["companies_house", "sec_edgar", "sec_company_facts", "gemini"],
             generation_started_at=now,
             generation_completed_at=now,
-            generation_duration_ms=generation_duration_ms,
+            generation_duration_ms=0 if corporate_cache_hit else generation_duration_ms,
+            cache_key=result.get("corporate_cache_key") if corporate_cache_hit else None,
+            cached_until=cache_expires if corporate_cache_hit else None,
             trigger_source="calendar",
             calendar_event_id=calendar_event_id,
             dossier_folder_id=folder_id,
@@ -592,6 +818,22 @@ def persist_calendar_dossiers(
             body = ""
             success = False
 
+        will_charge_person = charge and status == "complete" and not person_cache_hit
+        person_research = result.get("dossier_persona_research")
+        lusha_diag: dict[str, Any] | None = None
+        person_research_source = "pdl"
+        if isinstance(person_research, dict):
+            fa = person_research.get("filters_applied")
+            if isinstance(fa, dict) and fa.get("research_source"):
+                person_research_source = str(fa["research_source"])
+            lusha_diag = {
+                "profiles_count": len(person_research.get("profiles") or []),
+                "profile_urls": person_research.get("profile_urls") or [],
+                "warnings": person_research.get("warnings") or [],
+                "gemini_google_search_used": person_research.get("gemini_google_search_used"),
+                "filters_applied": person_research.get("filters_applied"),
+            }
+        person_email_stored = (parsed.get("person_email") or "")[:255] or None
         dossier_id = uuid.uuid4()
         dossier = Dossier(
             id=dossier_id,
@@ -599,12 +841,12 @@ def persist_calendar_dossiers(
             requested_by_user_id=user_id,
             contact_id=None,
             subject_name=person_name[:255],
-            subject_email=None,
+            subject_email=person_email_stored,
             module_identity=True,
             module_corporate=False,
             module_media=False,
-            depth_level="standard",
-            credits_consumed=0,
+            depth_level="basic",
+            credits_consumed=person_cost if will_charge_person else 0,
             status=status,
             status_message=status_message,
             dossier_data={
@@ -612,7 +854,11 @@ def persist_calendar_dossiers(
                 "body": body,
                 "pipeline": "person_research",
                 "success": success,
-                "billing": "none",
+                "billing": "charged" if will_charge_person else "none",
+                "cache": {
+                    "hit": person_cache_hit,
+                    "redis": redis_person_cache_available(),
+                },
                 "calendar": cal,
                 "calendar_folder": calendar_folder,
                 "calendar_folder_role": "person",
@@ -621,15 +867,20 @@ def persist_calendar_dossiers(
                     "job_area": parsed.get("person_job"),
                     "company": parsed.get("company_person"),
                     "country": parsed.get("person_country"),
-                    "research_source": "lusha",
+                    "email": parsed.get("person_email"),
+                    "research_source": person_research_source,
                 },
+                "lusha_diagnostics": lusha_diag,
+                "output_language": output_lang,
             },
             agents_activated=[],
             agents_failed=(["deepseek_person_analysis"] if status == "failed" else []),
-            data_sources_used=["lusha", "deepseek"],
+            data_sources_used=[person_research_source, "deepseek"],
             generation_started_at=now,
             generation_completed_at=now,
-            generation_duration_ms=generation_duration_ms,
+            generation_duration_ms=0 if person_cache_hit else generation_duration_ms,
+            cache_key=result.get("person_cache_key") if person_cache_hit else None,
+            cached_until=cache_expires if person_cache_hit else None,
             trigger_source="calendar",
             calendar_event_id=calendar_event_id,
             dossier_folder_id=folder_id,

@@ -29,19 +29,23 @@ function parseDossierData(data: unknown): {
   body: string;
   pipeline: string | null;
   success: boolean | null;
+  cacheHit: boolean;
 } {
   if (!data || typeof data !== "object") {
     return {
       body: "",
       pipeline: null,
       success: null,
+      cacheHit: false,
     };
   }
   const o = data as Record<string, unknown>;
+  const cache = o.cache && typeof o.cache === "object" ? (o.cache as Record<string, unknown>) : null;
   return {
     body: typeof o.body === "string" ? o.body : "",
     pipeline: typeof o.pipeline === "string" ? o.pipeline : null,
     success: typeof o.success === "boolean" ? o.success : null,
+    cacheHit: cache?.hit === true,
   };
 }
 
@@ -63,6 +67,22 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
 
   const meta = useMemo(() => parseDossierData(dossier.dossier_data), [dossier.dossier_data]);
   const isPersonPipeline = meta.pipeline === "person_research";
+  const lushaDiagnostics = useMemo(() => {
+    const dd = dossier.dossier_data;
+    if (!dd || typeof dd !== "object") return null;
+    const ld = (dd as Record<string, unknown>).lusha_diagnostics;
+    if (!ld || typeof ld !== "object") return null;
+    const o = ld as Record<string, unknown>;
+    const warnings = Array.isArray(o.warnings)
+      ? o.warnings.filter((w): w is string => typeof w === "string" && w.trim().length > 0)
+      : [];
+    const profilesCount = typeof o.profiles_count === "number" ? o.profiles_count : null;
+    const urls = Array.isArray(o.profile_urls)
+      ? o.profile_urls.filter((u): u is string => typeof u === "string")
+      : [];
+    if (profilesCount === null && warnings.length === 0 && urls.length === 0) return null;
+    return { profilesCount, warnings, urls };
+  }, [dossier.dossier_data]);
 
   const created = dossier.created_at
     ? formatLongDate(dossier.created_at, preferences)
@@ -135,6 +155,18 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             >
               {statusFailed ? t("dossiers.status_failed") : dossier.status}
             </span>
+            {meta.cacheHit ? (
+              <span
+                className="rounded-full border px-3 py-0.5 text-xs font-semibold uppercase tracking-wide"
+                style={{
+                  borderColor: "rgba(56,189,248,0.35)",
+                  color: "#7dd3fc",
+                  backgroundColor: "rgba(56,189,248,0.08)",
+                }}
+              >
+                {t("detail.cache_badge")}
+              </span>
+            ) : null}
           </div>
           <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
             {dossier.subject_name || t("detail.api_no_subject")}
@@ -189,6 +221,46 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
           )}
         </div>
       </header>
+
+      {isPersonPipeline && lushaDiagnostics ? (
+        <div
+          className="mb-6 rounded-xl border px-4 py-3 text-sm"
+          style={{
+            borderColor: "var(--border-default)",
+            backgroundColor: "var(--bg-surface)",
+            color: "var(--text-muted)",
+          }}
+        >
+          <p className="font-medium" style={{ color: "var(--text-primary)" }}>
+            {t("overview.calendar_enrichment_diagnostics")}
+          </p>
+          <p className="mt-1">
+            {lushaDiagnostics.profilesCount === 0
+              ? t("detail.enrichment_no_profiles")
+              : t("detail.enrichment_profiles_found", {
+                  count: lushaDiagnostics.profilesCount ?? 0,
+                })}
+          </p>
+          {lushaDiagnostics.urls.length > 0 ? (
+            <ul className="mt-2 list-disc pl-5">
+              {lushaDiagnostics.urls.map((u) => (
+                <li key={u}>
+                  <a href={u} target="_blank" rel="noreferrer" className="underline">
+                    {u}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {lushaDiagnostics.warnings.length > 0 ? (
+            <ul className="mt-2 list-disc pl-5 text-amber-200/90">
+              {lushaDiagnostics.warnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-6">
           <DashboardCard title={t("detail.api_report_title")}>

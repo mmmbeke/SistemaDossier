@@ -168,14 +168,18 @@ const messages = {
   "generate.warn_query_short": "Search text is too short.",
   "person_research.title": "Person professional insight",
   "person_research.subtitle":
-    "Person insight from public sources and professional records (Lusha). Not a substitute for legal vetting; process personal data only with a lawful basis.",
+    "Person insight from People Data Labs (PDL) and AI analysis. Not a substitute for legal vetting; process personal data only with a lawful basis.",
   "person_research.source_label": "Research type",
   "person_research.source_gemini": "Public web search",
   "person_research.source_gemini_hint":
     "Information from the open web and report synthesis.",
-  "person_research.source_lusha": "Professional records (Lusha)",
-  "person_research.source_lusha_hint":
-    "Professional profiles via Lusha and Gemini analysis. Requires LUSHA_API_KEY on the server.",
+  "person_research.source_pdl": "Professional records (People Data Labs)",
+  "person_research.source_pdl_hint":
+    "Enrichment via PDL person/enrich and AI analysis. Requires PDL_API_KEY on the server.",
+  "person_research.email": "Email (optional)",
+  "person_research.email_ph": "e.g. name@company.com — improves PDL match quality",
+  "person_research.linkedin_url": "LinkedIn (optional)",
+  "person_research.linkedin_url_ph": "https://www.linkedin.com/in/…",
   "person_research.back": "Back",
   "person_research.section_filters": "Search filters",
   "person_research.full_name": "Full name",
@@ -192,7 +196,7 @@ const messages = {
   "person_research.extra_keywords_ph": "School, sector, project…",
   "person_research.max_profiles": "Profiles to enrich (1–5)",
   "person_research.reveal_contact_details":
-    "Reveal email and phone via Lusha (uses account credits)",
+    "Reveal email and phone in Lusha (PDL includes them in the match when available)",
   "person_research.submit": "Search and analyze",
   "person_research.submitting": "Generating report…",
   "person_research.error_auth": "You must be signed in.",
@@ -205,6 +209,7 @@ const messages = {
   "person_research.no_analysis":
     "No report: check server configuration (model key and web search) or the warnings above.",
   "person_research.saved_title": "Saved to My Dossiers",
+  "person_research.cache_badge": "Redis cache · test",
   "person_research.saved_body":
     "This brief was stored for your organization. Open it anytime from the list.",
   "person_research.saved_open": "Open dossier",
@@ -266,6 +271,7 @@ const messages = {
   "detail.refresh": "Refresh dossier",
   "detail.api_no_subject": "Unnamed subject",
   "detail.api_dates": "Created {created} · Updated {updated}",
+  "detail.cache_badge": "Redis · test",
   "detail.api_report_title": "AI-generated report",
   "detail.api_no_body": "No report was stored for this dossier.",
   "detail.api_meta_title": "Generation metadata",
@@ -291,6 +297,9 @@ const messages = {
   "detail.person_refine_bullet_company": "Current or likely employer",
   "detail.person_refine_bullet_geo": "Country, region, or city",
   "detail.person_refine_cta": "New people search",
+  "detail.enrichment_no_profiles":
+    "PDL returned no profiles: the report used your input and DeepSeek only. Add corporate email, LinkedIn, or regenerate.",
+  "detail.enrichment_profiles_found": "PDL matched {count} profile(s).",
   "detail.show_raw_json": "Show raw JSON",
   "detail.hide_raw_json": "Hide raw JSON",
   "detail.api_pipeline_sources": "Pipeline, sources & agents",
@@ -439,6 +448,25 @@ const messages = {
     "No description on this event. Add «Company: …» and «Contact: …» in the event body in your calendar.",
   "overview.calendar_description_no_contact":
     "No «Contact:» or «Name:» line detected in the description; only the company dossier will be generated.",
+  "calendar.guide.summary": "Meeting description format guide",
+  "calendar.guide.intro":
+    "Paste this format in the event body (Outlook or Google Calendar) so we can generate company and person dossiers automatically. One field per line.",
+  "calendar.guide.template_title": "Example to copy",
+  "calendar.guide.copy": "Copy example",
+  "calendar.guide.copied": "Copied",
+  "calendar.guide.fields_title": "Accepted labels (Spanish or English)",
+  "calendar.guide.field_company":
+    "Company: Empresa, Company, Client, Organization…",
+  "calendar.guide.field_contact":
+    "Person: Contacto, Nombre, Name, Contact, Meeting with…",
+  "calendar.guide.field_job":
+    "Role: Cargo, Puesto, Rol, Title, Area…",
+  "calendar.guide.field_email": "Email: nombre@empresa.com (optional, improves matching)",
+  "calendar.guide.field_country": "Country: País, Country… (optional)",
+  "calendar.guide.subject_title": "Subject line (company only)",
+  "calendar.guide.subject_hint":
+    "If you only add the company in the subject, we detect it from patterns like:",
+  "overview.calendar_enrichment_diagnostics": "PDL / data sources",
   "overview.google_oauth_ok": "Google Calendar connected successfully.",
   "overview.google_oauth_error": "Google Calendar connection failed.",
   "overview.google_banner_close": "Dismiss",
@@ -474,7 +502,7 @@ const messages = {
   "quick.addressbook_label": "Address Book",
   "quick.addressbook_desc": "Manage contacts",
   "quick.person_research_label": "People",
-  "quick.person_research_desc": "Person report: professional records (Lusha) or public web",
+  "quick.person_research_desc": "Person report: People Data Labs (PDL) or public web",
   "quick.corporate_label": "Companies",
   "quick.corporate_desc": "UK + US corporate dossier generation",
   "automation.title": "Calendar Automation",
@@ -486,6 +514,12 @@ const messages = {
   "automation.calendar_loading": "Loading meetings…",
   "automation.calendar_load_error": "Could not load calendar.",
   "automation.no_upcoming_events": "No upcoming meetings on connected calendars.",
+  "dossier_jobs.default_label": "Meeting dossier",
+  "dossier_jobs.generating": "Generating dossier…",
+  "dossier_jobs.ready": "Dossier ready",
+  "dossier_jobs.failed": "Could not generate dossier",
+  "dossier_jobs.view_folder": "View folder",
+  "dossier_jobs.dismiss": "Dismiss",
   "calendar.work": "Work Calendar",
   "calendar.personal": "Personal",
   "calendar.outlook_work": "Outlook Work",
@@ -611,7 +645,7 @@ const messages = {
   "settings.timezone": "Timezone",
   "settings.date_format": "Date Format",
   "settings.output_language": "Dossier Output Language",
-  "output.auto": "Auto-detect from participant",
+  "output.auto": "Spanish (default)",
   "output.english": "Always English",
   "output.match": "Match display language",
   "settings.output_hint": "Language used when generating intelligence briefs",

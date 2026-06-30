@@ -10,6 +10,7 @@ type CalendarDossierPreviewProps = {
   tema: string;
   corporate?: string | null;
   person?: string | null;
+  lushaWarnings?: string[];
   savedCorporate?: CalendarSavedDossierRef;
   savedPerson?: CalendarSavedDossierRef;
   savedFolder?: { id: string; title: string };
@@ -78,6 +79,7 @@ export default function CalendarDossierPreview({
   tema,
   corporate,
   person,
+  lushaWarnings,
   savedCorporate,
   savedPerson,
   savedFolder,
@@ -113,6 +115,25 @@ export default function CalendarDossierPreview({
             </Link>
           )}
         </p>
+      ) : null}
+      {lushaWarnings && lushaWarnings.length > 0 ? (
+        <div
+          className="mt-2 rounded-md border px-2 py-2 text-xs leading-relaxed"
+          style={{
+            borderColor: "var(--border-default)",
+            backgroundColor: "var(--bg-surface-strong)",
+            color: "var(--text-muted)",
+          }}
+        >
+          <p className="font-medium" style={{ color: "var(--text-primary)" }}>
+            {t("overview.calendar_enrichment_diagnostics")}
+          </p>
+          <ul className="mt-1 list-disc pl-4">
+            {lushaWarnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </div>
       ) : null}
       <DossierBlock
         label={t("overview.calendar_dossier_corporate")}

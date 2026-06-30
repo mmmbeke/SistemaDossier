@@ -43,7 +43,15 @@ function loadPreferences(): UserPreferences {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      return { ...DEFAULT_PREFERENCES, ...JSON.parse(raw) };
+      const merged = { ...DEFAULT_PREFERENCES, ...JSON.parse(raw) } as UserPreferences;
+      // «auto» = español fijo; con UI no española suele ser un error de expectativa.
+      if (
+        merged.outputLanguage === "auto" &&
+        merged.locale !== "es"
+      ) {
+        merged.outputLanguage = "match";
+      }
+      return merged;
     }
     const legacyTheme = localStorage.getItem("dossier-theme") as ThemeChoice | null;
     if (legacyTheme) {

@@ -30,8 +30,14 @@ from dossier.api.auth_routes import (
     get_db_if_configured,
     router as auth_router,
 )
+from dossier.api.integrations_routes import router as integrations_router
+from dossier.api.dossier_job_routes import router as dossier_jobs_router
 from dossier.api.dossier_routes import router as dossiers_router
 from dossier.api.google_calendar import router as google_calendar_router
+from dossier.cache.corporate_dossier_redis import (
+    dossier_corporate_redis_health,
+    warmup_corporate_dossier_redis,
+)
 from dossier.config import PROJECT_ROOT, load_env
 from dossier.db import is_database_configured
 from dossier.db.connection import get_engine
@@ -49,6 +55,7 @@ from dossier.services.calendar_event_dossiers import (
     generate_dossiers_from_calendar_event,
     persist_calendar_dossiers,
 )
+from dossier.services.output_language import normalize_output_language, resolve_output_language_from_user_locale
 from dossier.services.calendar_integrations import (
     upsert_google_calendar_tokens,
     upsert_microsoft_calendar_tokens,
@@ -64,7 +71,10 @@ from dossier.services.graph_calendar import (
     diagnostico_microsoft_calendar,
 )
 from dossier.services.calendar_automation_worker import start_calendar_automation_thread
+from dossier.services.dossier_generation_job_service import enqueue_calendar_dossier_job
+from dossier.services.dossier_generation_worker import start_dossier_generation_worker
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
+from dossier.schemas.dossier_generation import DEPTH_CREDITS, DossierDepth
 
 load_env()
 
@@ -119,15 +129,18 @@ async def lifespan(app: FastAPI):
 
             engine = get_engine()
             Base.metadata.create_all(bind=engine)
+    warmup_corporate_dossier_redis()
     logger.info(
         "CORS: allow_origin_regex=%s, origins=%s",
         "on" if _cors_origin_regex else "off",
         _cors_origins,
     )
     stop_automation = start_calendar_automation_thread()
+    stop_generation = start_dossier_generation_worker()
     try:
         yield
     finally:
+        stop_generation()
         stop_automation()
 
 
@@ -183,6 +196,8 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(dossiers_router)
+app.include_router(dossier_jobs_router)
+app.include_router(integrations_router)
 app.include_router(google_calendar_router)
 
 CLIENT_ID = os.getenv("MICROSOFT_CLIENT_ID")
@@ -343,7 +358,10 @@ def read_root():
             "companies_house": _status("COMPANIES_HOUSE_API_KEY"),
             "gemini": _status("DEEPSEEK_API_KEY"),
             "deepseek": _status("DEEPSEEK_API_KEY"),
-            "lusha": _status("LUSHA_API_KEY"),
+            "pdl": "configurada ✅"
+            if (os.getenv("PDL_API_KEY") or os.getenv("PEOPLE_DATA_LABS_API_KEY") or "").strip()
+            else "no configurada ❌",
+            "person_research_provider": (os.getenv("PERSON_RESEARCH_PROVIDER") or "pdl").strip().lower(),
             "openai": _status("OPENAI_API_KEY"),
             "google_oauth": _status("GOOGLE_CLIENT_ID"),
             "microsoft": _status("MICROSOFT_CLIENT_ID"),
@@ -778,6 +796,21 @@ def api_diagnostico_google_calendario(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+def _calendar_output_language(user: User, explicit: str | None) -> str:
+    return normalize_output_language(explicit or user.locale)
+
+
+def _reunion_snapshot_with_output_language(
+    reunion: dict,
+    *,
+    user: User,
+    output_language: str | None,
+) -> dict:
+    snap = dict(reunion)
+    snap["_output_language"] = _calendar_output_language(user, output_language)
+    return snap
+
+
 def _run_calendar_dossier_batch(
     db: Session,
     *,
@@ -786,13 +819,17 @@ def _run_calendar_dossier_batch(
     reuniones: list,
     calendar_provider: str,
     org_ctx: str,
+    output_language: str | None = None,
 ) -> list:
     dossiers = []
+    out_lang = _calendar_output_language(user, output_language)
     for reunion in reuniones:
         t0 = time.perf_counter()
         item = generate_dossiers_from_calendar_event(
             reunion,
             organization_context_block=org_ctx,
+            organization_id=org.id,
+            output_language=out_lang,
         )
         elapsed_ms = int((time.perf_counter() - t0) * 1000)
         item = persist_calendar_dossiers(
@@ -805,6 +842,60 @@ def _run_calendar_dossier_batch(
         )
         dossiers.append(item)
     return dossiers
+
+
+def _normalize_calendar_depth(raw: str | None) -> DossierDepth:
+    depth = (raw or "standard").strip().lower()
+    if depth in DEPTH_CREDITS:
+        return depth  # type: ignore[return-value]
+    return "standard"
+
+
+def _enqueue_calendar_dossier_jobs(
+    db: Session,
+    *,
+    user: User,
+    org: Organization,
+    reuniones: list,
+    calendar_provider: str,
+    depth: DossierDepth,
+    output_language: str | None = None,
+) -> dict:
+    jobs = []
+    for reunion in reuniones:
+        snap = _reunion_snapshot_with_output_language(
+            reunion,
+            user=user,
+            output_language=output_language,
+        )
+        job = enqueue_calendar_dossier_job(
+            db,
+            user=user,
+            org=org,
+            reunion=snap,
+            calendar_provider=calendar_provider,
+            depth=depth,
+        )
+        jobs.append(job)
+    first = jobs[0]
+    return {
+        "async": True,
+        "job_id": str(first.id),
+        "status": first.status,
+        "meeting_label": first.meeting_label,
+        "credits_estimated": first.credits_estimated,
+        "jobs": [
+            {
+                "job_id": str(j.id),
+                "status": j.status,
+                "meeting_label": j.meeting_label,
+                "credits_estimated": j.credits_estimated,
+                "external_event_id": j.external_event_id,
+            }
+            for j in jobs
+        ],
+        "mensaje": "Generación en curso. Puedes navegar; te avisaremos cuando esté listo.",
+    }
 
 
 def _resolve_outlook_reuniones(
@@ -948,6 +1039,18 @@ def api_generar_dossiers_desde_calendario_post(
             "dossiers": [],
         }
 
+    depth = _normalize_calendar_depth(body.depth)
+    if body.async_mode:
+        return _enqueue_calendar_dossier_jobs(
+            db,
+            user=user,
+            org=org,
+            reuniones=reuniones,
+            calendar_provider="microsoft",
+            depth=depth,
+            output_language=body.output_language,
+        )
+
     dossiers = _run_calendar_dossier_batch(
         db,
         user=user,
@@ -955,6 +1058,7 @@ def api_generar_dossiers_desde_calendario_post(
         reuniones=reuniones,
         calendar_provider="microsoft",
         org_ctx=org_ctx,
+        output_language=body.output_language,
     )
 
     return {
@@ -1039,6 +1143,18 @@ def api_generar_dossiers_desde_google_calendar_post(
             "dossiers": [],
         }
 
+    depth = _normalize_calendar_depth(body.depth)
+    if body.async_mode:
+        return _enqueue_calendar_dossier_jobs(
+            db,
+            user=user,
+            org=org,
+            reuniones=reuniones,
+            calendar_provider="google",
+            depth=depth,
+            output_language=body.output_language,
+        )
+
     dossiers = _run_calendar_dossier_batch(
         db,
         user=user,
@@ -1046,6 +1162,7 @@ def api_generar_dossiers_desde_google_calendar_post(
         reuniones=reuniones,
         calendar_provider="google",
         org_ctx=org_ctx,
+        output_language=body.output_language,
     )
 
     return {
@@ -1225,6 +1342,7 @@ def health_check():
             "vercel_origin_regex": bool(_cors_origin_regex),
             "allowed_origins": _cors_origins,
         },
+        "dossier_redis": dossier_corporate_redis_health(),
     }
 
 

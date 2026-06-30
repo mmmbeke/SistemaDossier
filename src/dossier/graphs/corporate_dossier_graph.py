@@ -68,6 +68,7 @@ class CorporateDossierState(TypedDict, total=False):
     participantes: str
     descripcion: str
     jurisdiction_scope: JurisdictionScope
+    output_language: str
 
     uk_corporate_context: str
     us_corporate_context: str
@@ -128,6 +129,10 @@ def _node_agent_corporate_usa(state: CorporateDossierState) -> dict[str, Any]:
 def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
     """Síntesis Gemini según alcance UK / US / dual."""
     from dossier.llm.text_generate import generate_text_with_llm
+    from dossier.services.output_language import (
+        apply_output_language_to_system_prompt,
+        normalize_output_language,
+    )
 
     tema = state.get("tema_reunion", "").strip()
     participantes = state.get("participantes", "").strip()
@@ -135,6 +140,7 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
     uk = state.get("uk_corporate_context", "").strip()
     us = state.get("us_corporate_context", "").strip()
     scope = state.get("jurisdiction_scope", "dual")
+    output_language = normalize_output_language(state.get("output_language"))
 
     if scope == "uk_only":
         system = (
@@ -235,6 +241,8 @@ En el **resumen ejecutivo** (apartado 1), separa en bullets breves lo que aplica
 {_BRIEF_DOSSIER_DELIVERY}
 """
 
+    system = apply_output_language_to_system_prompt(system, output_language)
+
     try:
         texto = generate_text_with_llm(user, system_instruction=system)
     except Exception as e:
@@ -266,17 +274,21 @@ def run_corporate_dossier_langgraph(
     participantes: str,
     descripcion: str = "",
     jurisdiction_scope: JurisdictionScope | None = None,
+    output_language: str = "es",
 ) -> str:
     """Compila el grafo, infiere alcance UK/US (o usa el explícito) y devuelve Markdown."""
+    from dossier.services.output_language import normalize_output_language
+
     app = build_corporate_dossier_graph().compile()
     scope = jurisdiction_scope if jurisdiction_scope is not None else infer_jurisdiction_scope(participantes)
-    logger.info("Corporate dossier jurisdiction_scope=%s", scope)
+    logger.info("Corporate dossier jurisdiction_scope=%s output_language=%s", scope, output_language)
     result = app.invoke(
         {
             "tema_reunion": tema_reunion,
             "participantes": participantes,
             "descripcion": descripcion or "",
             "jurisdiction_scope": scope,
+            "output_language": normalize_output_language(output_language),
             "agent_errors": [],
         }
     )
