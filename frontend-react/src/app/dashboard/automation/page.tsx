@@ -33,8 +33,7 @@ const selectStyle = {
 export default function AutomationPage() {
   const { t } = useTranslation();
   const [beforeMinutes, setBeforeMinutes] = useState("20");
-  const [effectiveMinutes, setEffectiveMinutes] = useState<number | null>(null);
-  const [fromEnv, setFromEnv] = useState(false);
+  const [hasCalendars, setHasCalendars] = useState(false);
   const [scheduledEvents, setScheduledEvents] = useState(0);
   const [nextDue, setNextDue] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(true);
@@ -53,8 +52,7 @@ export default function AutomationPage() {
     try {
       const st = await fetchCalendarAutomationStatus();
       setEnabled(st.enabled);
-      setEffectiveMinutes(st.advance_minutes);
-      setFromEnv(Boolean(st.advance_minutes_from_env));
+      setHasCalendars(Boolean(st.has_calendars ?? (st.integrations?.length ?? 0) > 0));
       const stored = st.advance_minutes_stored ?? st.advance_minutes;
       setBeforeMinutes(String(stored));
       setScheduledEvents(st.scheduled_events);
@@ -71,14 +69,13 @@ export default function AutomationPage() {
   }, [loadStatus]);
 
   async function handleAdvanceChange(value: string) {
+    if (!hasCalendars) return;
     setBeforeMinutes(value);
     setSaveMsg(null);
     setSaving(true);
     setErr(null);
     try {
       const res = await patchCalendarAutomationSettings(Number(value));
-      setEffectiveMinutes(res.advance_minutes_effective);
-      setFromEnv(res.advance_minutes_from_env);
       setSaveMsg(res.message);
       void loadStatus();
     } catch (e) {
@@ -87,6 +84,8 @@ export default function AutomationPage() {
       setSaving(false);
     }
   }
+
+  const selectDisabled = saving || load === "loading" || !hasCalendars;
 
   return (
     <>
@@ -114,13 +113,22 @@ export default function AutomationPage() {
               {t("automation.rules_desc")}
             </p>
 
+            {!hasCalendars && load === "ready" ? (
+              <p
+                className="rounded-lg border border-dashed px-3 py-2 text-xs"
+                style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}
+              >
+                {t("automation.connect_calendar_hint")}
+              </p>
+            ) : null}
+
             <label className="flex flex-col gap-1.5 text-sm">
               <span style={{ color: "var(--text-secondary)" }}>
                 {t("automation.before_meeting")}
               </span>
               <select
                 value={beforeMinutes}
-                disabled={saving || load === "loading"}
+                disabled={selectDisabled}
                 onChange={(e) => void handleAdvanceChange(e.target.value)}
                 className={selectClass}
                 style={selectStyle}
@@ -144,9 +152,9 @@ export default function AutomationPage() {
               </p>
             ) : null}
 
-            {fromEnv && effectiveMinutes != null ? (
-              <p className="rounded-lg border px-3 py-2 text-xs" style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}>
-                {t("automation.advance_env_active", { minutes: String(effectiveMinutes) })}
+            {load === "ready" && hasCalendars ? (
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {t("automation.advance_effective", { minutes: beforeMinutes })}
               </p>
             ) : null}
 

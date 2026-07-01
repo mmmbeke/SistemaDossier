@@ -38,6 +38,8 @@ logger = logging.getLogger(__name__)
 
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w.-]+\.\w+")
 
+ALLOWED_ADVANCE_MINUTES = frozenset({15, 20, 30, 60, 1440})
+
 
 def automation_enabled() -> bool:
     raw = os.getenv("CALENDAR_AUTOMATION_ENABLED", "1").strip().lower()
@@ -53,21 +55,35 @@ def poll_interval_seconds() -> int:
 
 
 def default_advance_minutes() -> int:
-    """Minutos antes del evento para generar dossiers (por defecto 20)."""
+    """Valor por defecto del servidor (nuevas integraciones o preferencia inválida)."""
     raw = os.getenv("CALENDAR_DEFAULT_ADVANCE_MINUTES", "20").strip()
     try:
-        return max(1, min(int(raw), 7 * 24 * 60))
+        value = max(1, min(int(raw), 7 * 24 * 60))
     except ValueError:
-        return 20
+        value = 20
+    return value if value in ALLOWED_ADVANCE_MINUTES else 20
+
+
+def normalize_advance_minutes(value: int | None) -> int:
+    """Devuelve minutos válidos guardados o el default del servidor."""
+    if value is not None and value in ALLOWED_ADVANCE_MINUTES:
+        return value
+    return default_advance_minutes()
 
 
 def effective_advance_minutes(integration: CalendarIntegration) -> int:
-    env = os.getenv("CALENDAR_DEFAULT_ADVANCE_MINUTES", "").strip()
-    if env.isdigit():
-        return max(1, min(int(env), 7 * 24 * 60))
-    allowed = {15, 20, 30, 60, 1440}
-    adv = integration.advance_minutes or 20
-    return adv if adv in allowed else 20
+    """Anticipación que usa la automatización para esta integración (preferencia del usuario)."""
+    return normalize_advance_minutes(integration.advance_minutes)
+
+
+def user_advance_minutes(integrations: list[CalendarIntegration]) -> int:
+    """Anticipación efectiva del usuario (primera integración activa o default)."""
+    for row in integrations:
+        if row.revoked_at is None and row.is_enabled:
+            return effective_advance_minutes(row)
+    if integrations:
+        return normalize_advance_minutes(integrations[0].advance_minutes)
+    return default_advance_minutes()
 
 
 def parse_event_datetime(value: str | None) -> datetime | None:
@@ -393,9 +409,15 @@ def run_calendar_automation_tick(db: Session) -> dict[str, Any]:
         synced += sync_calendar_events_for_integration(db, integration)
 
     stats = process_due_calendar_events(db)
+    advances = {
+        effective_advance_minutes(i)
+        for i in integrations
+        if i.is_enabled and i.revoked_at is None
+    }
+    advance_report = min(advances) if advances else default_advance_minutes()
     return {
         "integrations": len(integrations),
         "events_synced": synced,
         **stats,
-        "advance_minutes": default_advance_minutes(),
+        "advance_minutes": advance_report,
     }

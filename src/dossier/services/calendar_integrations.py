@@ -10,6 +10,13 @@ from sqlalchemy.orm import Session
 from dossier.db.models import CalendarIntegration
 
 
+def _initial_advance_minutes() -> int:
+    """Valor inicial de anticipación al crear una integración (evita import circular)."""
+    from dossier.services.calendar_automation import default_advance_minutes
+
+    return default_advance_minutes()
+
+
 def upsert_microsoft_calendar_tokens(
     db: Session,
     *,
@@ -52,6 +59,7 @@ def upsert_microsoft_calendar_tokens(
             user_id=user_id,
             organization_id=organization_id,
             provider="microsoft",
+            advance_minutes=_initial_advance_minutes(),
         )
         db.add(row)
 
@@ -113,6 +121,7 @@ def upsert_google_calendar_tokens(
             user_id=user_id,
             organization_id=organization_id,
             provider="google",
+            advance_minutes=_initial_advance_minutes(),
         )
         db.add(row)
 
