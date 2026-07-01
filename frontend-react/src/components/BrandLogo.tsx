@@ -1,38 +1,41 @@
+import Image from "next/image";
+
 type BrandLogoProps = {
   size?: "sm" | "md" | "lg";
-  withText?: boolean;
 };
 
-const sizeMap = {
-  sm: { box: "h-8 w-8 text-sm rounded-lg", text: "text-base" },
-  md: { box: "h-10 w-10 text-base rounded-[10px]", text: "text-xl" },
-  lg: { box: "h-14 w-14 text-xl rounded-2xl", text: "text-2xl" },
+/** Logo horizontal (ícono + wordmark). */
+const heightMap = {
+  sm: 40,
+  md: 56,
+  lg: 76,
 };
 
-export default function BrandLogo({
-  size = "md",
-  withText = true,
-}: BrandLogoProps) {
-  const styles = sizeMap[size];
+export default function BrandLogo({ size = "md" }: BrandLogoProps) {
+  const height = heightMap[size];
+  const width = Math.round(height * 3.8);
+
+  const shared = {
+    alt: "TraceLens",
+    width,
+    height,
+    priority: true,
+    className: "brand-logo-img h-auto w-full max-w-full object-contain object-center",
+    style: { height, maxHeight: height },
+  };
+
   return (
-    <div className="inline-flex items-center gap-3">
-      <div
-        className={`${styles.box} flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20`}
-        style={{
-          backgroundImage:
-            "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
-        }}
-      >
-        D
-      </div>
-      {withText && (
-        <span
-          className={`${styles.text} font-bold tracking-tight`}
-          style={{ color: "var(--text-primary)" }}
-        >
-          Dossier
-        </span>
-      )}
-    </div>
+    <span className="brand-logo-wrap relative inline-flex w-full max-w-[240px] items-center justify-center">
+      <Image
+        {...shared}
+        src="/tracelens-logo-dark.png"
+        className={`${shared.className} brand-logo--dark`}
+      />
+      <Image
+        {...shared}
+        src="/tracelens-logo-light.png"
+        className={`${shared.className} brand-logo--light`}
+      />
+    </span>
   );
 }

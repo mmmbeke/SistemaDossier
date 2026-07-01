@@ -5,6 +5,7 @@ import { notFound, useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import DossierFolderCard from "@/components/dossier/DossierFolderCard";
+import UiAlert from "@/components/ui/UiAlert";
 import {
   DossierApiError,
   deleteDossierFromApi,
@@ -135,9 +136,9 @@ export default function DossierFolderPage() {
       </header>
 
       {error ? (
-        <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+        <UiAlert variant="warning" className="mb-4">
           {error}
-        </div>
+        </UiAlert>
       ) : null}
 
       <DossierFolderCard folder={folder} deletingId={deletingId} onDeleteDossier={handleDeleteDossier} />

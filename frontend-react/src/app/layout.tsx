@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import { DM_Sans, Space_Mono } from "next/font/google";
+import { Inter, Space_Mono } from "next/font/google";
 import ThemeScript from "@/components/ThemeScript";
 import { PreferencesProvider } from "@/providers/PreferencesProvider";
 import "./globals.css";
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const spaceMono = Space_Mono({
@@ -17,9 +17,12 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Project Dossier",
+  title: "TraceLens",
   description:
-    "Plataforma de inteligencia automatizada para preparar reuniones de alto impacto.",
+    "Inteligencia de personas en tiempo real para reuniones de alto impacto.",
+  icons: {
+    icon: "/tracelens-logo-dark.png",
+  },
 };
 
 export default function RootLayout({
@@ -31,7 +34,7 @@ export default function RootLayout({
     <html
       lang="es"
       suppressHydrationWarning
-      className={`${dmSans.variable} ${spaceMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${spaceMono.variable} h-full antialiased`}
     >
       <head>
         <ThemeScript />

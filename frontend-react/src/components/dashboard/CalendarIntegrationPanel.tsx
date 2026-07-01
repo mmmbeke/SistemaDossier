@@ -17,6 +17,7 @@ import {
 } from "@/lib/dossier-api";
 import CalendarDossierPreview from "@/components/dashboard/CalendarDossierPreview";
 import CalendarMeetingFormatGuide from "@/components/dashboard/CalendarMeetingFormatGuide";
+import UiAlert from "@/components/ui/UiAlert";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { Locale } from "@/i18n/types";
@@ -323,21 +324,15 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
       </div>
 
       {err && (
-        <div
-          className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100"
-          role="alert"
-        >
+        <UiAlert variant="warning" role="alert">
           {err}
-        </div>
+        </UiAlert>
       )}
 
       {genErr && (
-        <div
-          className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-100"
-          role="alert"
-        >
+        <UiAlert variant="error" role="alert">
           {genErr}
-        </div>
+        </UiAlert>
       )}
 
       {token && connected ? <CalendarMeetingFormatGuide /> : null}
@@ -428,7 +423,7 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
                   </pre>
                 ) : (
                   <div className="mt-1">
-                    <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-amber-100/90">
+                    <p className="ui-alert ui-alert-warning px-2.5 py-2">
                       {t("overview.calendar_description_empty")}
                     </p>
                     <CalendarMeetingFormatGuide variant="inline" defaultOpen />
@@ -436,7 +431,7 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
                 )}
                 {descripcion && !hasContacto ? (
                   <div className="mt-1">
-                    <p className="text-amber-200/85">
+                    <p className="ui-text-warning text-xs">
                       {t("overview.calendar_description_no_contact")}
                     </p>
                     <CalendarMeetingFormatGuide variant="inline" defaultOpen />

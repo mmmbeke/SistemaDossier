@@ -25,9 +25,9 @@ function BellIcon() {
 
 function statusTone(status: string): { dot: string; key: "ready" | "failed" | "pending" } {
   const s = (status || "").toLowerCase();
-  if (s === "failed" || s === "error") return { dot: "#f87171", key: "failed" };
-  if (s === "complete" || s === "completed" || s === "ready") return { dot: "#34d399", key: "ready" };
-  return { dot: "#fbbf24", key: "pending" };
+  if (s === "failed" || s === "error") return { dot: "var(--status-error)", key: "failed" };
+  if (s === "complete" || s === "completed" || s === "ready") return { dot: "var(--status-success)", key: "ready" };
+  return { dot: "var(--status-warning)", key: "pending" };
 }
 
 function NotificationRow({
@@ -44,9 +44,9 @@ function NotificationRow({
     <Link
       href={n.href}
       onClick={onClick}
-      className="flex items-start gap-3 px-4 py-3 transition hover:opacity-90"
+      className="flex items-start gap-3 px-4 py-3 transition ui-hover-surface"
       style={{
-        backgroundColor: n.read ? "transparent" : "var(--bg-input)",
+        backgroundColor: n.read ? "var(--bg-panel)" : "var(--bg-panel-muted)",
         borderBottom: "1px solid var(--border-default)",
       }}
     >
@@ -66,9 +66,9 @@ function NotificationRow({
           <span
             className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
             style={{
-              color: n.origin === "automated" ? "#7dd3fc" : "var(--text-muted)",
+              color: n.origin === "automated" ? "var(--alert-info-text)" : "var(--text-muted)",
               backgroundColor:
-                n.origin === "automated" ? "rgba(56,189,248,0.12)" : "var(--bg-input)",
+                n.origin === "automated" ? "var(--alert-info-bg)" : "var(--bg-input)",
             }}
           >
             {n.origin === "automated"
@@ -126,10 +126,10 @@ export default function NotificationBell() {
         type="button"
         onClick={toggle}
         aria-label={t("notifications.aria")}
-        className="relative flex h-10 w-10 items-center justify-center rounded-full border shadow-sm transition hover:opacity-90"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full border shadow-md transition ui-hover-surface"
         style={{
           borderColor: "var(--border-default)",
-          backgroundColor: "var(--bg-surface)",
+          backgroundColor: "var(--bg-panel)",
           color: "var(--text-primary)",
         }}
       >
@@ -146,15 +146,19 @@ export default function NotificationBell() {
 
       {open && (
         <div
-          className="absolute right-0 mt-2 w-80 overflow-hidden rounded-xl border shadow-2xl"
+          className="absolute right-0 mt-2 w-80 overflow-hidden rounded-xl border shadow-xl"
           style={{
-            borderColor: "var(--border-default)",
-            backgroundColor: "var(--bg-surface)",
+            borderColor: "var(--border-strong)",
+            backgroundColor: "var(--bg-panel)",
+            boxShadow: "0 16px 40px rgba(10, 20, 40, 0.18)",
           }}
         >
           <div
             className="flex items-center justify-between px-4 py-3"
-            style={{ borderBottom: "1px solid var(--border-default)" }}
+            style={{
+              borderBottom: "1px solid var(--border-default)",
+              backgroundColor: "var(--bg-panel)",
+            }}
           >
             <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
               {t("notifications.title")}
@@ -171,7 +175,7 @@ export default function NotificationBell() {
             )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-96 overflow-y-auto" style={{ backgroundColor: "var(--bg-panel)" }}>
             {notifications.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
                 {t("notifications.empty")}
@@ -193,10 +197,11 @@ export default function NotificationBell() {
           <Link
             href="/dashboard/dossiers"
             onClick={() => setOpen(false)}
-            className="block px-4 py-3 text-center text-xs font-medium transition hover:opacity-80"
+            className="block px-4 py-3 text-center text-xs font-medium transition ui-hover-surface"
             style={{
               color: "var(--accent-from)",
               borderTop: "1px solid var(--border-default)",
+              backgroundColor: "var(--bg-panel)",
             }}
           >
             {t("notifications.view_all")}
