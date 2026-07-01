@@ -107,7 +107,8 @@ Lista de fuentes utilizadas con indicación del nivel de confianza:
 ---
 
 ## REGLAS DE FORMATO
-- Redacta en el idioma indicado por la configuración de salida del dossier.
+- Redacta en el idioma indicado por la configuración de salida del dossier (español, inglés, portugués, italiano, francés o alemán).
+- Si el idioma no es español, **traduce** todos los títulos de sección del modelo al idioma elegido; no dejes encabezados en español en el informe final.
 - Usa encabezados claros con "###" (y "####" en subsecciones 6.x).
 - Las alertas van siempre entre corchetes: [ALERTA LEVE], [ALERTA MODERADA], [ALERTA CRÍTICA], [INCONSISTENCIA], [OBSERVACIÓN], [INFERENCIA]
 - No uses lenguaje especulativo sin marcar la inferencia

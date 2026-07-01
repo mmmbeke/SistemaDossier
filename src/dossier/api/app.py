@@ -235,6 +235,37 @@ def _status(name: str) -> str:
     return "Configurada ✅" if os.getenv(name) else "Faltante ❌"
 
 
+_CALENDAR_GET_RESPONSES: dict[int, dict[str, str]] = {
+    400: {"description": "Token de calendario inválido o error al consultar el proveedor."},
+    404: {"description": "Evento o reunión no encontrada."},
+    422: {"description": "Parámetros de consulta inválidos."},
+}
+
+_OAUTH_CALLBACK_RESPONSES: dict[int, dict[str, str]] = {
+    400: {"description": "Error OAuth o falta el código de autorización."},
+    422: {"description": "Parámetros de consulta inválidos."},
+}
+
+
+def _sanitize_legacy_access_token(access_token: Optional[str]) -> Optional[str]:
+    """OAuth tokens son ASCII; rechaza basura de fuzzing antes de llamar a Graph/Google."""
+    if access_token is None:
+        return None
+    token = access_token.strip()
+    if not token:
+        return None
+    if len(token) > 8192:
+        raise HTTPException(status_code=422, detail="access_token demasiado largo.")
+    try:
+        token.encode("ascii")
+    except UnicodeEncodeError as e:
+        raise HTTPException(
+            status_code=422,
+            detail="access_token contiene caracteres no válidos.",
+        ) from e
+    return token
+
+
 def _graph_token_for_calendar_route(
     db: Session,
     authorization: Optional[str],
@@ -248,7 +279,10 @@ def _graph_token_for_calendar_route(
       el token desde ``calendar_integrations``.
     """
     if access_token:
-        return access_token.strip()
+        leg = _sanitize_legacy_access_token(access_token)
+        if not leg:
+            raise HTTPException(status_code=422, detail="access_token vacío.")
+        return leg
     _, user = auth_payload_and_user(db, authorization)
     return get_microsoft_graph_access_token_for_user(db, user.id)
 
@@ -322,7 +356,10 @@ def _google_token_for_calendar_route(
     access_token: Optional[str],
 ) -> str:
     if access_token:
-        return access_token.strip()
+        leg = _sanitize_legacy_access_token(access_token)
+        if not leg:
+            raise HTTPException(status_code=422, detail="access_token vacío.")
+        return leg
     _, user = auth_payload_and_user(db, authorization)
     return get_google_calendar_access_token_for_user(db, user.id)
 
@@ -496,8 +533,8 @@ def login_microsoft():
     return RedirectResponse(auth_url)
 
 
-@app.get("/callback", tags=["Autenticación Microsoft"])
-@app.get("/callback-microsoft", tags=["Autenticación Microsoft"])
+@app.get("/callback", tags=["Autenticación Microsoft"], responses=_OAUTH_CALLBACK_RESPONSES)
+@app.get("/callback-microsoft", tags=["Autenticación Microsoft"], responses=_OAUTH_CALLBACK_RESPONSES)
 def callback(
     code: Optional[str] = None,
     error: Optional[str] = None,
@@ -593,7 +630,7 @@ def callback(
     }
 
 
-@app.get("/callback-google", tags=["Integraciones"])
+@app.get("/callback-google", tags=["Integraciones"], responses=_OAUTH_CALLBACK_RESPONSES)
 def callback_google(
     code: Optional[str] = None,
     error: Optional[str] = None,
@@ -680,8 +717,8 @@ def callback_google(
     raise HTTPException(status_code=500, detail="FRONTEND_URL no configurada.")
 
 
-@app.get("/calendario/eventos", tags=["Calendario"])
-@app.get("/calendario/eventos-outlook", tags=["Calendario"])
+@app.get("/calendario/eventos", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
+@app.get("/calendario/eventos-outlook", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
 def api_listar_eventos_calendario(
     top: int = Query(10, ge=1, le=50, description="Cantidad máxima de reuniones"),
     dias: int = Query(90, ge=1, le=365, description="Días hacia adelante a buscar"),
@@ -707,6 +744,8 @@ def api_listar_eventos_calendario(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except UnicodeError as e:
+        raise HTTPException(status_code=422, detail="Parámetros con caracteres no válidos.") from e
 
     mensaje = None
     if not reuniones:
@@ -718,7 +757,7 @@ def api_listar_eventos_calendario(
     return {"total": len(reuniones), "reuniones": reuniones, "mensaje": mensaje}
 
 
-@app.get("/calendario/eventos-google", tags=["Calendario"])
+@app.get("/calendario/eventos-google", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
 def api_listar_eventos_google_calendar(
     top: int = Query(10, ge=1, le=50, description="Cantidad máxima de eventos"),
     dias: int = Query(90, ge=1, le=365, description="Días hacia adelante a buscar"),
@@ -744,6 +783,8 @@ def api_listar_eventos_google_calendar(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except UnicodeError as e:
+        raise HTTPException(status_code=422, detail="Parámetros con caracteres no válidos.") from e
 
     mensaje = None
     if not reuniones:
@@ -755,8 +796,8 @@ def api_listar_eventos_google_calendar(
     return {"total": len(reuniones), "reuniones": reuniones, "mensaje": mensaje}
 
 
-@app.get("/calendario/diagnostico-microsoft", tags=["Calendario"])
-@app.get("/calendario/diagnostico-outlook", tags=["Calendario"])
+@app.get("/calendario/diagnostico-microsoft", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
+@app.get("/calendario/diagnostico-outlook", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
 def api_diagnostico_microsoft_calendario(
     access_token: Optional[str] = Query(
         None,
@@ -774,9 +815,11 @@ def api_diagnostico_microsoft_calendario(
         return diagnostico_microsoft_calendar(token)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except UnicodeError as e:
+        raise HTTPException(status_code=422, detail="Parámetros con caracteres no válidos.") from e
 
 
-@app.get("/calendario/diagnostico-google", tags=["Calendario"])
+@app.get("/calendario/diagnostico-google", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
 def api_diagnostico_google_calendario(
     access_token: Optional[str] = Query(
         None,
@@ -794,6 +837,8 @@ def api_diagnostico_google_calendario(
         return diagnostico_google_calendar(token)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except UnicodeError as e:
+        raise HTTPException(status_code=422, detail="Parámetros con caracteres no válidos.") from e
 
 
 def _calendar_output_language(user: User, explicit: str | None) -> str:
@@ -953,8 +998,8 @@ def _resolve_google_reuniones(
     return listar_reuniones_google(token, top=top, dias_adelante=90)
 
 
-@app.get("/calendario/generar-dossiers", tags=["Calendario"])
-@app.get("/calendario/generar-dossiers-outlook", tags=["Calendario"])
+@app.get("/calendario/generar-dossiers", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
+@app.get("/calendario/generar-dossiers-outlook", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
 def api_generar_dossiers_desde_calendario(
     user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
     top: int = Query(5, ge=1, le=10, description="Máximo de reuniones a procesar con IA"),
@@ -1067,7 +1112,7 @@ def api_generar_dossiers_desde_calendario_post(
     }
 
 
-@app.get("/calendario/generar-dossiers-google", tags=["Calendario"])
+@app.get("/calendario/generar-dossiers-google", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
 def api_generar_dossiers_desde_google_calendar(
     user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
     top: int = Query(5, ge=1, le=10, description="Máximo de eventos a procesar con IA"),

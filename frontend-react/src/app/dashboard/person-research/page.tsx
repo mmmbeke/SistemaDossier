@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import TopBar from "@/components/dashboard/TopBar";
 import FormField from "@/components/FormField";
@@ -9,12 +9,12 @@ import PrimaryButton from "@/components/PrimaryButton";
 import {
   DossierApiError,
   getStoredAccessToken,
-  postPersonResearch,
   type PersonResearchApiResponse,
   type PersonResearchPayload,
 } from "@/lib/dossier-api";
-import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import { useDossierJobs } from "@/providers/DossierJobsProvider";
+import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -23,6 +23,7 @@ type ResearchSourceUi = "gemini_web" | "pdl";
 export default function PersonResearchPage() {
   const { t } = useTranslation();
   const { preferences } = usePreferences();
+  const { enqueuePersonResearchJob, cancelJob, getActivePersonJob, jobs } = useDossierJobs();
   const [researchSource, setResearchSource] = useState<ResearchSourceUi>("pdl");
   const [fullName, setFullName] = useState("");
   const [jobArea, setJobArea] = useState("");
@@ -33,26 +34,35 @@ export default function PersonResearchPage() {
   const [city, setCity] = useState("");
   const [extraKeywords, setExtraKeywords] = useState("");
   const [maxProfiles, setMaxProfiles] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<PersonResearchApiResponse | null>(null);
   const [showRaw, setShowRaw] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const usesEnrichment = researchSource === "pdl";
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setResult(null);
-    const name = fullName.trim();
-    if (name.length < 2) {
-      setError(t("person_research.error_name"));
-      return;
-    }
-    if (!getStoredAccessToken()) {
-      setError(t("person_research.error_auth"));
-      return;
-    }
+  const activeJob =
+    jobs.find((j) => j.id === activeJobId) ?? getActivePersonJob() ?? null;
+  const isGenerating =
+    activeJob?.status === "queued" || activeJob?.status === "running";
 
+  useEffect(() => {
+    if (!activeJobId) return;
+    const job = jobs.find((j) => j.id === activeJobId);
+    if (!job) return;
+    if (job.status === "completed" && job.result) {
+      setResult(job.result as PersonResearchApiResponse);
+      setActiveJobId(null);
+    }
+    if (job.status === "failed" || job.status === "cancelled") {
+      setActiveJobId(null);
+      if (job.status === "failed" && job.error_message) {
+        setError(job.error_message);
+      }
+    }
+  }, [jobs, activeJobId]);
+
+  function buildPayload(name: string, forceRefresh = false): PersonResearchPayload {
     const payload: PersonResearchPayload = {
       full_name: name,
       research_source: researchSource,
@@ -73,11 +83,31 @@ export default function PersonResearchPage() {
     if (cu) payload.country = cu;
     if (ci) payload.city = ci;
     if (ex) payload.extra_keywords = ex;
+    if (forceRefresh) payload.force_refresh = true;
+    return payload;
+  }
 
-    setLoading(true);
+  async function startResearch(forceRefresh: boolean) {
+    setError("");
+    if (!forceRefresh) setResult(null);
+    const name = fullName.trim();
+    if (name.length < 2) {
+      setError(t("person_research.error_name"));
+      return;
+    }
+    if (!getStoredAccessToken()) {
+      setError(t("person_research.error_auth"));
+      return;
+    }
+    if (isGenerating) {
+      setError(t("person_research.already_generating"));
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      const data = await postPersonResearch(payload);
-      setResult(data);
+      const jobId = await enqueuePersonResearchJob(buildPayload(name, forceRefresh));
+      setActiveJobId(jobId);
     } catch (err) {
       if (err instanceof DossierApiError) {
         setError(err.message || t("generate.error.api"));
@@ -85,7 +115,31 @@ export default function PersonResearchPage() {
         setError(t("generate.error.api"));
       }
     } finally {
-      setLoading(false);
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await startResearch(false);
+  }
+
+  async function handleRegenerate() {
+    await startResearch(true);
+  }
+
+  async function handleCancelGeneration() {
+    if (!activeJob?.id) return;
+    setError("");
+    try {
+      await cancelJob(activeJob.id);
+      setActiveJobId(null);
+    } catch (err) {
+      if (err instanceof DossierApiError) {
+        setError(err.message || t("person_research.cancel_error"));
+      } else {
+        setError(t("person_research.cancel_error"));
+      }
     }
   }
 
@@ -120,6 +174,7 @@ export default function PersonResearchPage() {
                   checked={researchSource === "pdl"}
                   onChange={() => setResearchSource("pdl")}
                   className="mt-1"
+                  disabled={isGenerating}
                 />
                 <span>
                   <span className="font-medium">{t("person_research.source_pdl")}</span>
@@ -135,6 +190,7 @@ export default function PersonResearchPage() {
                   checked={researchSource === "gemini_web"}
                   onChange={() => setResearchSource("gemini_web")}
                   className="mt-1"
+                  disabled={isGenerating}
                 />
                 <span>
                   <span className="font-medium">{t("person_research.source_gemini")}</span>
@@ -152,6 +208,7 @@ export default function PersonResearchPage() {
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
+              disabled={isGenerating}
             />
             <FormField
               label={t("person_research.job_area")}
@@ -159,6 +216,7 @@ export default function PersonResearchPage() {
               placeholder={t("person_research.job_area_ph")}
               value={jobArea}
               onChange={(e) => setJobArea(e.target.value)}
+              disabled={isGenerating}
             />
             <FormField
               label={t("person_research.company")}
@@ -166,6 +224,7 @@ export default function PersonResearchPage() {
               placeholder={t("person_research.company_ph")}
               value={company}
               onChange={(e) => setCompany(e.target.value)}
+              disabled={isGenerating}
             />
             <FormField
               label={t("person_research.email")}
@@ -173,6 +232,7 @@ export default function PersonResearchPage() {
               placeholder={t("person_research.email_ph")}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              disabled={isGenerating}
             />
             <FormField
               label={t("person_research.linkedin_url")}
@@ -180,6 +240,7 @@ export default function PersonResearchPage() {
               placeholder={t("person_research.linkedin_url_ph")}
               value={linkedinUrl}
               onChange={(e) => setLinkedinUrl(e.target.value)}
+              disabled={isGenerating}
             />
             <FormField
               label={t("person_research.country")}
@@ -187,6 +248,7 @@ export default function PersonResearchPage() {
               placeholder={t("person_research.country_ph")}
               value={country}
               onChange={(e) => setCountry(e.target.value)}
+              disabled={isGenerating}
             />
             <FormField
               label={t("person_research.city")}
@@ -194,6 +256,7 @@ export default function PersonResearchPage() {
               placeholder={t("person_research.city_ph")}
               value={city}
               onChange={(e) => setCity(e.target.value)}
+              disabled={isGenerating}
             />
             <FormField
               label={t("person_research.extra_keywords")}
@@ -201,33 +264,82 @@ export default function PersonResearchPage() {
               placeholder={t("person_research.extra_keywords_ph")}
               value={extraKeywords}
               onChange={(e) => setExtraKeywords(e.target.value)}
+              disabled={isGenerating}
             />
 
             {usesEnrichment ? (
-              <>
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                    {t("person_research.max_profiles")}
-                  </label>
-                  <input
-                    type="number"
-                    name="max_profiles"
-                    min={1}
-                    max={5}
-                    className="w-24 rounded-lg border px-3 py-2 text-sm"
-                    style={{ borderColor: "var(--border-default)", color: "var(--text-primary)" }}
-                    value={maxProfiles}
-                    onChange={(e) => setMaxProfiles(Number(e.target.value))}
-                  />
-                </div>
-              </>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                  {t("person_research.max_profiles")}
+                </label>
+                <input
+                  type="number"
+                  name="max_profiles"
+                  min={1}
+                  max={5}
+                  className="w-24 rounded-lg border px-3 py-2 text-sm"
+                  style={{ borderColor: "var(--border-default)", color: "var(--text-primary)" }}
+                  value={maxProfiles}
+                  onChange={(e) => setMaxProfiles(Number(e.target.value))}
+                  disabled={isGenerating}
+                />
+              </div>
             ) : null}
 
             {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
-            <PrimaryButton type="submit" loading={loading}>
-              {t("person_research.submit")}
-            </PrimaryButton>
+            {isGenerating ? (
+              <div
+                className="rounded-lg border px-4 py-3 text-sm"
+                style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}
+              >
+                <p className="font-medium" style={{ color: "var(--text-primary)" }}>
+                  {t("person_research.generating_title", {
+                    name: activeJob?.meeting_label || fullName.trim(),
+                  })}
+                </p>
+                <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                  {t("person_research.generating_background")}
+                </p>
+                <div
+                  className="mt-3 h-1 w-full overflow-hidden rounded-full"
+                  style={{ backgroundColor: "var(--border-default)" }}
+                >
+                  <div
+                    className="h-full w-1/3 animate-pulse rounded-full"
+                    style={{ backgroundColor: "var(--accent-primary, #6366f1)" }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="mt-3 text-xs font-medium text-red-300 hover:text-red-200"
+                  onClick={() => void handleCancelGeneration()}
+                >
+                  {t("person_research.cancel")}
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <PrimaryButton type="submit" loading={submitting}>
+                  {t("person_research.submit")}
+                </PrimaryButton>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => void handleRegenerate()}
+                  className="inline-flex items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
+                  style={{
+                    borderColor: "var(--border-default)",
+                    color: "var(--accent-from)",
+                  }}
+                >
+                  {t("person_research.regenerate")}
+                </button>
+                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  {t("person_research.regenerate_hint")}
+                </p>
+              </div>
+            )}
           </form>
         </DashboardCard>
 
@@ -296,10 +408,25 @@ export default function PersonResearchPage() {
                 </ReactMarkdown>
               </div>
             </DashboardCard>
-          ) : result ? (
+          ) : result && !isGenerating ? (
             <DashboardCard title={t("person_research.section_analysis")}>
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                 {t("person_research.no_analysis")}
+              </p>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => void handleRegenerate()}
+                className="mt-4 inline-flex items-center justify-center rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
+                style={{
+                  borderColor: "var(--border-default)",
+                  color: "var(--accent-from)",
+                }}
+              >
+                {t("person_research.regenerate")}
+              </button>
+              <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                {t("person_research.regenerate_hint")}
               </p>
             </DashboardCard>
           ) : null}

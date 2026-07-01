@@ -8,7 +8,20 @@ export type ThemeChoice = "dark" | "light" | "system";
 
 export type DateFormat = "dd/mm/yyyy" | "mm/dd/yyyy" | "yyyy-mm-dd";
 
-export type OutputLanguage = "auto" | "en" | "match";
+/** Códigos de idioma que el backend usa en los prompts de dossier. */
+export type DossierOutputLanguageCode = "es" | "en" | "pt" | "it" | "fr" | "de";
+
+/** `match` = idioma de interfaz; `auto` = español (legado en localStorage). */
+export type OutputLanguage = "match" | DossierOutputLanguageCode | "auto";
+
+export const DOSSIER_OUTPUT_LANGUAGE_CODES: DossierOutputLanguageCode[] = [
+  "es",
+  "en",
+  "pt",
+  "it",
+  "fr",
+  "de",
+];
 
 export type UserPreferences = {
   theme: ThemeChoice;

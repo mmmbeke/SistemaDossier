@@ -59,6 +59,14 @@ class PersonResearchRequest(BaseModel):
         default=PersonResearchSource.pdl,
         description="pdl (por defecto) | gemini_web (solo IA)",
     )
+    async_mode: bool = Field(
+        False,
+        description="Si true, encola la generación y responde con job_id (no bloquea la petición).",
+    )
+    force_refresh: bool = Field(
+        False,
+        description="Si true, ejecuta una investigación nueva sin reutilizar un informe previo en caché.",
+    )
 
     @field_validator("email", "linkedin_url", mode="before")
     @classmethod

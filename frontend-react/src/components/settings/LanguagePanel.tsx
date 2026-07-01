@@ -3,12 +3,13 @@
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import { usePreferences } from "@/providers/PreferencesProvider";
 import {
+  DOSSIER_OUTPUT_LANGUAGE_CODES,
   LOCALE_LABELS,
   SUPPORTED_LOCALES,
   type DateFormat,
+  type DossierOutputLanguageCode,
   type Locale,
   type OutputLanguage,
-  type TranslationKey,
 } from "@/i18n/types";
 
 const selectClass =
@@ -26,11 +27,14 @@ const DATE_FORMAT_OPTIONS: { value: DateFormat; label: string }[] = [
   { value: "yyyy-mm-dd", label: "YYYY-MM-DD" },
 ];
 
-const OUTPUT_OPTIONS: { value: OutputLanguage; labelKey: TranslationKey }[] = [
-  { value: "auto", labelKey: "output.auto" },
-  { value: "en", labelKey: "output.english" },
-  { value: "match", labelKey: "output.match" },
-];
+const OUTPUT_LANGUAGE_LABELS: Record<DossierOutputLanguageCode, string> = {
+  es: LOCALE_LABELS.es,
+  en: LOCALE_LABELS.en,
+  pt: LOCALE_LABELS.pt,
+  it: LOCALE_LABELS.it,
+  fr: LOCALE_LABELS.fr,
+  de: LOCALE_LABELS.de,
+};
 
 const TIMEZONES = [
   "Europe/London",
@@ -117,9 +121,10 @@ export default function LanguagePanel() {
             className={selectClass}
             style={selectStyle}
           >
-            {OUTPUT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {t(opt.labelKey)}
+            <option value="match">{t("output.match")}</option>
+            {DOSSIER_OUTPUT_LANGUAGE_CODES.map((code) => (
+              <option key={code} value={code}>
+                {OUTPUT_LANGUAGE_LABELS[code]}
               </option>
             ))}
           </select>

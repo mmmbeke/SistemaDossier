@@ -23,13 +23,6 @@ from dossier.cache.corporate_dossier_redis import (
     run_with_corporate_cache_lock,
     set_corporate_cached_markdown,
 )
-from dossier.cache.person_dossier_redis import (
-    get_person_cached_payload,
-    person_cache_redis_key,
-    redis_person_cache_available,
-    run_with_person_cache_lock,
-    set_person_cached_payload,
-)
 from dossier.db.models import Dossier, Organization, User
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.graphs.corporate_dossier_graph import (
@@ -44,14 +37,9 @@ from dossier.schemas.dossier_generation import (
 )
 from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.corporate_company_search import search_corporate_company_candidates
-from dossier.gemini.analyze import normalize_person_report_text
-from dossier.services.calendar_event_dossiers import _person_failure_message
-from dossier.services.person_dossier_dedup import (
-    person_research_fingerprint,
-    person_research_response_from_redis_cache,
-)
+from dossier.services.person_research_pipeline import run_person_research_and_persist
+from dossier.services.dossier_generation_job_service import enqueue_person_research_job
 from dossier.services.output_language import normalize_output_language
-from dossier.services.person_research_service import run_person_research
 from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
 from dossier.services.dossier_folder_utils import (
     build_dossier_list_entries,
@@ -121,6 +109,9 @@ def person_professional_research(
     Investigación de persona: por defecto **PDL** (`research_source=pdl`).
     Alternativa: `gemini_web` (IA + Google Search). Requiere `PDL_API_KEY` para enriquecimiento.
 
+    Con ``async_mode=true`` encola el trabajo y responde de inmediato con ``job_id`` (podés
+    navegar por la app; el aviso aparece en el toast global).
+
     Si se genera texto de informe, se persiste en `dossiers` (misma organización que el JWT),
     como los dossiers corporativos; la respuesta incluye `saved_dossier` con el `id` creado.
 
@@ -128,219 +119,24 @@ def person_professional_research(
     y mismos filtros. ``dossier_source``: ``redis_cache`` (hit) o ``generated`` (miss).
     """
     user, org = user_org
-    org_ctx = format_dossier_context_for_prompt(org)
-    out_lang = normalize_output_language(body.output_language or user.locale)
-    fp = person_research_fingerprint(body, org.id, output_language=out_lang)
 
-    cache_hit = False
-    cached_payload: dict | None = None
-    if redis_person_cache_available():
-        hit = get_person_cached_payload(fp)
-        if hit is not None:
-            cached_payload = hit
-            cache_hit = True
-
-    result: dict | None = None
-    elapsed_ms = 0
-    research_error: str | None = None
-
-    if not cache_hit:
-
-        def _compute() -> None:
-            nonlocal cache_hit, cached_payload, result, elapsed_ms, research_error
-            h2 = get_person_cached_payload(fp)
-            if h2 is not None:
-                cached_payload = h2
-                cache_hit = True
-                return
-            t_run = time.perf_counter()
-            try:
-                nr = run_person_research(
-                    body,
-                    organization_context_block=org_ctx,
-                    output_language=out_lang,
-                )
-            except ValueError as e:
-                research_error = str(e)
-                return
-            result = nr
-            elapsed_ms = int((time.perf_counter() - t_run) * 1000)
-            md_new = (result.get("gemini_analysis_markdown") or "").strip()
-            if md_new and not md_new.lstrip().startswith("# Error"):
-                set_person_cached_payload(
-                    fp,
-                    {
-                        "markdown": md_new,
-                        "gemini_google_search_used": result.get("gemini_google_search_used"),
-                    },
-                )
-            cache_hit = False
-
-        run_with_person_cache_lock(fp, _compute)
-        if research_error is not None:
-            raise HTTPException(status_code=503, detail=research_error) from None
-    else:
-        elapsed_ms = 0
-
-    if cache_hit and cached_payload is not None:
-        result = person_research_response_from_redis_cache(
-            body,
-            organization_context_block=org_ctx,
-            markdown=str(cached_payload.get("markdown") or ""),
-            gemini_google_search_used=cached_payload.get("gemini_google_search_used"),
-        )
-        elapsed_ms = 0
-
-    if result is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Respuesta de investigación vacía; revisa logs del servidor.",
-        )
-
-    logger.info(
-        "POST /dossiers/person/research cache=%s redis=%s key_prefix=%s",
-        "hit" if cache_hit else "miss",
-        redis_person_cache_available(),
-        fp[:16],
-    )
-
-    md = normalize_person_report_text((result.get("gemini_analysis_markdown") or "").strip())
-    saved: dict | None = None
-    now = datetime.now(timezone.utc)
-    cache_row_key = person_cache_redis_key(fp) if cache_hit else None
-    cache_expires = cached_until_from_now() if cache_hit else None
-
-    if md:
-        is_err = md.lstrip().startswith("# Error")
-        status = "failed" if is_err else "complete"
-        dossier_id = uuid.uuid4()
-
-        dossier_data_body: dict = {
-            "format": "markdown",
-            "body": md,
-            "pipeline": "person_research",
-            "success": not is_err,
-            "billing": "none",
-            "person_dedup_key": fp,
-            "gemini_google_search_used": result.get("gemini_google_search_used"),
-            "cache": {
-                "hit": cache_hit,
-                "redis": redis_person_cache_available(),
-            },
-            "person_filters": {
-                "full_name": body.full_name,
-                "job_area": body.job_area,
-                "company": body.company,
-                "country": body.country,
-                "city": body.city,
-                "extra_keywords": body.extra_keywords,
-                "research_source": body.research_source.value,
-            },
-            "output_language": out_lang,
+    if body.async_mode:
+        job = enqueue_person_research_job(db, user=user, org=org, body=body)
+        return {
+            "async": True,
+            "job_id": str(job.id),
+            "status": job.status,
+            "meeting_label": job.meeting_label,
+            "credits_estimated": job.credits_estimated,
+            "mensaje": (
+                "Generación encolada. Podés seguir navegando; te avisaremos cuando termine."
+            ),
         }
 
-        dossier = Dossier(
-            id=dossier_id,
-            organization_id=org.id,
-            requested_by_user_id=user.id,
-            contact_id=None,
-            subject_name=body.full_name.strip()[:255],
-            subject_email=(body.email or "")[:255] or None,
-            module_identity=True,
-            module_corporate=False,
-            module_media=False,
-            depth_level="standard",
-            credits_consumed=0,
-            status=status,
-            status_message="Error en el informe generado." if is_err else None,
-            dossier_data=dossier_data_body,
-            agents_activated=[],
-            agents_failed=(["deepseek_person_analysis"] if is_err else []),
-            data_sources_used=[],
-            generation_started_at=now,
-            generation_completed_at=now,
-            generation_duration_ms=elapsed_ms,
-            cache_key=cache_row_key,
-            cached_until=cache_expires,
-            trigger_source="manual",
-        )
-        db.add(dossier)
-        db.commit()
-        db.refresh(dossier)
-
-        saved = {
-            "id": str(dossier.id),
-            "organization_id": str(org.id),
-            "status": dossier.status,
-            "credits_consumed": dossier.credits_consumed,
-            "generation_duration_ms": dossier.generation_duration_ms,
-        }
-    else:
-        status_message = _person_failure_message(
-            person_payload=result,
-            errors=None,
-            person_md=None,
-        )
-        dossier_id = uuid.uuid4()
-        dossier = Dossier(
-            id=dossier_id,
-            organization_id=org.id,
-            requested_by_user_id=user.id,
-            contact_id=None,
-            subject_name=body.full_name.strip()[:255],
-            subject_email=(body.email or "")[:255] or None,
-            module_identity=True,
-            module_corporate=False,
-            module_media=False,
-            depth_level="standard",
-            credits_consumed=0,
-            status="failed",
-            status_message=status_message,
-            dossier_data={
-                "format": "markdown",
-                "body": "",
-                "pipeline": "person_research",
-                "success": False,
-                "billing": "none",
-                "person_dedup_key": fp,
-                "cache": {
-                    "hit": cache_hit,
-                    "redis": redis_person_cache_available(),
-                },
-                "person_filters": {
-                    "full_name": body.full_name,
-                    "job_area": body.job_area,
-                    "company": body.company,
-                    "country": body.country,
-                    "city": body.city,
-                    "extra_keywords": body.extra_keywords,
-                    "research_source": body.research_source.value,
-                },
-            },
-            agents_activated=[],
-            agents_failed=(["deepseek_person_analysis"]),
-            data_sources_used=[],
-            generation_started_at=now,
-            generation_completed_at=now,
-            generation_duration_ms=elapsed_ms,
-            trigger_source="manual",
-        )
-        db.add(dossier)
-        db.commit()
-        db.refresh(dossier)
-
-        saved = {
-            "id": str(dossier.id),
-            "organization_id": str(org.id),
-            "status": dossier.status,
-            "status_message": dossier.status_message,
-            "credits_consumed": dossier.credits_consumed,
-            "generation_duration_ms": dossier.generation_duration_ms,
-        }
-
-    result["saved_dossier"] = saved
-    result["dossier_source"] = "redis_cache" if cache_hit else "generated"
-    return result
+    try:
+        return run_person_research_and_persist(db, user=user, org=org, body=body)
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
 
 
 @router.post("/dossiers/corporate/generate")

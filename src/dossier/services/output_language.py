@@ -15,6 +15,55 @@ _LANGUAGE_LABELS: dict[str, str] = {
     "de": "alemán",
 }
 
+# Instrucciones en el idioma objetivo (más fiables que solo decir «francés» en español).
+_DOSSIER_LANGUAGE_BLOCKS: dict[str, str] = {
+    "en": (
+        "**Mandatory output language:** Write the **entire** executive dossier in **English** "
+        "(section titles, tables, bullet points, risk levels, and recommendations). "
+        "Do **not** leave Spanish headings from the template (e.g. translate "
+        "«FICHA DE IDENTIDAD» → «IDENTITY CARD», «RESUMEN EJECUTIVO» → «EXECUTIVE SUMMARY»). "
+        "Keep bracket tags in English where applicable: [INFERENCE], [OBSERVATION], "
+        "[INCONSISTENCY], [LOW ALERT], [MODERATE ALERT], [CRITICAL ALERT]. "
+        "Maintain a formal executive tone."
+    ),
+    "pt": (
+        "**Idioma de saída obrigatório:** redija **todo** o dossiê executivo em **português** "
+        "(títulos de seção, tabelas, marcadores, níveis de risco e recomendações). "
+        "Não deixe títulos em espanhol do modelo (ex.: «FICHA DE IDENTIDAD» → "
+        "«FICHA DE IDENTIDADE», «RESUMEN EJECUTIVO» → «RESUMO EXECUTIVO»). "
+        "Use etiquetas entre colchetes em português quando fizer sentido: [INFERÊNCIA], "
+        "[OBSERVAÇÃO], [INCONSISTÊNCIA], [ALERTA LEVE], [ALERTA MODERADA], [ALERTA CRÍTICA]. "
+        "Tom formal e executivo."
+    ),
+    "it": (
+        "**Lingua di output obbligatoria:** redigi **l'intero** dossier esecutivo in **italiano** "
+        "(titoli di sezione, tabelle, elenchi, livelli di rischio e raccomandazioni). "
+        "Non lasciare titoli in spagnolo del modello (es. «FICHA DE IDENTIDAD» → "
+        "«SCHEDA IDENTITÀ», «RESUMEN EJECUTIVO» → «SOMMARIO ESECUTIVO»). "
+        "Usa tag tra parentesi quadre in italiano: [INFERENZA], [OSSERVAZIONE], "
+        "[INCOERENZA], [ALLERTA LIEVE], [ALLERTA MODERATA], [ALLERTA CRITICA]. "
+        "Tono formale ed esecutivo."
+    ),
+    "fr": (
+        "**Langue de sortie obligatoire :** rédigez **l'intégralité** du dossier exécutif en **français** "
+        "(titres de section, tableaux, puces, niveaux de risque et recommandations). "
+        "Ne conservez pas les titres espagnols du modèle (ex. « FICHA DE IDENTIDAD » → "
+        "« FICHE D'IDENTITÉ », « RESUMEN EJECUTIVO » → « RÉSUMÉ EXÉCUTIF »). "
+        "Utilisez des balises entre crochets en français : [INFÉRENCE], [OBSERVATION], "
+        "[INCOHÉRENCE], [ALERTE LÉGÈRE], [ALERTE MODÉRÉE], [ALERTE CRITIQUE]. "
+        "Ton formel et exécutif."
+    ),
+    "de": (
+        "**Ausgabesprache (Pflicht):** Verfassen Sie den **gesamten** Executive-Dossier-Bericht auf **Deutsch** "
+        "(Abschnittstitel, Tabellen, Aufzählungen, Risikoniveaus und Empfehlungen). "
+        "Lassen Sie keine spanischen Überschriften aus der Vorlage stehen (z. B. «FICHA DE IDENTIDAD» → "
+        "«IDENTITÄTSÜBERSICHT», «RESUMEN EJECUTIVO» → «EXECUTIVE SUMMARY»). "
+        "Verwenden Sie Klammer-Tags auf Deutsch: [INFERENZ], [BEOBACHTUNG], "
+        "[INKONSISTENZ], [LEICHTE WARNUNG], [MODERATE WARNUNG], [KRITISCHE WARNUNG]. "
+        "Formeller, sachlicher Executive-Ton."
+    ),
+}
+
 
 def normalize_output_language(raw: str | None) -> str:
     """Normaliza locale/código de salida; por defecto español."""
@@ -43,7 +92,13 @@ def resolve_output_language_from_user_locale(user_locale: str | None) -> str:
 
 def dossier_language_instruction(code: str) -> str:
     """Bloque corto para anexar a prompts de sistema."""
-    lang = _LANGUAGE_LABELS.get(normalize_output_language(code), "español")
+    normalized = normalize_output_language(code)
+    if normalized == "es":
+        return ""
+    block = _DOSSIER_LANGUAGE_BLOCKS.get(normalized)
+    if block:
+        return f"\n\n{block}"
+    lang = _LANGUAGE_LABELS.get(normalized, "español")
     return (
         f"\n\n**Idioma de salida obligatorio:** redacta **todo** el informe en **{lang}** "
         f"(incluidos títulos de sección, tablas y viñetas). Mantén el tono ejecutivo."
@@ -53,6 +108,8 @@ def dossier_language_instruction(code: str) -> str:
 def apply_output_language_to_system_prompt(system: str, code: str) -> str:
     """Ajusta prompts que asumen español (corporativo y persona)."""
     normalized = normalize_output_language(code)
+    if normalized == "es":
+        return system
     lang = _LANGUAGE_LABELS[normalized]
     updated = system
     for pattern, repl in (
@@ -65,6 +122,7 @@ def apply_output_language_to_system_prompt(system: str, code: str) -> str:
         ),
     ):
         updated = re.sub(pattern, repl, updated, count=1, flags=re.IGNORECASE)
-    if dossier_language_instruction(normalized) not in updated:
-        updated = updated + dossier_language_instruction(normalized)
+    block = dossier_language_instruction(normalized)
+    if block and block not in updated:
+        updated = updated + block
     return updated

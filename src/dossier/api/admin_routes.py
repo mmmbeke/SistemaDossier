@@ -79,7 +79,16 @@ def _build_admin_user_item(db: Session, u: User) -> AdminUserListItem:
     )
 
 
-@router.api_route("/users/{user_id}", methods=["PATCH", "PUT"], response_model=AdminUserListItem)
+@router.patch(
+    "/users/{user_id}",
+    response_model=AdminUserListItem,
+    operation_id="admin_patch_user_roles",
+)
+@router.put(
+    "/users/{user_id}",
+    response_model=AdminUserListItem,
+    operation_id="admin_put_user_roles",
+)
 def admin_patch_user_roles(
     user_id: UUID,
     body: AdminUserRolesPatch,
@@ -126,7 +135,7 @@ def admin_list_users(
     _: AdminUserDep,
     db: Session = Depends(get_db_if_configured),
     limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=100_000),
 ) -> AdminUserListResponse:
     total = db.execute(select(func.count()).select_from(User)).scalar_one()
     users = (
@@ -143,7 +152,7 @@ def admin_list_organizations(
     _: AdminUserDep,
     db: Session = Depends(get_db_if_configured),
     limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=100_000),
 ) -> AdminOrganizationListResponse:
     total = db.execute(select(func.count()).select_from(Organization)).scalar_one()
     orgs = (
@@ -182,7 +191,7 @@ def admin_list_dossiers(
     _: AdminUserDep,
     db: Session = Depends(get_db_if_configured),
     limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=100_000),
 ) -> AdminDossierListResponse:
     total = db.execute(select(func.count()).select_from(Dossier)).scalar_one()
     stmt = (

@@ -44,12 +44,9 @@ function loadPreferences(): UserPreferences {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const merged = { ...DEFAULT_PREFERENCES, ...JSON.parse(raw) } as UserPreferences;
-      // «auto» = español fijo; con UI no española suele ser un error de expectativa.
-      if (
-        merged.outputLanguage === "auto" &&
-        merged.locale !== "es"
-      ) {
-        merged.outputLanguage = "match";
+      // Legado: «auto» = español; con UI no española suele confundirse con «match».
+      if (merged.outputLanguage === "auto") {
+        merged.outputLanguage = merged.locale === "es" ? "es" : "match";
       }
       return merged;
     }
