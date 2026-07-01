@@ -421,6 +421,7 @@ const messages = {
   "overview.microsoft_subtitle":
     "Connect your calendar to list upcoming meetings using your Dossier session (no Microsoft token in the browser).",
   "overview.microsoft_connect": "Connect Outlook",
+  "overview.microsoft_connected": "Outlook connected",
   "overview.microsoft_refresh": "Refresh list",
   "overview.microsoft_loading": "Loading meetings…",
   "overview.microsoft_error": "Could not load the calendar.",
@@ -444,6 +445,7 @@ const messages = {
   "overview.google_subtitle":
     "Connect Google Calendar to list upcoming events with your Dossier session (no Google token stored in the browser).",
   "overview.google_connect": "Connect Google Calendar",
+  "overview.google_connected": "Google Calendar connected",
   "overview.google_refresh": "Refresh list",
   "overview.google_loading": "Loading events…",
   "overview.google_error": "Could not load Google Calendar.",
@@ -457,7 +459,9 @@ const messages = {
     "No description on this event. Add «Company: …» and «Contact: …» in the event body in your calendar.",
   "overview.calendar_description_no_contact":
     "No «Contact:» or «Name:» line detected in the description; only the company dossier will be generated.",
-  "calendar.guide.summary": "Meeting description format guide",
+  "calendar.guide.summary": "Format guide",
+  "calendar.guide.open_inline": "View format guide",
+  "calendar.guide.close": "Close",
   "calendar.guide.intro":
     "Paste this format in the event body (Outlook or Google Calendar) so we can generate company and person dossiers automatically. One field per line.",
   "calendar.guide.template_title": "Example to copy",

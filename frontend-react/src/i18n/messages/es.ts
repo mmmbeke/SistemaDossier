@@ -422,6 +422,7 @@ const messages = {
   "overview.microsoft_subtitle":
     "Conectá tu calendario para ver reuniones próximas con tu sesión de Dossier (sin pegar token de Microsoft en el navegador).",
   "overview.microsoft_connect": "Conectar Outlook",
+  "overview.microsoft_connected": "Outlook conectado",
   "overview.microsoft_refresh": "Actualizar lista",
   "overview.microsoft_loading": "Cargando reuniones…",
   "overview.microsoft_error": "No se pudo cargar el calendario.",
@@ -435,7 +436,9 @@ const messages = {
     "Sin descripción en el calendario. Añade en Outlook «Empresa: …» y «Contacto:» o «Nombre: …» en el cuerpo del evento.",
   "overview.calendar_description_no_contact":
     "No se detecta «Contacto:» ni «Nombre:» en la descripción; solo se generará el dossier de empresa.",
-  "calendar.guide.summary": "Guía de formato para reuniones",
+  "calendar.guide.summary": "Guía de formatos",
+  "calendar.guide.open_inline": "Ver guía de formato",
+  "calendar.guide.close": "Cerrar",
   "calendar.guide.intro":
     "Pegá este formato en el cuerpo del evento (Outlook o Google Calendar) para generar dossiers de empresa y persona automáticamente. Una línea por campo.",
   "calendar.guide.template_title": "Ejemplo para copiar",
@@ -469,6 +472,7 @@ const messages = {
   "overview.google_subtitle":
     "Conectá Google Calendar para ver eventos próximos con tu sesión de Dossier (sin token de Google en el navegador).",
   "overview.google_connect": "Conectar Google Calendar",
+  "overview.google_connected": "Google Calendar conectado",
   "overview.google_refresh": "Actualizar lista",
   "overview.google_loading": "Cargando eventos…",
   "overview.google_error": "No se pudo cargar Google Calendar.",

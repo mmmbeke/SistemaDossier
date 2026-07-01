@@ -170,15 +170,17 @@ export default function BillingPanel() {
       </DashboardCard>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {PLANS.map((plan) => (
+        {PLANS.map((plan) => {
+          const isCurrentPlan = plan.id === currentPlan;
+          return (
           <div
             key={plan.id}
             className="flex flex-col gap-4 rounded-xl border p-5"
             style={{
-              borderColor: plan.highlighted ? "var(--accent-from)" : "var(--border-default)",
+              borderColor: isCurrentPlan ? "var(--accent-from)" : "var(--border-default)",
               backgroundImage:
                 "linear-gradient(180deg, var(--bg-card-start) 0%, var(--bg-card-end) 100%)",
-              boxShadow: plan.highlighted ? "0 0 0 1px rgba(59, 130, 246, 0.25)" : undefined,
+              boxShadow: isCurrentPlan ? "0 0 0 1px rgba(59, 130, 246, 0.25)" : undefined,
             }}
           >
             <div>
@@ -226,7 +228,8 @@ export default function BillingPanel() {
                   : t("billing.upgrade")}
             </button>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
