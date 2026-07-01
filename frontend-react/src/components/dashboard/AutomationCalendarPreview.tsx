@@ -12,7 +12,6 @@ import {
   type OutlookReunionApi,
 } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
-import CalendarMeetingFormatGuide from "@/components/dashboard/CalendarMeetingFormatGuide";
 import type { Locale } from "@/i18n/types";
 
 type Provider = "google" | "outlook";
@@ -187,8 +186,6 @@ export default function AutomationCalendarPreview() {
           </PrimaryButton>
         ) : null}
       </div>
-
-      {anyConnected ? <CalendarMeetingFormatGuide /> : null}
 
       {err ? (
         <p className="ui-text-warning text-xs" role="alert">

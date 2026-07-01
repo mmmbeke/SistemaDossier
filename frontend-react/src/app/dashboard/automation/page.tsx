@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import AutomationCalendarPreview from "@/components/dashboard/AutomationCalendarPreview";
+import CalendarFormatGuideAnyAction from "@/components/dashboard/CalendarFormatGuideAnyAction";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import UiAlert from "@/components/ui/UiAlert";
 import TopBar from "@/components/dashboard/TopBar";
@@ -100,7 +101,10 @@ export default function AutomationPage() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="xl:col-span-2">
-          <DashboardCard title={t("automation.connected_calendars")}>
+          <DashboardCard
+            title={t("automation.connected_calendars")}
+            action={<CalendarFormatGuideAnyAction />}
+          >
             <AutomationCalendarPreview />
           </DashboardCard>
         </div>
