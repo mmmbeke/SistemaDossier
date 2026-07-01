@@ -17,7 +17,8 @@ from dossier.services.calendar_integrations import upsert_google_calendar_tokens
 logger = logging.getLogger(__name__)
 
 _TOKEN_SKEW = timedelta(seconds=120)
-_GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+# URL pública del endpoint OAuth2 de Google (no es un secreto).
+_GOOGLE_OAUTH2_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"  # nosec B105
 
 
 def _client_creds() -> tuple[str, str]:
@@ -83,7 +84,7 @@ def get_google_calendar_access_token_for_user(db: Session, user_id: UUID) -> str
 
     client_id, client_secret = _client_creds()
     r = requests.post(
-        _GOOGLE_TOKEN_URL,
+        _GOOGLE_OAUTH2_TOKEN_ENDPOINT,
         data={
             "client_id": client_id,
             "client_secret": client_secret,

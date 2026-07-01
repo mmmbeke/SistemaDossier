@@ -15,6 +15,26 @@ data/*
 company_uk_*.json
 *_gemini_analysis_*.txt
 
+# Artefactos IDE / documentos temporales
+.snapshots/
+.spec_extract.txt
+*.spec_extract.txt
+.cursor/
+
+# Python tooling caches
+.pytest_cache/
+.schemathesis/
+perf/openapi-core-get.json
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+*.log
+
+# SO
+.DS_Store
+Thumbs.db
+
 # Frontend Next.js (frontend-react/)
 node_modules/
 .next/

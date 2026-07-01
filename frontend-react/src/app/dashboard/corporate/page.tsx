@@ -3,8 +3,7 @@
 import CorporateDossierGenerateView from "@/components/dashboard/CorporateDossierGenerateView";
 
 /**
- * Generación dedicada de dossiers corporativos (UK Companies House + US SEC),
- * equivalente al flujo de `/dashboard/generate` pero accesible desde el menú lateral.
+ * Generación dedicada de dossiers corporativos (UK Companies House + US SEC).
  */
 export default function CorporateDossierGeneratePage() {
   return (

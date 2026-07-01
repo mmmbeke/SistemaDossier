@@ -10,6 +10,7 @@ import {
   fetchMicrosoftIntegrationStartAsJson,
   fetchOutlookCalendarEventos,
   getStoredAccessToken,
+  type CalendarGenerarDossierItem,
   type CalendarProvider,
   type CalendarSavedDossierRef,
   type OutlookReunionApi,
@@ -234,8 +235,10 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
       const id = r.id?.trim();
       if (!id) continue;
       const job = getJobForEvent(id);
-      if (job?.status !== "completed" || !job.result) continue;
-      const first = job.result;
+      if (job?.job_type !== "calendar_manual" || job.status !== "completed" || !job.result) {
+        continue;
+      }
+      const first = job.result as CalendarGenerarDossierItem;
       const corporate = first.dossier_corporativo ?? null;
       const person = first.dossier_persona ?? null;
       const research = first.dossier_persona_research as

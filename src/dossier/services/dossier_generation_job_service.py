@@ -20,6 +20,7 @@ from dossier.billing.credit_policy import (
 from dossier.db.models import DossierGenerationJob, Organization, User
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.schemas.dossier_generation import DEPTH_CREDITS, DossierDepth
+from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.calendar_event_dossiers import (
     build_calendar_meeting_label,
     generate_dossiers_from_calendar_event,
@@ -27,7 +28,8 @@ from dossier.services.calendar_event_dossiers import (
     persist_calendar_dossiers,
 )
 from dossier.services.output_language import normalize_output_language
-from dossier.services.google_calendar_api import obtener_reunion_google_por_id
+from dossier.services.person_dossier_dedup import person_research_fingerprint
+from dossier.services.person_research_pipeline import run_person_research_and_persist
 from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
 from dossier.services.graph_calendar import merge_reunion_payload, obtener_reunion_por_id
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
@@ -35,6 +37,7 @@ from dossier.services.microsoft_calendar_token import get_microsoft_graph_access
 logger = logging.getLogger(__name__)
 
 _ACTIVE_STATUSES = ("queued", "running")
+_CANCELLABLE_STATUSES = ("queued", "running")
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -89,6 +92,80 @@ def find_active_job_for_event(
         .limit(1)
     )
     return db.scalars(stmt).first()
+
+
+def find_active_person_job(
+    db: Session,
+    *,
+    user_id: UUID,
+    dedup_key: str,
+) -> DossierGenerationJob | None:
+    stmt = (
+        select(DossierGenerationJob)
+        .where(
+            DossierGenerationJob.requested_by_user_id == user_id,
+            DossierGenerationJob.external_event_id == dedup_key,
+            DossierGenerationJob.job_type == "person_manual",
+            DossierGenerationJob.status.in_(_ACTIVE_STATUSES),
+        )
+        .order_by(DossierGenerationJob.created_at.desc())
+        .limit(1)
+    )
+    return db.scalars(stmt).first()
+
+
+def enqueue_person_research_job(
+    db: Session,
+    *,
+    user: User,
+    org: Organization,
+    body: PersonResearchRequest,
+) -> DossierGenerationJob:
+    out_lang = normalize_output_language(body.output_language or user.locale)
+    fp = person_research_fingerprint(body, org.id, output_language=out_lang)
+    dedup_key = f"person:{fp}"
+    existing = find_active_person_job(db, user_id=user.id, dedup_key=dedup_key)
+    if existing:
+        return existing
+
+    label = body.full_name.strip()[:512] or "Persona"
+    job = DossierGenerationJob(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        requested_by_user_id=user.id,
+        status="queued",
+        job_type="person_manual",
+        calendar_provider=None,
+        external_event_id=dedup_key,
+        reunion_snapshot={"person_request": body.model_dump(mode="json")},
+        depth_level="standard",
+        meeting_label=label,
+        credits_estimated=0,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+def cancel_dossier_generation_job(
+    db: Session,
+    *,
+    job: DossierGenerationJob,
+) -> DossierGenerationJob:
+    if job.status not in _CANCELLABLE_STATUSES:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=409,
+            detail="Este dossier ya no se puede cancelar (terminó o falló).",
+        )
+    job.status = "cancelled"
+    job.error_message = "Cancelado por el usuario"
+    job.completed_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(job)
+    return job
 
 
 def enqueue_calendar_dossier_job(
@@ -202,68 +279,109 @@ def process_dossier_generation_job(db: Session, job_id: UUID) -> None:
     db.commit()
 
     try:
-        org = db.get(Organization, job.organization_id)
-        user = db.get(User, job.requested_by_user_id)
-        if org is None or user is None:
-            raise RuntimeError("Organización o usuario del job no encontrados.")
-
-        reunion = _refresh_reunion_for_job(
-            db,
-            user_id=user.id,
-            calendar_provider=job.calendar_provider or "microsoft",
-            external_event_id=job.external_event_id,
-            snapshot=job.reunion_snapshot,
-        )
-        org_ctx = format_dossier_context_for_prompt(org)
-        depth: DossierDepth = job.depth_level if job.depth_level in DEPTH_CREDITS else "standard"  # type: ignore[assignment]
-        charge = credit_charging_enabled()
-
-        t0 = time.perf_counter()
-        snap_lang = reunion.get("_output_language") if isinstance(reunion, dict) else None
-        out_lang = normalize_output_language(snap_lang or user.locale)
-        item = generate_dossiers_from_calendar_event(
-            reunion,
-            organization_context_block=org_ctx,
-            organization_id=org.id,
-            depth=depth,
-            output_language=out_lang,
-        )
-        elapsed_ms = int((time.perf_counter() - t0) * 1000)
-        item = persist_calendar_dossiers(
-            db,
-            user_id=user.id,
-            org_id=org.id,
-            result=item,
-            calendar_provider=job.calendar_provider or "microsoft",
-            generation_duration_ms=elapsed_ms,
-            depth=depth,
-            charge_credits=charge,
-        )
-
-        saved = item.get("saved_dossiers") or {}
-        job.credits_consumed = _credits_consumed_from_saved(
-            saved, depth=depth, charge=charge, result=item
-        )
-        job.result_payload = item
-        job.status = "completed"
-        job.completed_at = datetime.now(timezone.utc)
-        job.error_message = None
-        db.commit()
-        logger.info(
-            "Job dossier %s completado (event=%s, credits=%s)",
-            job.id,
-            job.external_event_id,
-            job.credits_consumed,
-        )
+        if job.job_type == "person_manual":
+            _process_person_manual_job(db, job)
+        else:
+            _process_calendar_manual_job(db, job)
     except Exception as exc:
         logger.exception("Job dossier %s falló", job_id)
         db.rollback()
         job = db.get(DossierGenerationJob, job_id)
-        if job is not None:
+        if job is not None and job.status != "cancelled":
             job.status = "failed"
             job.error_message = str(exc)[:2000]
             job.completed_at = datetime.now(timezone.utc)
             db.commit()
+
+
+def _process_person_manual_job(db: Session, job: DossierGenerationJob) -> None:
+    org = db.get(Organization, job.organization_id)
+    user = db.get(User, job.requested_by_user_id)
+    if org is None or user is None:
+        raise RuntimeError("Organización o usuario del job no encontrados.")
+
+    snapshot = job.reunion_snapshot or {}
+    raw_req = snapshot.get("person_request")
+    if not isinstance(raw_req, dict):
+        raise RuntimeError("Snapshot de persona inválido en el job.")
+
+    body = PersonResearchRequest.model_validate(raw_req)
+    result = run_person_research_and_persist(db, user=user, org=org, body=body)
+
+    db.refresh(job)
+    if job.status == "cancelled":
+        logger.info("Job persona %s cancelado; no se actualiza el resultado", job.id)
+        return
+
+    job.result_payload = result
+    job.status = "completed"
+    job.completed_at = datetime.now(timezone.utc)
+    job.error_message = None
+    job.credits_consumed = 0
+    db.commit()
+    logger.info("Job persona %s completado (subject=%s)", job.id, body.full_name[:80])
+
+
+def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None:
+    org = db.get(Organization, job.organization_id)
+    user = db.get(User, job.requested_by_user_id)
+    if org is None or user is None:
+        raise RuntimeError("Organización o usuario del job no encontrados.")
+
+    reunion = _refresh_reunion_for_job(
+        db,
+        user_id=user.id,
+        calendar_provider=job.calendar_provider or "microsoft",
+        external_event_id=job.external_event_id,
+        snapshot=job.reunion_snapshot,
+    )
+    org_ctx = format_dossier_context_for_prompt(org)
+    depth: DossierDepth = job.depth_level if job.depth_level in DEPTH_CREDITS else "standard"  # type: ignore[assignment]
+    charge = credit_charging_enabled()
+
+    t0 = time.perf_counter()
+    snap_lang = reunion.get("_output_language") if isinstance(reunion, dict) else None
+    out_lang = normalize_output_language(snap_lang or user.locale)
+    item = generate_dossiers_from_calendar_event(
+        reunion,
+        organization_context_block=org_ctx,
+        organization_id=org.id,
+        depth=depth,
+        output_language=out_lang,
+    )
+    elapsed_ms = int((time.perf_counter() - t0) * 1000)
+
+    db.refresh(job)
+    if job.status == "cancelled":
+        logger.info("Job calendario %s cancelado; se omite persistencia", job.id)
+        return
+
+    item = persist_calendar_dossiers(
+        db,
+        user_id=user.id,
+        org_id=org.id,
+        result=item,
+        calendar_provider=job.calendar_provider or "microsoft",
+        generation_duration_ms=elapsed_ms,
+        depth=depth,
+        charge_credits=charge,
+    )
+
+    saved = item.get("saved_dossiers") or {}
+    job.credits_consumed = _credits_consumed_from_saved(
+        saved, depth=depth, charge=charge, result=item
+    )
+    job.result_payload = item
+    job.status = "completed"
+    job.completed_at = datetime.now(timezone.utc)
+    job.error_message = None
+    db.commit()
+    logger.info(
+        "Job dossier %s completado (event=%s, credits=%s)",
+        job.id,
+        job.external_event_id,
+        job.credits_consumed,
+    )
 
 
 def claim_next_queued_job(db: Session) -> DossierGenerationJob | None:

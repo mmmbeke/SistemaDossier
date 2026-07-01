@@ -54,7 +54,7 @@ function refineHrefForDossier(subject: string | null, pipeline: string | null): 
     return "/dashboard/person-research";
   }
   const q = (subject ?? "").trim();
-  const base = "/dashboard/generate";
+  const base = "/dashboard/corporate";
   if (!q) return base;
   return `${base}?q=${encodeURIComponent(q)}&pick=1`;
 }

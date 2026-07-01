@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from dossier.schemas.dossier_generation import DossierDepth
 
-JobStatus = Literal["queued", "running", "completed", "failed"]
+JobStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
 CalendarJobProvider = Literal["microsoft", "google"]
 
 

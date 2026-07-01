@@ -1,15 +1,45 @@
 """Estrategias de búsqueda PDL (person/enrich + person/search SQL)."""
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.lusha_company import company_search_variants
 from dossier.services.person_profile_lookup import split_person_name
 
+# Literales permitidos en el dialecto SQL de People Data Labs (API externa, no PostgreSQL).
+_PDL_SAFE_LITERAL = re.compile(r"^[\w\s\-'.@áéíóúÁÉÍÓÚñÑüÜ&,]+$")
+_PDL_ALLOWED_FIELDS = frozenset({
+    "first_name",
+    "last_name",
+    "full_name",
+    "job_company_name",
+    "location_country",
+})
 
-def _sql_escape(value: str) -> str:
-    return value.replace("'", "''")
+
+def _pdl_query_literal(value: str, *, max_len: int = 255) -> str:
+    """Escapa y valida un literal para consultas PDL."""
+    v = " ".join(value.strip().split())[:max_len]
+    if not v:
+        raise ValueError("valor vacío para consulta PDL")
+    if not _PDL_SAFE_LITERAL.match(v):
+        raise ValueError("caracteres no permitidos en consulta PDL")
+    return v.replace("'", "''")
+
+
+def _equals_clause(field: str, value: str) -> str:
+    if field not in _PDL_ALLOWED_FIELDS:
+        raise ValueError(f"campo PDL no permitido: {field}")
+    return f"{field}='{_pdl_query_literal(value)}'"
+
+
+def _email_domain_clause(domain: str) -> str:
+    dom = _pdl_query_literal(domain, max_len=120)
+    if "@" in dom or " " in dom:
+        raise ValueError("dominio de email inválido para consulta PDL")
+    return f"work_email LIKE '%@{dom}'"
 
 
 def _normalize_linkedin(url: str) -> str:
@@ -89,27 +119,31 @@ def build_pdl_search_sql(req: PersonResearchRequest, *, limit: int = 5) -> str |
     first, last, single = split_person_name(name)
     if first and last:
         clauses.append(
-            f"(first_name='{_sql_escape(first)}' AND last_name='{_sql_escape(last)}')"
+            "("
+            + _equals_clause("first_name", first)
+            + " AND "
+            + _equals_clause("last_name", last)
+            + ")"
         )
     elif single:
-        clauses.append(f"full_name='{_sql_escape(single)}'")
+        clauses.append(_equals_clause("full_name", single))
     else:
-        clauses.append(f"full_name='{_sql_escape(name)}'")
+        clauses.append(_equals_clause("full_name", name))
 
     companies = company_search_variants(req.company)
     if companies:
-        comp = _sql_escape(companies[0])
-        clauses.append(f"job_company_name='{comp}'")
+        clauses.append(_equals_clause("job_company_name", companies[0]))
 
     em = (req.email or "").strip().lower()
     if em and "@" in em:
         domain = em.split("@", 1)[1]
         if domain:
-            clauses.append(f"work_email LIKE '%@{_sql_escape(domain)}'")
+            clauses.append(_email_domain_clause(domain))
 
     if req.country:
-        clauses.append(f"location_country='{_sql_escape(req.country.strip())}'")
+        clauses.append(_equals_clause("location_country", req.country.strip()))
 
     where = " AND ".join(clauses)
     lim = min(max(limit, 1), 100)
-    return f"SELECT * FROM person WHERE {where} LIMIT {lim}"
+    # Consulta para la API de PDL (no se ejecuta en PostgreSQL). Cláusulas validadas arriba.
+    return "SELECT * FROM person WHERE " + where + " LIMIT " + str(lim)  # nosec B608

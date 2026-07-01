@@ -687,6 +687,10 @@ export type PersonResearchPayload = {
   research_source?: "gemini_web" | "pdl";
   /** Código de idioma de salida (es, en, pt, …) desde Configuración. */
   output_language?: string;
+  /** Encola la generación y responde con job_id. */
+  async_mode?: boolean;
+  /** Ejecuta investigación nueva sin reutilizar informe previo. */
+  force_refresh?: boolean;
 };
 
 export type PdlHealthResponse = {
@@ -721,12 +725,43 @@ export type PersonResearchApiResponse = {
   saved_dossier: PersonSavedDossier | null;
   /** `redis_cache` = reutilizado desde Redis; `generated` = pipeline ejecutado. */
   dossier_source?: "generated" | "redis_cache";
+  /** True si el usuario pidió investigación nueva sin reutilizar informe previo. */
+  force_refresh?: boolean;
 };
 
 export async function postPersonResearch(
   payload: PersonResearchPayload
 ): Promise<PersonResearchApiResponse> {
   return postJsonWithAuth<PersonResearchApiResponse>("/dossiers/person/research", payload);
+}
+
+export type EnqueuePersonResearchResponse = {
+  async: true;
+  job_id: string;
+  status: DossierGenerationJobStatus;
+  meeting_label?: string | null;
+  credits_estimated?: number;
+  mensaje?: string;
+};
+
+/** Encola investigación de persona (no bloquea; ver toast global / polling de jobs). */
+export async function enqueuePersonResearch(
+  payload: PersonResearchPayload
+): Promise<EnqueuePersonResearchResponse> {
+  const parsed = await postJsonWithAuth<EnqueuePersonResearchResponse | PersonResearchApiResponse>(
+    "/dossiers/person/research",
+    { ...payload, async_mode: true }
+  );
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    !("async" in parsed) ||
+    !parsed.async ||
+    typeof (parsed as EnqueuePersonResearchResponse).job_id !== "string"
+  ) {
+    throw new DossierApiError(502, "La API no devolvió job_id para la generación asíncrona.", parsed);
+  }
+  return parsed as EnqueuePersonResearchResponse;
 }
 
 export async function getPdlIntegrationHealth(): Promise<PdlHealthResponse> {
@@ -1252,7 +1287,12 @@ export async function fetchGenerarDossiersDesdeGoogleCalendar(options?: {
   return { total, dossiers, mensaje };
 }
 
-export type DossierGenerationJobStatus = "queued" | "running" | "completed" | "failed";
+export type DossierGenerationJobStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 export type DossierGenerationJobApi = {
   id: string;
@@ -1264,7 +1304,7 @@ export type DossierGenerationJobApi = {
   credits_estimated?: number;
   credits_consumed?: number;
   error_message?: string | null;
-  result?: CalendarGenerarDossierItem | null;
+  result?: CalendarGenerarDossierItem | PersonResearchApiResponse | null;
   created_at?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
@@ -1435,6 +1475,15 @@ export async function fetchDossierGenerationJob(
     throw new DossierApiError(res.status, msg, parsed);
   }
   return parsed as DossierGenerationJobApi;
+}
+
+export async function cancelDossierGenerationJob(
+  jobId: string
+): Promise<DossierGenerationJobApi> {
+  return postJsonWithAuth<DossierGenerationJobApi>(
+    `/dossier-generation-jobs/${jobId}/cancel`,
+    {}
+  );
 }
 
 export type CalendarAutomationStatus = {

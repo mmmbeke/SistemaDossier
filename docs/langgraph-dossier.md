@@ -21,7 +21,7 @@ Antes, `generar_dossier_ejecutivo` era **un solo paso**: un prompt a OpenAI. Eso
 | `src/dossier/companies_house/prompt_templates.py` | Texto del prompt Gemini para análisis de documento CH (compartido CLI + pipeline). |
 
 Si ves **429 / RESOURCE_EXHAUSTED** (cuota free tier), define `DOSSIER_CORPORATE_CH_FILING_GEMINI=0` y/o `DOSSIER_CORPORATE_SEC_FILING_GEMINI=0` en `.env` para omitir el análisis por documento (CH y/o SEC) y dejar solo la síntesis final (menos peticiones por dossier).
-| `src/dossier/gemini/text_generate.py` | Llamada de **texto** a Gemini (sin subir PDF/HTML). |
+| `src/dossier/llm/text_generate.py` | Llamada de **texto** al LLM (sin subir PDF/HTML). |
 | `src/dossier/services/openai_dossier.py` | Punto de entrada `generar_dossier_ejecutivo`: por defecto LangGraph+Gemini; opcional legacy OpenAI. |
 
 ## Topología del grafo (dibujo mental)

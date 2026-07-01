@@ -41,10 +41,3 @@ export const PLANS: Plan[] = [
     ],
   },
 ];
-
-export const CURRENT_USAGE = {
-  plan: "pro" as PlanTier,
-  creditsUsed: 156,
-  creditsTotal: 500,
-  billingCycleEnd: "2026-06-01",
-};
