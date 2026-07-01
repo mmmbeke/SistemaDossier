@@ -307,7 +307,7 @@ export default function PersonResearchPage() {
                 >
                   <div
                     className="h-full w-1/3 animate-pulse rounded-full"
-                    style={{ backgroundColor: "var(--accent-primary, #6366f1)" }}
+                    style={{ backgroundColor: "var(--accent-primary)" }}
                   />
                 </div>
                 <button
@@ -350,7 +350,7 @@ export default function PersonResearchPage() {
 
           {result?.warnings?.length ? (
             <DashboardCard title={t("person_research.warn_title")}>
-              <ul className="list-inside list-disc text-sm text-amber-300/90">
+              <ul className="ui-text-warning list-inside list-disc text-sm">
                 {result.warnings.map((w, i) => (
                   <li key={i}>{w}</li>
                 ))}
@@ -364,9 +364,9 @@ export default function PersonResearchPage() {
                 <div
                   className="mb-3 inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold"
                   style={{
-                    borderColor: "rgba(56,189,248,0.35)",
-                    color: "#7dd3fc",
-                    backgroundColor: "rgba(56,189,248,0.08)",
+                    color: "var(--alert-info-text)",
+                    backgroundColor: "var(--alert-info-bg)",
+                    borderColor: "var(--alert-info-border)",
                   }}
                 >
                   {t("person_research.cache_badge")}

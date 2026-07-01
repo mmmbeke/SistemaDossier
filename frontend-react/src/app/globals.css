@@ -2,45 +2,96 @@
 
 :root,
 [data-theme="dark"] {
-  --bg-page: #0c111b;
-  --bg-sidebar-start: #111827;
-  --bg-sidebar-end: #0f172a;
-  --bg-card-start: #1e293b;
-  --bg-card-end: #172033;
-  --bg-surface: rgba(30, 41, 59, 0.4);
-  --bg-surface-strong: rgba(30, 41, 59, 0.5);
-  --bg-surface-hover: rgba(30, 41, 59, 0.6);
-  --bg-input: rgba(30, 41, 59, 0.6);
-  --border-subtle: rgba(148, 163, 184, 0.08);
-  --border-default: rgba(148, 163, 184, 0.15);
-  --border-strong: rgba(148, 163, 184, 0.25);
-  --text-primary: #f8fafc;
-  --text-secondary: #e2e8f0;
-  --text-muted: #94a3b8;
-  --text-subtle: #64748b;
-  --accent-from: #3b82f6;
-  --accent-to: #6366f1;
+  /* TraceLens brand palette */
+  --brand-dark: #0a1428;
+  --brand-cyan: #00b7eb;
+  --brand-light-blue: #1e90ff;
+  --brand-trace: #5b8db8;
+
+  --bg-page: #0a1428;
+  --bg-sidebar-start: #0c1830;
+  --bg-sidebar-end: #0a1428;
+  --bg-card-start: #0f1f3d;
+  --bg-card-end: #0c1830;
+  --bg-surface: rgba(15, 31, 61, 0.55);
+  --bg-surface-strong: rgba(15, 31, 61, 0.72);
+  --bg-surface-hover: rgba(30, 144, 255, 0.08);
+  --bg-input: rgba(12, 24, 48, 0.85);
+  --border-subtle: rgba(0, 183, 235, 0.1);
+  --border-default: rgba(0, 183, 235, 0.18);
+  --border-strong: rgba(0, 183, 235, 0.28);
+  --text-primary: #f0f6fc;
+  --text-secondary: #d0dce8;
+  --text-muted: #8fa8c4;
+  --text-subtle: #5b7fa8;
+  --accent-from: #00b7eb;
+  --accent-to: #1e90ff;
+  --accent-primary: #00b7eb;
+
+  --alert-warning-bg: rgba(245, 158, 11, 0.12);
+  --alert-warning-border: rgba(245, 158, 11, 0.45);
+  --alert-warning-text: #fde68a;
+  --alert-success-bg: rgba(16, 185, 129, 0.12);
+  --alert-success-border: rgba(16, 185, 129, 0.45);
+  --alert-success-text: #a7f3d0;
+  --alert-error-bg: rgba(239, 68, 68, 0.12);
+  --alert-error-border: rgba(239, 68, 68, 0.45);
+  --alert-error-text: #fecaca;
+  --alert-info-bg: rgba(0, 183, 235, 0.1);
+  --alert-info-border: rgba(0, 183, 235, 0.35);
+  --alert-info-text: #7dd3fc;
+  --status-warning: #fbbf24;
+  --status-success: #34d399;
+  --status-error: #f87171;
+  --hover-overlay: rgba(255, 255, 255, 0.06);
+  --bg-panel: #0f1f3d;
+  --bg-panel-muted: #152238;
 }
 
 [data-theme="light"] {
-  --bg-page: #f1f5f9;
+  --brand-dark: #0a1428;
+  --brand-cyan: #00b7eb;
+  --brand-light-blue: #1e90ff;
+  --brand-trace: #0a1428;
+
+  --bg-page: #eef3f9;
   --bg-sidebar-start: #ffffff;
-  --bg-sidebar-end: #f8fafc;
+  --bg-sidebar-end: #f5f9fd;
   --bg-card-start: #ffffff;
-  --bg-card-end: #f8fafc;
-  --bg-surface: rgba(241, 245, 249, 0.7);
-  --bg-surface-strong: rgba(226, 232, 240, 0.6);
-  --bg-surface-hover: rgba(226, 232, 240, 0.8);
+  --bg-card-end: #f8fbfe;
+  --bg-surface: rgba(10, 20, 40, 0.05);
+  --bg-surface-strong: rgba(10, 20, 40, 0.08);
+  --bg-surface-hover: rgba(0, 183, 235, 0.1);
   --bg-input: #ffffff;
-  --border-subtle: rgba(15, 23, 42, 0.08);
-  --border-default: rgba(15, 23, 42, 0.12);
-  --border-strong: rgba(15, 23, 42, 0.18);
-  --text-primary: #0f172a;
-  --text-secondary: #1e293b;
-  --text-muted: #475569;
-  --text-subtle: #64748b;
-  --accent-from: #3b82f6;
-  --accent-to: #6366f1;
+  --border-subtle: rgba(10, 20, 40, 0.1);
+  --border-default: rgba(10, 20, 40, 0.16);
+  --border-strong: rgba(10, 20, 40, 0.24);
+  --text-primary: #0a1428;
+  --text-secondary: #152238;
+  --text-muted: #334e68;
+  --text-subtle: #486581;
+  --accent-from: #0099c7;
+  --accent-to: #1878d4;
+  --accent-primary: #0099c7;
+
+  --alert-warning-bg: #fff7e6;
+  --alert-warning-border: #f59e0b;
+  --alert-warning-text: #92400e;
+  --alert-success-bg: #ecfdf5;
+  --alert-success-border: #10b981;
+  --alert-success-text: #065f46;
+  --alert-error-bg: #fef2f2;
+  --alert-error-border: #ef4444;
+  --alert-error-text: #991b1b;
+  --alert-info-bg: #e6f9fd;
+  --alert-info-border: #00b7eb;
+  --alert-info-text: #0c4a6e;
+  --status-warning: #b45309;
+  --status-success: #047857;
+  --status-error: #b91c1c;
+  --hover-overlay: rgba(10, 20, 40, 0.06);
+  --bg-panel: #ffffff;
+  --bg-panel-muted: #eef3f9;
 }
 
 @theme inline {
@@ -58,7 +109,7 @@
   --color-text-subtle: var(--text-subtle);
   --color-accent-from: var(--accent-from);
   --color-accent-to: var(--accent-to);
-  --font-sans: var(--font-dm-sans);
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-space-mono);
 }
 
@@ -66,11 +117,101 @@ html,
 body {
   background: var(--bg-page);
   color: var(--text-secondary);
-  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
 }
 
 html {
   transition:
     background-color 0.2s ease,
     color 0.2s ease;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 700;
+}
+
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3 {
+  color: var(--text-primary);
+}
+
+/* Logo: variante oscura / clara según data-theme */
+.brand-logo-wrap {
+  line-height: 0;
+}
+
+.brand-logo--light {
+  display: none;
+}
+
+.brand-logo--dark {
+  display: block;
+}
+
+[data-theme="light"] .brand-logo--light {
+  display: block;
+}
+
+[data-theme="light"] .brand-logo--dark {
+  display: none;
+}
+
+.brand-logo-wrap .brand-logo--light,
+.brand-logo-wrap .brand-logo--dark {
+  width: 100%;
+}
+
+/* Alertas y estados — legibles en claro y oscuro */
+.ui-alert {
+  border-width: 1px;
+  border-style: solid;
+}
+
+.ui-alert-warning {
+  background: var(--alert-warning-bg);
+  border-color: var(--alert-warning-border);
+  color: var(--alert-warning-text);
+}
+
+.ui-alert-success {
+  background: var(--alert-success-bg);
+  border-color: var(--alert-success-border);
+  color: var(--alert-success-text);
+}
+
+.ui-alert-error {
+  background: var(--alert-error-bg);
+  border-color: var(--alert-error-border);
+  color: var(--alert-error-text);
+}
+
+.ui-alert-info {
+  background: var(--alert-info-bg);
+  border-color: var(--alert-info-border);
+  color: var(--alert-info-text);
+}
+
+.ui-text-warning {
+  color: var(--alert-warning-text);
+}
+
+.ui-text-success {
+  color: var(--alert-success-text);
+}
+
+.ui-text-info {
+  color: var(--alert-info-text);
+}
+
+.ui-hover-surface:hover {
+  background-color: var(--hover-overlay);
+}
+
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3 {
+  color: var(--text-primary);
 }

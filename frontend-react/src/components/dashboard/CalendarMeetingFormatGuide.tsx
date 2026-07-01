@@ -38,7 +38,7 @@ export default function CalendarMeetingFormatGuide({
       open={defaultOpen}
       className={
         isInline
-          ? "mt-2 rounded-lg border border-sky-500/25 bg-sky-500/5 px-3 py-2 text-xs"
+          ? "ui-alert ui-alert-info mt-2 px-3 py-2 text-xs"
           : "rounded-xl border px-4 py-3 text-sm"
       }
       style={
@@ -52,7 +52,7 @@ export default function CalendarMeetingFormatGuide({
     >
       <summary
         className="cursor-pointer list-none font-semibold [&::-webkit-details-marker]:hidden"
-        style={{ color: isInline ? "rgb(125, 211, 252)" : "var(--accent-from)" }}
+        style={{ color: isInline ? "var(--alert-info-text)" : "var(--accent-from)" }}
       >
         <span className="inline-flex items-center gap-2">
           <span aria-hidden className="text-base leading-none">

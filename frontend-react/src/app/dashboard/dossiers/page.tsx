@@ -7,6 +7,7 @@ import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import DossierFolderCard from "@/components/dossier/DossierFolderCard";
 import TopBar from "@/components/dashboard/TopBar";
 import NewDossierButton from "@/components/dossier/NewDossierButton";
+import UiAlert from "@/components/ui/UiAlert";
 import {
   DossierApiError,
   deleteDossierFromApi,
@@ -113,12 +114,9 @@ export default function DossiersPage() {
       )}
 
       {dbLoad === "error" && dbError && (
-        <div
-          className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100"
-          role="alert"
-        >
+        <UiAlert variant="warning" className="mb-4" role="alert">
           {t("dossiers.database_error")}: {dbError}
-        </div>
+        </UiAlert>
       )}
 
       {!hasSession && (

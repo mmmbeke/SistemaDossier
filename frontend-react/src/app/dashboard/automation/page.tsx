@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import AutomationCalendarPreview from "@/components/dashboard/AutomationCalendarPreview";
 import DashboardCard from "@/components/dashboard/DashboardCard";
+import UiAlert from "@/components/ui/UiAlert";
 import TopBar from "@/components/dashboard/TopBar";
 import {
   DossierApiError,
@@ -92,12 +93,9 @@ export default function AutomationPage() {
       <TopBar title={t("automation.title")} subtitle={t("automation.subtitle")} />
 
       {err ? (
-        <div
-          className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100"
-          role="alert"
-        >
+        <UiAlert variant="warning" className="mb-4" role="alert">
           {err}
-        </div>
+        </UiAlert>
       ) : null}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">

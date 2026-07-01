@@ -34,8 +34,8 @@ export default function AuthShell({
               "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
           }}
         />
-        <Link href="/" className="relative z-10">
-          <BrandLogo size="md" />
+        <Link href="/" className="relative z-10 flex justify-center lg:justify-start">
+          <BrandLogo size="lg" />
         </Link>
 
         <div className="relative z-10 hidden flex-col gap-6 lg:flex">
@@ -56,15 +56,24 @@ export default function AuthShell({
           </p>
           <ul className="flex flex-col gap-3 text-sm" style={{ color: "var(--text-muted)" }}>
             <li className="flex items-center gap-3">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: "var(--brand-cyan)" }}
+              />
               Generación en menos de 60 segundos
             </li>
             <li className="flex items-center gap-3">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: "var(--brand-cyan)" }}
+              />
               Cobertura UK, USA y Europa continental
             </li>
             <li className="flex items-center gap-3">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: "var(--brand-cyan)" }}
+              />
               Alertas de riesgo automáticas
             </li>
           </ul>

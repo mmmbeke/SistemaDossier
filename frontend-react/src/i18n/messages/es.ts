@@ -356,7 +356,7 @@ const messages = {
   "badge.label.vc_backed": "Respaldado por VC",
   "badge.label.board_member": "Miembro de Directorio",
   "nav.overview": "Resumen",
-  "nav.automation": "Automatización de Calendario",
+  "nav.automation": "Calendario",
   "nav.dossiers": "Mis Dossiers",
   "nav.person_research": "Personas",
   "nav.corporate": "Empresas",
