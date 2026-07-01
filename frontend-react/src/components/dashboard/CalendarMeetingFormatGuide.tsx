@@ -208,19 +208,28 @@ export default function CalendarMeetingFormatGuide({
         {t("calendar.guide.open_inline")}
       </button>
     ) : (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ui-hover-surface"
-        style={{
-          borderColor: "var(--border-default)",
-          color: "var(--text-secondary)",
-          backgroundColor: "var(--bg-panel)",
-        }}
-      >
-        <span aria-hidden>📋</span>
-        {t("calendar.guide.summary")}
-      </button>
+      <span className="group relative inline-flex">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={t("calendar.guide.summary")}
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border-default)] bg-[var(--bg-panel-muted)] text-sm font-semibold leading-none text-[var(--text-muted)] transition ui-hover-surface group-hover:border-[var(--accent-from)] group-hover:text-[var(--accent-from)]"
+        >
+          ?
+        </button>
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute right-full top-1/2 z-20 mr-2 -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium opacity-0 shadow-lg transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100"
+          style={{
+            borderColor: "var(--border-default)",
+            backgroundColor: "var(--bg-panel)",
+            color: "var(--text-primary)",
+            boxShadow: "0 8px 24px rgba(10, 20, 40, 0.18)",
+          }}
+        >
+          {t("calendar.guide.summary")}
+        </span>
+      </span>
     );
 
   return (
