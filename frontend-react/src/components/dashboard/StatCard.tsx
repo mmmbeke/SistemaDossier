@@ -13,9 +13,9 @@ export default function StatCard({
 }: StatCardProps) {
   const trendColor =
     trendVariant === "positive"
-      ? "#34d399"
+      ? "var(--status-success)"
       : trendVariant === "warning"
-      ? "#fbbf24"
+      ? "var(--status-warning)"
       : "var(--text-muted)";
 
   return (

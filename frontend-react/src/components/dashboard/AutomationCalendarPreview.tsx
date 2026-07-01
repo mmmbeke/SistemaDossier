@@ -191,7 +191,7 @@ export default function AutomationCalendarPreview() {
       {anyConnected ? <CalendarMeetingFormatGuide /> : null}
 
       {err ? (
-        <p className="text-xs text-amber-300" role="alert">
+        <p className="ui-text-warning text-xs" role="alert">
           {err}
         </p>
       ) : null}

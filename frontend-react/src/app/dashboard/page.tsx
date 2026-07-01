@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
+import UiAlert from "@/components/ui/UiAlert";
 import GoogleCalendarPanel from "@/components/dashboard/GoogleCalendarPanel";
 import MicrosoftOutlookPanel from "@/components/dashboard/MicrosoftOutlookPanel";
 import StatCard from "@/components/dashboard/StatCard";
@@ -255,21 +256,15 @@ export default function OverviewPage() {
       <TopBar title={t("overview.title", { name: titleName })} subtitle={t("overview.subtitle")} />
 
       {dashError && (
-        <div
-          className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100"
-          role="alert"
-        >
+        <UiAlert variant="warning" className="mb-4" role="alert">
           {dashError}
-        </div>
+        </UiAlert>
       )}
 
       {msOAuthBanner && (
-        <div
-          className={`mb-4 flex flex-wrap items-start justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${
-            msOAuthBanner.kind === "ok"
-              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
-              : "border-red-500/40 bg-red-500/10 text-red-100"
-          }`}
+        <UiAlert
+          variant={msOAuthBanner.kind === "ok" ? "success" : "error"}
+          className="mb-4 flex flex-wrap items-start justify-between gap-2"
           role="status"
         >
           <span>
@@ -286,16 +281,13 @@ export default function OverviewPage() {
           >
             {t("overview.microsoft_banner_close")}
           </button>
-        </div>
+        </UiAlert>
       )}
 
       {googleOAuthBanner && (
-        <div
-          className={`mb-4 flex flex-wrap items-start justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${
-            googleOAuthBanner.kind === "ok"
-              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
-              : "border-red-500/40 bg-red-500/10 text-red-100"
-          }`}
+        <UiAlert
+          variant={googleOAuthBanner.kind === "ok" ? "success" : "error"}
+          className="mb-4 flex flex-wrap items-start justify-between gap-2"
           role="status"
         >
           <span>
@@ -312,7 +304,7 @@ export default function OverviewPage() {
           >
             {t("overview.google_banner_close")}
           </button>
-        </div>
+        </UiAlert>
       )}
 
       <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

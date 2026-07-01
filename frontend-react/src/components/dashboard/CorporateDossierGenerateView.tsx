@@ -318,7 +318,7 @@ export default function CorporateDossierGenerateView({
                     {t("generate.company_pick_hint")}
                   </p>
                   {searchResults?.warnings?.length ? (
-                    <ul className="list-inside list-disc text-xs" style={{ color: "#fbbf24" }}>
+                    <ul className="ui-text-warning list-inside list-disc text-xs">
                       {searchResults.warnings.map((w) => {
                         const key = WARN_I18N[w];
                         return <li key={w}>{key ? t(key) : w}</li>;
@@ -497,7 +497,7 @@ export default function CorporateDossierGenerateView({
                           style={{ borderColor: "rgba(52,211,153,0.45)", backgroundColor: "rgba(52,211,153,0.06)" }}
                         >
                           <div className="min-w-0">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300/90">
+                            <p className="ui-text-success text-xs font-semibold uppercase tracking-wide">
                               {t("generate.company_confirmed_title")}
                             </p>
                             <p className="truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>

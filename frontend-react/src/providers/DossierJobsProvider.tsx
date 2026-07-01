@@ -366,11 +366,12 @@ function DossierJobToasts({
         return (
           <div
             key={job.id}
-            className="rounded-lg border px-4 py-3 shadow-lg"
+            className="rounded-lg border px-4 py-3 shadow-xl"
             style={{
-              borderColor: "var(--border-default)",
-              backgroundColor: "var(--bg-surface)",
+              borderColor: "var(--border-strong)",
+              backgroundColor: "var(--bg-panel)",
               color: "var(--text-primary)",
+              boxShadow: "0 12px 32px rgba(10, 20, 40, 0.2)",
             }}
           >
             <div className="flex items-start justify-between gap-2">
@@ -383,7 +384,7 @@ function DossierJobToasts({
                   {isCancelled && t("dossier_jobs.cancelled")}
                 </p>
                 {calendarWarning ? (
-                  <p className="mt-1 text-xs text-amber-200/90 line-clamp-3">
+                  <p className="mt-1 text-xs ui-text-warning line-clamp-3">
                     {calendarWarning}
                   </p>
                 ) : null}
@@ -412,7 +413,8 @@ function DossierJobToasts({
               {isActive && (
                 <button
                   type="button"
-                  className="text-xs font-medium text-red-300 hover:text-red-200"
+                  className="text-xs font-medium transition hover:opacity-80"
+                  style={{ color: "var(--alert-error-text)" }}
                   onClick={() => void onCancel(job.id)}
                 >
                   {t("dossier_jobs.cancel")}
@@ -426,7 +428,7 @@ function DossierJobToasts({
               >
                 <div
                   className="h-full w-1/3 animate-pulse rounded-full"
-                  style={{ backgroundColor: "var(--accent-primary, #6366f1)" }}
+                  style={{ backgroundColor: "var(--accent-primary)" }}
                 />
               </div>
             )}

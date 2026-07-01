@@ -12,8 +12,8 @@ function MiniUiMock({ mode }: { mode: "dark" | "light" }) {
       className="flex h-full w-full overflow-hidden rounded-md"
       style={{
         background: isDark
-          ? "linear-gradient(160deg, #1e293b 0%, #0f172a 100%)"
-          : "linear-gradient(160deg, #f8fafc 0%, #e2e8f0 100%)",
+          ? "linear-gradient(160deg, #0f1f3d 0%, #0a1428 100%)"
+          : "linear-gradient(160deg, #f4f8fc 0%, #e8f0f8 100%)",
         border: isDark
           ? "1px solid rgba(148, 163, 184, 0.25)"
           : "1px solid rgba(15, 23, 42, 0.12)",
@@ -32,7 +32,7 @@ function MiniUiMock({ mode }: { mode: "dark" | "light" }) {
         <div
           className="h-1.5 w-3/4 rounded-full"
           style={{
-            background: "linear-gradient(90deg, #3b82f6, #6366f1)",
+            background: "linear-gradient(90deg, #00b7eb, #1e90ff)",
           }}
         />
         <div
@@ -107,7 +107,7 @@ export default function ThemePreview({ variant }: ThemePreviewProps) {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "linear-gradient(135deg, transparent 48%, rgba(59, 130, 246, 0.35) 50%, transparent 52%)",
+              "linear-gradient(135deg, transparent 48%, rgba(0, 183, 235, 0.35) 50%, transparent 52%)",
           }}
         />
       </div>

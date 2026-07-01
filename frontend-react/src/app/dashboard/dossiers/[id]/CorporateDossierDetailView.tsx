@@ -285,7 +285,11 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
                   : statusFailed
                     ? "rgba(248,113,113,0.45)"
                     : "rgba(251,191,36,0.4)",
-                color: statusOk ? "#34d399" : statusFailed ? "#f87171" : "#fbbf24",
+                color: statusOk
+                  ? "var(--status-success)"
+                  : statusFailed
+                    ? "var(--status-error)"
+                    : "var(--status-warning)",
               }}
             >
               {statusFailed ? t("dossiers.status_failed") : dossier.status}
@@ -294,9 +298,9 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
               <span
                 className="rounded-full border px-3 py-0.5 text-xs font-semibold uppercase tracking-wide"
                 style={{
-                  borderColor: "rgba(56,189,248,0.35)",
-                  color: "#7dd3fc",
-                  backgroundColor: "rgba(56,189,248,0.08)",
+                  borderColor: "var(--alert-info-border)",
+                  color: "var(--alert-info-text)",
+                  backgroundColor: "var(--alert-info-bg)",
                 }}
               >
                 {t("detail.cache_badge")}
@@ -320,7 +324,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             {t("detail.api_dates", { created, updated })}
           </p>
           {!statusOk && statusMsg ? (
-            <p className="text-sm text-amber-200/90" role="alert">
+            <p className="ui-text-warning text-sm" role="alert">
               {statusMsg}
             </p>
           ) : null}
@@ -435,7 +439,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             </ul>
           ) : null}
           {lushaDiagnostics.warnings.length > 0 ? (
-            <ul className="mt-2 list-disc pl-5 text-amber-200/90">
+            <ul className="ui-text-warning mt-2 list-disc pl-5">
               {lushaDiagnostics.warnings.map((w, i) => (
                 <li key={i}>{w}</li>
               ))}
