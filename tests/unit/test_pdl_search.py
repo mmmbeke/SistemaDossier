@@ -22,7 +22,7 @@ def test_build_pdl_search_sql_basic() -> None:
     assert "first_name='Jane'" in sql
     assert "last_name='Doe'" in sql
     assert "job_company_name='Acme'" in sql
-    assert sql.endswith("LIMIT 5")
+    assert "LIMIT" not in sql.upper()
 
 
 def test_build_pdl_search_sql_rejects_sql_injection() -> None:

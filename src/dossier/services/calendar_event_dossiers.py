@@ -190,18 +190,46 @@ def _subject_yields_company(tema: str, extracted: str) -> bool:
     return True
 
 
+def _description_signals_person_only(descripcion: str) -> bool:
+    """Hay «Contacto:» (u otro campo persona) pero no «Empresa:» → solo dossier persona."""
+    d = (descripcion or "").strip()
+    if not d:
+        return False
+    has_person = any(pat.search(d) for pat in _PERSON_PATTERNS)
+    has_empresa = bool(_EMPRESA_DESC.search(d))
+    return has_person and not has_empresa
+
+
+def extract_person_from_subject(tema: str) -> str:
+    """Persona en asunto «Reunión con Ana García» (sin dossier corporativo)."""
+    m = _SUBJECT_CON.match((tema or "").strip())
+    if not m:
+        return ""
+    name = m.group(1).strip().rstrip(".")
+    if len(name) < 2 or _GENERIC_MEETING_TITLE.match(name):
+        return ""
+    return name
+
+
 def resolve_corporate_company(tema: str, descripcion: str) -> tuple[str, str]:
     """
     Empresa para dossier corporativo: primero asunto; si no hay señal clara, descripción.
     Devuelve (nombre, origen: subject|description|"").
     """
+    if _description_signals_person_only(descripcion):
+        return "", ""
+
     from_subject = extract_company_from_subject(tema)
     from_description = extract_company_from_description(descripcion)
 
-    if _subject_yields_company(tema, from_subject):
-        return from_subject.strip(), "subject"
+    # «Reunión con {nombre}» sin «Empresa:» en descripción → no es brief corporativo.
+    if _SUBJECT_CON.match((tema or "").strip()) and not from_description:
+        return "", ""
+
     if from_description:
         return from_description.strip(), "description"
+    if _subject_yields_company(tema, from_subject):
+        return from_subject.strip(), "subject"
     if from_subject.strip():
         return from_subject.strip(), "subject"
     return "", ""
@@ -309,8 +337,14 @@ def parse_calendar_event_for_dossiers(reunion: dict[str, Any]) -> dict[str, Any]
     participantes = (reunion.get("participantes") or "").strip()
     company_subject = extract_company_from_subject(tema)
     company_corporate, company_corporate_source = resolve_corporate_company(tema, descripcion)
-    company_person = extract_company_from_description(descripcion) or company_corporate or company_subject
+    company_person = (
+        extract_company_from_description(descripcion)
+        or company_corporate
+        or (company_subject if company_corporate else "")
+    )
     person_name, person_job, person_country = extract_person_from_description(descripcion)
+    if not person_name:
+        person_name = extract_person_from_subject(tema)
     person_email = extract_email_from_description(descripcion)
     if not person_email:
         corp_emails = extract_corporate_emails_from_text(descripcion, participantes)
@@ -514,7 +548,7 @@ def generate_dossiers_from_calendar_event(
     person_cache_key: str | None = None
     depth_key = depth if depth in DEPTH_CREDITS else "standard"
 
-    if company_corporate or participantes:
+    if company_corporate:
         try:
             participantes_brief, scope = resolve_corporate_brief(company_corporate)
             if participantes:

@@ -2,12 +2,21 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
-import { DossierApiError, deleteDossierFromApi, type DossierDetailResponse } from "@/lib/dossier-api";
+import {
+  DossierApiError,
+  deleteDossierFromApi,
+  getStoredAccessToken,
+  type DossierDetailResponse,
+  type PersonResearchApiResponse,
+  type PersonResearchPayload,
+} from "@/lib/dossier-api";
+import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import { formatLongDate } from "@/lib/format";
 
@@ -59,14 +68,100 @@ function refineHrefForDossier(subject: string | null, pipeline: string | null): 
   return `${base}?q=${encodeURIComponent(q)}&pick=1`;
 }
 
+function buildPersonResearchPayloadFromDossier(
+  dossier: DossierDetailResponse,
+  outputLanguage: string,
+  forceRefresh: boolean,
+): PersonResearchPayload | null {
+  const dd = dossier.dossier_data;
+  if (!dd || typeof dd !== "object") return null;
+  const root = dd as Record<string, unknown>;
+  const pf = root.person_filters;
+  const filters =
+    pf && typeof pf === "object" ? (pf as Record<string, unknown>) : {};
+
+  const name = (
+    typeof filters.full_name === "string" ? filters.full_name : dossier.subject_name || ""
+  ).trim();
+  if (name.length < 2) return null;
+
+  const rs =
+    typeof filters.research_source === "string" ? filters.research_source.trim() : "pdl";
+  const payload: PersonResearchPayload = {
+    full_name: name,
+    research_source: rs === "gemini_web" ? "gemini_web" : "pdl",
+    max_profiles: 1,
+    output_language:
+      typeof root.output_language === "string" && root.output_language.trim()
+        ? root.output_language.trim()
+        : outputLanguage,
+  };
+
+  const email =
+    (typeof filters.email === "string" ? filters.email : dossier.subject_email || "").trim();
+  const company = typeof filters.company === "string" ? filters.company.trim() : "";
+  const jobArea = typeof filters.job_area === "string" ? filters.job_area.trim() : "";
+  const country = typeof filters.country === "string" ? filters.country.trim() : "";
+  const city = typeof filters.city === "string" ? filters.city.trim() : "";
+  const extra =
+    typeof filters.extra_keywords === "string" ? filters.extra_keywords.trim() : "";
+  const linkedin =
+    typeof filters.linkedin_url === "string" ? filters.linkedin_url.trim() : "";
+
+  if (email) payload.email = email;
+  if (company) payload.company = company;
+  if (jobArea) payload.job_area = jobArea;
+  if (country) payload.country = country;
+  if (city) payload.city = city;
+  if (extra) payload.extra_keywords = extra;
+  if (linkedin) payload.linkedin_url = linkedin;
+  if (forceRefresh) payload.force_refresh = true;
+
+  return payload;
+}
+
 export default function CorporateDossierDetailView({ dossier }: Props) {
   const { t, preferences } = useTranslation();
   const router = useRouter();
+  const { enqueuePersonResearchJob, cancelJob, getActivePersonJob, jobs } = useDossierJobs();
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
+  const [regenerateErr, setRegenerateErr] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   const meta = useMemo(() => parseDossierData(dossier.dossier_data), [dossier.dossier_data]);
   const isPersonPipeline = meta.pipeline === "person_research";
+
+  const activeJob =
+    jobs.find((j) => j.id === activeJobId) ?? (isPersonPipeline ? getActivePersonJob() : null);
+  const isRegenerating =
+    regenerating ||
+    activeJob?.status === "queued" ||
+    activeJob?.status === "running";
+
+  useEffect(() => {
+    if (!activeJobId) return;
+    const job = jobs.find((j) => j.id === activeJobId);
+    if (!job) return;
+    if (job.status === "completed" && job.result) {
+      setActiveJobId(null);
+      setRegenerating(false);
+      const saved = (job.result as PersonResearchApiResponse).saved_dossier?.id;
+      if (saved && saved !== dossier.id) {
+        router.push(`/dashboard/dossiers/${saved}`);
+      } else if (saved) {
+        router.refresh();
+      }
+    }
+    if (job.status === "failed" || job.status === "cancelled") {
+      setActiveJobId(null);
+      setRegenerating(false);
+      if (job.status === "failed" && job.error_message) {
+        setRegenerateErr(job.error_message);
+      }
+    }
+  }, [jobs, activeJobId, dossier.id, router]);
   const lushaDiagnostics = useMemo(() => {
     const dd = dossier.dossier_data;
     if (!dd || typeof dd !== "object") return null;
@@ -100,6 +195,46 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
   const statusOk = dossier.status === "complete" && meta.success !== false;
   const statusFailed = dossier.status === "failed" || meta.success === false;
   const statusMsg = dossier.status_message?.trim();
+
+  async function handleRegeneratePerson() {
+    if (!isPersonPipeline || isRegenerating) return;
+    setRegenerateErr(null);
+    if (!getStoredAccessToken()) {
+      setRegenerateErr(t("person_research.error_auth"));
+      return;
+    }
+    const payload = buildPersonResearchPayloadFromDossier(
+      dossier,
+      resolveDossierOutputLanguage(preferences),
+      true,
+    );
+    if (!payload) {
+      setRegenerateErr(t("person_research.error_name"));
+      return;
+    }
+    setRegenerating(true);
+    try {
+      const jobId = await enqueuePersonResearchJob(payload);
+      setActiveJobId(jobId);
+    } catch (e) {
+      setRegenerating(false);
+      setRegenerateErr(e instanceof DossierApiError ? e.message : t("generate.error.api"));
+    }
+  }
+
+  async function handleCancelRegenerate() {
+    if (!activeJob?.id) return;
+    setRegenerateErr(null);
+    try {
+      await cancelJob(activeJob.id);
+      setActiveJobId(null);
+      setRegenerating(false);
+    } catch (e) {
+      setRegenerateErr(
+        e instanceof DossierApiError ? e.message : t("person_research.cancel_error"),
+      );
+    }
+  }
 
   async function handleDelete() {
     if (deleting) return;
@@ -202,6 +337,48 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
           >
             {isPersonPipeline ? t("detail.person_refine_cta") : t("detail.refine_cta")}
           </Link>
+          {isPersonPipeline ? (
+            isRegenerating ? (
+              <div
+                className="w-full max-w-xs rounded-lg border px-4 py-3 text-sm lg:text-right"
+                style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}
+              >
+                <p className="font-medium" style={{ color: "var(--text-primary)" }}>
+                  {t("person_research.generating_title", {
+                    name: activeJob?.meeting_label || dossier.subject_name || "",
+                  })}
+                </p>
+                <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                  {t("person_research.generating_background")}
+                </p>
+                <button
+                  type="button"
+                  className="mt-2 text-xs font-medium text-red-300 hover:text-red-200"
+                  onClick={() => void handleCancelRegenerate()}
+                >
+                  {t("person_research.cancel")}
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={isRegenerating}
+                  onClick={() => void handleRegeneratePerson()}
+                  className="inline-flex items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
+                  style={{
+                    borderColor: "var(--border-default)",
+                    color: "var(--accent-from)",
+                  }}
+                >
+                  {t("person_research.regenerate")}
+                </button>
+                <p className="max-w-xs text-right text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  {t("person_research.regenerate_hint")}
+                </p>
+              </>
+            )
+          ) : null}
           <button
             type="button"
             disabled={deleting}
@@ -217,6 +394,11 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
           {deleteErr && (
             <p className="max-w-xs text-right text-xs text-red-400" role="alert">
               {deleteErr}
+            </p>
+          )}
+          {regenerateErr && (
+            <p className="max-w-xs text-right text-xs text-red-400" role="alert">
+              {regenerateErr}
             </p>
           )}
         </div>
@@ -330,6 +512,24 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             >
               {isPersonPipeline ? t("detail.person_refine_cta") : t("detail.refine_cta")}
             </Link>
+            {isPersonPipeline && !isRegenerating ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleRegeneratePerson()}
+                  className="mt-3 inline-flex w-full items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
+                  style={{
+                    borderColor: "var(--border-default)",
+                    color: "var(--accent-from)",
+                  }}
+                >
+                  {t("person_research.regenerate")}
+                </button>
+                <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                  {t("person_research.regenerate_hint")}
+                </p>
+              </>
+            ) : null}
           </DashboardCard>
       </div>
 

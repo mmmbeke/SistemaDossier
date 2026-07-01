@@ -144,6 +144,5 @@ def build_pdl_search_sql(req: PersonResearchRequest, *, limit: int = 5) -> str |
         clauses.append(_equals_clause("location_country", req.country.strip()))
 
     where = " AND ".join(clauses)
-    lim = min(max(limit, 1), 100)
-    # Consulta para la API de PDL (no se ejecuta en PostgreSQL). Cláusulas validadas arriba.
-    return "SELECT * FROM person WHERE " + where + " LIMIT " + str(lim)  # nosec B608
+    # PDL no admite LIMIT en el SQL; el tope va en el parámetro ``size`` de person/search.
+    return "SELECT * FROM person WHERE " + where  # nosec B608

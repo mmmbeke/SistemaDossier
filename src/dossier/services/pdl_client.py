@@ -140,7 +140,7 @@ class PdlClient:
 
         try:
             data = self.person_search(
-                sql="SELECT * FROM person WHERE job_company_name='People Data Labs' LIMIT 1",
+                sql="SELECT * FROM person WHERE job_company_name='People Data Labs'",
                 size=1,
             )
             result["search_access"] = isinstance(data.get("data"), list)
