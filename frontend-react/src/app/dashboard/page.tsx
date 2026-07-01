@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import UiAlert from "@/components/ui/UiAlert";
 import GoogleCalendarPanel from "@/components/dashboard/GoogleCalendarPanel";
+import CalendarMeetingFormatGuide from "@/components/dashboard/CalendarMeetingFormatGuide";
 import MicrosoftOutlookPanel from "@/components/dashboard/MicrosoftOutlookPanel";
 import StatCard from "@/components/dashboard/StatCard";
 import TopBar from "@/components/dashboard/TopBar";
@@ -323,7 +324,10 @@ export default function OverviewPage() {
       </section>
 
       <section className="mb-8">
-        <DashboardCard title={t("overview.microsoft_title")}>
+        <DashboardCard
+          title={t("overview.microsoft_title")}
+          action={getStoredAccessToken() ? <CalendarMeetingFormatGuide /> : undefined}
+        >
           <MicrosoftOutlookPanel />
         </DashboardCard>
       </section>
