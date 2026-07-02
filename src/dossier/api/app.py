@@ -55,7 +55,7 @@ from dossier.services.calendar_event_dossiers import (
     generate_dossiers_from_calendar_event,
     persist_calendar_dossiers,
 )
-from dossier.services.output_language import normalize_output_language, resolve_output_language_from_user_locale
+from dossier.services.output_language import effective_output_language
 from dossier.services.calendar_integrations import (
     upsert_google_calendar_tokens,
     upsert_microsoft_calendar_tokens,
@@ -872,7 +872,7 @@ def api_diagnostico_google_calendario(
 
 
 def _calendar_output_language(user: User, explicit: str | None) -> str:
-    return normalize_output_language(explicit or user.locale)
+    return effective_output_language(user, explicit)
 
 
 def _reunion_snapshot_with_output_language(

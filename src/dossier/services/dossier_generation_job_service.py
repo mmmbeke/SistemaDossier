@@ -27,7 +27,7 @@ from dossier.services.calendar_event_dossiers import (
     parse_calendar_event_for_dossiers,
     persist_calendar_dossiers,
 )
-from dossier.services.output_language import normalize_output_language
+from dossier.services.output_language import effective_output_language, normalize_output_language
 from dossier.services.person_dossier_dedup import person_research_fingerprint
 from dossier.services.person_research_pipeline import run_person_research_and_persist
 from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
@@ -121,7 +121,7 @@ def enqueue_person_research_job(
     org: Organization,
     body: PersonResearchRequest,
 ) -> DossierGenerationJob:
-    out_lang = normalize_output_language(body.output_language or user.locale)
+    out_lang = effective_output_language(user, body.output_language)
     fp = person_research_fingerprint(body, org.id, output_language=out_lang)
     dedup_key = f"person:{fp}"
     existing = find_active_person_job(db, user_id=user.id, dedup_key=dedup_key)
@@ -340,8 +340,11 @@ def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None
     charge = credit_charging_enabled()
 
     t0 = time.perf_counter()
-    snap_lang = reunion.get("_output_language") if isinstance(reunion, dict) else None
-    out_lang = normalize_output_language(snap_lang or user.locale)
+    snap = job.reunion_snapshot if isinstance(job.reunion_snapshot, dict) else {}
+    snap_lang = snap.get("_output_language") or (
+        reunion.get("_output_language") if isinstance(reunion, dict) else None
+    )
+    out_lang = effective_output_language(user, snap_lang)
     item = generate_dossiers_from_calendar_event(
         reunion,
         organization_context_block=org_ctx,

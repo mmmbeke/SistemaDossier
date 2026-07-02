@@ -183,31 +183,38 @@ def merge_lusha_profiles_facts(profiles: list[dict[str, Any]]) -> dict[str, Any]
     return merged
 
 
-def format_lusha_verified_facts_block(facts: dict[str, Any], *, provider: str | None = None) -> str:
+def format_lusha_verified_facts_block(
+    facts: dict[str, Any],
+    *,
+    provider: str | None = None,
+    output_language: str = "es",
+) -> str:
     """Bloque obligatorio para el prompt cuando Lusha devolvió datos."""
     if not facts or facts.get("profiles_matched", 0) == 0:
         return ""
 
+    from dossier.services.person_dossier_locales import (
+        verified_facts_field_labels,
+        verified_facts_heading,
+    )
+
     label = (provider or facts.get("provider") or "LUSHA").upper()
-    if label == "LUSHA":
-        heading = "## DATOS VERIFICADOS LUSHA (copiar en sección 1; no marcar «No disponible» si aparecen aquí)"
-    else:
-        heading = f"## DATOS VERIFICADOS {label} (copiar en sección 1; no marcar «No disponible» si aparecen aquí)"
-    lines = [heading]
+    fields = verified_facts_field_labels(output_language)
+    lines = [verified_facts_heading(output_language, label)]
     if facts.get("full_name"):
-        lines.append(f"- Nombre: {facts['full_name']}")
+        lines.append(f"- {fields['name']}: {facts['full_name']}")
     if facts.get("job_title"):
-        lines.append(f"- Cargo: {facts['job_title']}")
+        lines.append(f"- {fields['job']}: {facts['job_title']}")
     if facts.get("company"):
-        lines.append(f"- Empresa: {facts['company']}")
+        lines.append(f"- {fields['company']}: {facts['company']}")
     if facts.get("location"):
-        lines.append(f"- Ubicación: {facts['location']}")
+        lines.append(f"- {fields['location']}: {facts['location']}")
     if facts.get("linkedin_url"):
-        lines.append(f"- LinkedIn: {facts['linkedin_url']}")
+        lines.append(f"- {fields['linkedin']}: {facts['linkedin_url']}")
     for em in facts.get("emails") or []:
-        lines.append(f"- Email: {em}")
+        lines.append(f"- {fields['email']}: {em}")
     for ph in facts.get("phones") or []:
-        lines.append(f"- Teléfono: {ph}")
+        lines.append(f"- {fields['phone']}: {ph}")
     if len(lines) <= 1:
         return ""
     return "\n".join(lines) + "\n\n"

@@ -22,7 +22,7 @@ from dossier.services.calendar_event_dossiers import (
     persist_calendar_dossiers,
 )
 from dossier.services.calendar_event_filters import calendar_event_passes_filters
-from dossier.services.output_language import resolve_output_language_from_user_locale
+from dossier.services.output_language import resolve_dossier_output_language_for_user
 from dossier.services.google_calendar_api import (
     listar_reuniones_google,
     obtener_reunion_google_por_id,
@@ -174,6 +174,16 @@ def reschedule_user_calendar_events(
     return len(rows)
 
 
+def _event_snapshot_with_output_language(
+    reunion: dict[str, Any],
+    user: User | None,
+) -> dict[str, Any]:
+    snap = dict(reunion)
+    snap["_output_language"] = (
+        resolve_dossier_output_language_for_user(user) if user else "es"
+    )
+    return snap
+
 _FILTER_SKIP_MARKERS = (
     "día completo",
     "Sin señales de reunión de trabajo",
@@ -253,7 +263,7 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
             row.starts_at = starts
             row.ends_at = ends
             row.external_attendees = _attendees_from_participantes(reunion.get("participantes") or "")
-            row.event_snapshot = reunion
+            row.event_snapshot = _event_snapshot_with_output_language(reunion, user)
             touched += 1
             continue
 
@@ -272,7 +282,7 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
         row.ends_at = ends
         row.meeting_url = (reunion.get("ubicacion") or None)
         row.external_attendees = _attendees_from_participantes(reunion.get("participantes") or "")
-        row.event_snapshot = reunion
+        row.event_snapshot = _event_snapshot_with_output_language(reunion, user)
         row.dossier_scheduled_at = scheduled_at
         row.processing_status = "scheduled"
         row.skip_reason = None
@@ -379,7 +389,7 @@ def suppress_calendar_event_if_no_dossiers_remain(
 
 
 def process_due_calendar_events(db: Session) -> dict[str, int]:
-    """Genera dossiers para eventos cuya ventana de anticipaci?n ya venci?."""
+    """Genera dossiers para eventos cuya ventana de anticipación ya venció."""
     now = datetime.now(timezone.utc)
     stats = {"processed": 0, "failed": 0, "skipped": 0, "requeued": 0}
 
@@ -428,7 +438,9 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
 
         org = db.get(Organization, event.organization_id)
         org_ctx = format_dossier_context_for_prompt(org) if org else ""
-        out_lang = resolve_output_language_from_user_locale(user.locale if user else None)
+        out_lang = (
+            resolve_dossier_output_language_for_user(user) if user else "es"
+        )
 
         t0 = time.perf_counter()
         try:

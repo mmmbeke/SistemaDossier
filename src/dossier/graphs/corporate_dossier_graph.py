@@ -28,22 +28,6 @@ _CLIENT_EXECUTIVE_STYLE = (
     "documentación en data room), sin meta-comentarios sobre el origen técnico del dossier."
 )
 
-# Estilo del dossier final: brevedad + estructura fija (UK, US y dual).
-_BRIEF_DOSSIER_DELIVERY = """
-**Estilo:** redacción **breve y escaneable** (el cliente no debe aburrirse leyendo). Prioriza bullets y párrafos cortos; evita texto denso, repeticiones y subapartados innecesarios. Si un punto no aporta valor, omítelo.
-
-**Estructura obligatoria del Markdown:**
-
-1. **Resumen ejecutivo** — solo lo esencial (pocas viñetas o un párrafo corto).
-2. **Riesgos o vacíos** — conciso; solo riesgos de negocio / cumplimiento (no meta-comentarios técnicos).
-3. **Recomendación sobre relacionarse o hacer negocios** — antes de las preguntas. Indica de forma clara si **conviene** avanzar, **solo con condiciones/salvaguardas** o **no conviene** relacionarse con la contraparte según el análisis; una viñeta o dos como máximo con el porqué.
-4. **Preguntas sugeridas para la reunión** — **entre 2 y 3 preguntas** (máximo 3), cada una en **una sola frase**.
-
-Si el contexto es **solo Reino Unido** o **solo Estados Unidos**, el apartado 3 se refiere a esa única contraparte.
-Si el contexto incluye **UK y USA** como entidades distintas, el apartado 3 debe separar la recomendación por jurisdicción (viñetas breves UK vs EE.UU.).
-""".strip()
-
-
 def infer_jurisdiction_scope(participantes: str) -> JurisdictionScope:
     """
     Deduce el alcance a partir del brief generado por la API (resolución explícita).
@@ -133,6 +117,10 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
         apply_output_language_to_system_prompt,
         normalize_output_language,
     )
+    from dossier.services.dossier_prompt_locales import (
+        corporate_dossier_delivery_instructions,
+        corporate_dual_scope_note,
+    )
 
     tema = state.get("tema_reunion", "").strip()
     participantes = state.get("participantes", "").strip()
@@ -141,6 +129,7 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
     us = state.get("us_corporate_context", "").strip()
     scope = state.get("jurisdiction_scope", "dual")
     output_language = normalize_output_language(state.get("output_language"))
+    delivery = corporate_dossier_delivery_instructions(output_language)
 
     if scope == "uk_only":
         system = (
@@ -171,7 +160,7 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
 ---
 ### Tu entrega
 
-{_BRIEF_DOSSIER_DELIVERY}
+{delivery}
 """
 
     elif scope == "us_only":
@@ -203,7 +192,7 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
 ---
 ### Tu entrega
 
-{_BRIEF_DOSSIER_DELIVERY}
+{delivery}
 """
 
     else:
@@ -236,9 +225,9 @@ def _node_synthesize_gemini(state: CorporateDossierState) -> dict[str, Any]:
 ---
 ### Tu entrega
 
-En el **resumen ejecutivo** (apartado 1), separa en bullets breves lo que aplica a **UK** y lo que aplica a **EE. UU.**, sin fusionar entidades.
+{corporate_dual_scope_note(output_language)}
 
-{_BRIEF_DOSSIER_DELIVERY}
+{delivery}
 """
 
     system = apply_output_language_to_system_prompt(system, output_language)

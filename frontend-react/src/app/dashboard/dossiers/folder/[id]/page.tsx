@@ -13,6 +13,7 @@ import {
   type DossierFolderDetailResponse,
   type DossierListItem,
 } from "@/lib/dossier-api";
+import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 const UUID_RE =
@@ -126,7 +127,7 @@ export default function DossierFolderPage() {
           📁 {t("dossiers.folder_label")}
         </p>
         <h1 className="mt-1 text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-          {folder.title}
+          {stripHtmlToPlainLine(folder.title)}
         </h1>
         <CalendarMeetingLabel
           trigger_source={folder.trigger_source}

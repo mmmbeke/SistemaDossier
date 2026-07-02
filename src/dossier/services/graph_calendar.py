@@ -5,12 +5,12 @@ Normalizado al mismo shape que ``google_calendar_api.normalizar_evento_google``.
 
 from __future__ import annotations
 
-import html
-import re
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 import requests
+
+from dossier.utils.html_text import strip_html_to_plain_line, strip_html_to_text
 
 GRAPH_EVENTS_URL = "https://graph.microsoft.com/v1.0/me/calendar/events"
 GRAPH_CALENDAR_VIEW_URL = "https://graph.microsoft.com/v1.0/me/calendar/calendarView"
@@ -56,21 +56,7 @@ def _get_graph(url: str, access_token: str, params: dict) -> dict:
 
 def _strip_html_to_text(raw: str) -> str:
     """Convierte cuerpo HTML de Outlook a texto plano conservando saltos de línea."""
-    if not raw:
-        return ""
-    t = re.sub(r"(?i)<br\s*/?>", "\n", raw)
-    t = re.sub(r"(?i)</(p|div|li|tr|h[1-6])>", "\n", t)
-    t = re.sub(r"<[^>]+>", " ", t)
-    t = html.unescape(t)
-    lines: list[str] = []
-    for ln in t.splitlines():
-        cleaned = re.sub(r"[ \t]+", " ", ln).strip()
-        if not cleaned:
-            if lines and lines[-1] != "":
-                lines.append("")
-            continue
-        lines.append(cleaned)
-    return "\n".join(lines).strip()
+    return strip_html_to_text(raw)
 
 
 def _extract_descripcion(evento: dict) -> str:
@@ -154,7 +140,7 @@ def merge_reunion_payload(client: dict | None, fresh: dict | None) -> dict | Non
     if not descripcion:
         descripcion = fresh_desc or client_desc
 
-    return {
+    merged = {
         "id": client.get("id") or fresh.get("id"),
         "tema": fresh.get("tema") or client.get("tema") or "Sin asunto",
         "descripcion": descripcion[:_MAX_DESCRIPCION],
@@ -164,6 +150,10 @@ def merge_reunion_payload(client: dict | None, fresh: dict | None) -> dict | Non
         "ubicacion": fresh.get("ubicacion") or client.get("ubicacion") or "",
         "todo_el_dia": bool(fresh.get("todo_el_dia") if "todo_el_dia" in fresh else client.get("todo_el_dia")),
     }
+    snap_lang = client.get("_output_language")
+    if snap_lang:
+        merged["_output_language"] = snap_lang
+    return merged
 
 
 def coerce_reunion_payload(data: dict | None) -> dict | None:
@@ -171,13 +161,14 @@ def coerce_reunion_payload(data: dict | None) -> dict | None:
     if not data or not isinstance(data, dict):
         return None
     event_id = data.get("id")
-    tema = data.get("tema") or data.get("subject")
+    tema = strip_html_to_plain_line(data.get("tema") or data.get("subject"))
     if not event_id and not tema:
         return None
+    desc_raw = str(data.get("descripcion") or data.get("description") or "")
     return {
         "id": event_id,
         "tema": tema or "Sin asunto",
-        "descripcion": str(data.get("descripcion") or data.get("description") or "")[:_MAX_DESCRIPCION],
+        "descripcion": strip_html_to_text(desc_raw)[:_MAX_DESCRIPCION],
         "participantes": data.get("participantes") or "No especificados",
         "inicio": data.get("inicio") or "",
         "fin": data.get("fin") or "",
@@ -244,7 +235,7 @@ def normalizar_evento(evento: dict) -> dict:
 
     return {
         "id": evento.get("id"),
-        "tema": evento.get("subject") or "Sin asunto",
+        "tema": strip_html_to_plain_line(evento.get("subject")) or "Sin asunto",
         "descripcion": _extract_descripcion(evento),
         "participantes": _formatear_participantes(evento),
         "inicio": inicio,

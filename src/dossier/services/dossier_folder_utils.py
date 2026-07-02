@@ -5,6 +5,7 @@ from typing import Any
 
 from dossier.db.models import Dossier
 from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
+from dossier.utils.html_text import strip_html_to_plain_line
 
 
 def dossier_module_kind(d: Dossier) -> str:
@@ -21,12 +22,12 @@ def folder_title_from_dossier(d: Dossier) -> str | None:
     if isinstance(cf, dict):
         title = cf.get("title")
         if isinstance(title, str) and title.strip():
-            return title.strip()[:255]
+            return strip_html_to_plain_line(title, max_len=255) or None
     cal = data.get("calendar")
     if isinstance(cal, dict):
         label = cal.get("meeting_label") or cal.get("tema")
         if isinstance(label, str) and label.strip():
-            return label.strip()[:255]
+            return strip_html_to_plain_line(label, max_len=255) or None
     return None
 
 
@@ -35,7 +36,7 @@ def serialize_dossier_list_item(d: Dossier) -> dict[str, Any]:
     return {
         "type": "dossier",
         "id": str(d.id),
-        "subject_name": d.subject_name,
+        "subject_name": strip_html_to_plain_line(d.subject_name, max_len=255) or d.subject_name,
         "subject_email": d.subject_email,
         "status": d.status,
         "status_message": d.status_message,
