@@ -21,7 +21,7 @@ from dossier.services.calendar_event_dossiers import (
     generate_dossiers_from_calendar_event,
     persist_calendar_dossiers,
 )
-from dossier.services.output_language import resolve_output_language_from_user_locale
+from dossier.services.output_language import resolve_dossier_output_language_for_user
 from dossier.services.google_calendar_api import (
     listar_reuniones_google,
     obtener_reunion_google_por_id,
@@ -173,6 +173,17 @@ def reschedule_user_calendar_events(
     return len(rows)
 
 
+def _event_snapshot_with_output_language(
+    reunion: dict[str, Any],
+    user: User | None,
+) -> dict[str, Any]:
+    snap = dict(reunion)
+    snap["_output_language"] = (
+        resolve_dossier_output_language_for_user(user) if user else "es"
+    )
+    return snap
+
+
 def sync_calendar_events_for_integration(db: Session, integration: CalendarIntegration) -> int:
     """Importa/actualiza eventos futuros en ``calendar_events``. Devuelve cuántos se tocaron."""
     if not integration.is_enabled or integration.revoked_at is not None:
@@ -192,6 +203,7 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
     advance = effective_advance_minutes(integration)
     now = datetime.now(timezone.utc)
     touched = 0
+    user = db.get(User, integration.user_id)
 
     for reunion in reuniones:
         ext_id = (reunion.get("id") or "").strip()
@@ -216,7 +228,7 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
             row.starts_at = starts
             row.ends_at = ends
             row.external_attendees = _attendees_from_participantes(reunion.get("participantes") or "")
-            row.event_snapshot = reunion
+            row.event_snapshot = _event_snapshot_with_output_language(reunion, user)
             touched += 1
             continue
 
@@ -235,7 +247,7 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
         row.ends_at = ends
         row.meeting_url = (reunion.get("ubicacion") or None)
         row.external_attendees = _attendees_from_participantes(reunion.get("participantes") or "")
-        row.event_snapshot = reunion
+        row.event_snapshot = _event_snapshot_with_output_language(reunion, user)
         row.dossier_scheduled_at = scheduled_at
         row.processing_status = "scheduled"
         row.skip_reason = None
@@ -308,7 +320,7 @@ def _requeue_completed_without_dossiers(db: Session) -> int:
 
 
 def process_due_calendar_events(db: Session) -> dict[str, int]:
-    """Genera dossiers para eventos cuya ventana de anticipación ya venció."""
+    """Genera dossiers para eventos cuya ventana de anticipaci?n ya venció."""
     now = datetime.now(timezone.utc)
     stats = {"processed": 0, "failed": 0, "skipped": 0, "requeued": 0}
 
@@ -349,7 +361,9 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
         org = db.get(Organization, event.organization_id)
         org_ctx = format_dossier_context_for_prompt(org) if org else ""
         user = db.get(User, event.user_id)
-        out_lang = resolve_output_language_from_user_locale(user.locale if user else None)
+        out_lang = (
+            resolve_dossier_output_language_for_user(user) if user else "es"
+        )
 
         t0 = time.perf_counter()
         try:

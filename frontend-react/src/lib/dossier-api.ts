@@ -37,6 +37,11 @@ export type AuthUser = {
   organization_company_summary?: string | null;
   /** Sector o área de negocio. */
   organization_industry_or_area?: string | null;
+  /** Idioma de interfaz (sincronizado con Configuración). */
+  locale?: string;
+  timezone?: string;
+  /** match | es | en | pt | … — idioma de salida de dossiers. */
+  dossier_output_language?: string;
 };
 
 /** Fila devuelta por `GET /dossiers` (tabla `dossiers` en PostgreSQL). */
@@ -333,6 +338,52 @@ export async function fetchAuthMe(): Promise<AuthUser> {
   }
   if (!parsed || typeof parsed !== "object") {
     throw new DossierApiError(502, "Respuesta inválida de /auth/me.", parsed);
+  }
+  return parsed as AuthUser;
+}
+
+export type AuthUserPreferencesPatch = {
+  locale?: string;
+  timezone?: string;
+  dossier_output_language?: string;
+};
+
+/** Sincroniza idioma de interfaz / zona horaria / idioma de dossiers con PostgreSQL. */
+export async function patchAuthUserPreferences(
+  payload: AuthUserPreferencesPatch
+): Promise<AuthUser> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/auth/me/preferences`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new DossierApiError(502, "Respuesta inválida de /auth/me/preferences.", parsed);
   }
   return parsed as AuthUser;
 }

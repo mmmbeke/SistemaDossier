@@ -8,7 +8,7 @@ import {
   fetchAuthMe,
   getStoredAccessToken,
 } from "@/lib/dossier-api";
-import { useTranslation } from "@/providers/PreferencesProvider";
+import { useTranslation, usePreferences } from "@/providers/PreferencesProvider";
 
 function redirectToLogin(pathname: string, reason?: "session_expired") {
   const next = pathname.startsWith("/dashboard") ? pathname : "/dashboard";
@@ -24,6 +24,7 @@ function redirectToLogin(pathname: string, reason?: "session_expired") {
 export default function DashboardAuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { t } = useTranslation();
+  const { hydrateFromAuthUser } = usePreferences();
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
@@ -37,7 +38,8 @@ export default function DashboardAuthGate({ children }: { children: ReactNode })
         return;
       }
       try {
-        await fetchAuthMe();
+        const me = await fetchAuthMe();
+        hydrateFromAuthUser(me);
         if (!cancelled) setAllowed(true);
       } catch (e) {
         if (cancelled) return;
@@ -55,7 +57,7 @@ export default function DashboardAuthGate({ children }: { children: ReactNode })
     return () => {
       cancelled = true;
     };
-  }, [pathname]);
+  }, [pathname, hydrateFromAuthUser]);
 
   if (!allowed) {
     return (

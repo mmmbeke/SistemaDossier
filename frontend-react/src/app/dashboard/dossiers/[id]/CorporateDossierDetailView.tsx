@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import { DossierApiError, deleteDossierFromApi, type DossierDetailResponse } from "@/lib/dossier-api";
+import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import { formatLongDate } from "@/lib/format";
 
@@ -173,7 +174,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             ) : null}
           </div>
           <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-            {dossier.subject_name || t("detail.api_no_subject")}
+            {stripHtmlToPlainLine(dossier.subject_name) || t("detail.api_no_subject")}
           </h1>
           <CalendarMeetingLabel
             trigger_source={dossier.trigger_source}

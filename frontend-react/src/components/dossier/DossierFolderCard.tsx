@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
+import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import type { DossierFolderListItem, DossierListItem } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
@@ -50,7 +51,7 @@ function ChildDossierRow({
           {label}
         </span>
         <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-          {row.subject_name || row.subject_email || "—"}
+          {stripHtmlToPlainLine(row.subject_name || row.subject_email) || "—"}
         </span>
         <span
           className="text-xs"
@@ -105,7 +106,7 @@ export default function DossierFolderCard({ folder, deletingId, onDeleteDossier 
             className="mt-1 block text-base font-semibold hover:underline"
             style={{ color: "var(--text-primary)" }}
           >
-            {folder.title}
+            {stripHtmlToPlainLine(folder.title)}
           </Link>
           <CalendarMeetingLabel
             trigger_source={folder.trigger_source}

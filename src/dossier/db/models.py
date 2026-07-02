@@ -72,6 +72,7 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     timezone: Mapped[str] = mapped_column(String(100), default="UTC")
     locale: Mapped[str] = mapped_column(String(10), default="es")
+    dossier_output_language: Mapped[str] = mapped_column(String(10), default="match")
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

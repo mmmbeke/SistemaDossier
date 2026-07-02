@@ -18,6 +18,7 @@ import {
   type DossierListItem,
 } from "@/lib/dossier-api";
 import { countListEntries, entryMatchesFilter, entryMatchesQuery } from "@/lib/dossier-list-utils";
+import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 type DbLoadState = "idle" | "loading" | "ready" | "error";
@@ -248,7 +249,7 @@ export default function DossiersPage() {
                       className="flex min-w-0 flex-1 flex-col gap-2 p-4 text-left"
                     >
                       <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                        {entry.subject_name || entry.subject_email || "—"}
+                        {stripHtmlToPlainLine(entry.subject_name || entry.subject_email) || "—"}
                       </span>
                       <CalendarMeetingLabel
                         trigger_source={entry.trigger_source}
