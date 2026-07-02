@@ -21,6 +21,7 @@ from dossier.services.calendar_event_dossiers import (
     generate_dossiers_from_calendar_event,
     persist_calendar_dossiers,
 )
+from dossier.services.calendar_event_filters import calendar_event_passes_filters
 from dossier.services.output_language import resolve_output_language_from_user_locale
 from dossier.services.google_calendar_api import (
     listar_reuniones_google,
@@ -173,6 +174,20 @@ def reschedule_user_calendar_events(
     return len(rows)
 
 
+_FILTER_SKIP_MARKERS = (
+    "día completo",
+    "Sin señales de reunión de trabajo",
+    "Solo participantes con correo personal",
+    "Todos los participantes comparten",
+)
+
+
+def _skipped_by_calendar_filter(skip_reason: str | None) -> bool:
+    if not skip_reason:
+        return False
+    return any(marker in skip_reason for marker in _FILTER_SKIP_MARKERS)
+
+
 def sync_calendar_events_for_integration(db: Session, integration: CalendarIntegration) -> int:
     """Importa/actualiza eventos futuros en ``calendar_events``. Devuelve cu?ntos se tocaron."""
     if not integration.is_enabled or integration.revoked_at is not None:
@@ -192,6 +207,7 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
     advance = effective_advance_minutes(integration)
     now = datetime.now(timezone.utc)
     touched = 0
+    user = db.get(User, integration.user_id)
 
     for reunion in reuniones:
         ext_id = (reunion.get("id") or "").strip()
@@ -200,6 +216,8 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
         starts = parse_event_datetime(reunion.get("inicio"))
         if starts is None or starts <= now:
             continue
+
+        passes, filter_reason = calendar_event_passes_filters(reunion, integration, user)
 
         ends = parse_event_datetime(reunion.get("fin"))
         scheduled_at = starts - timedelta(minutes=advance)
@@ -210,6 +228,25 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
                 CalendarEvent.external_event_id == ext_id,
             )
         ).scalar_one_or_none()
+
+        if not passes:
+            if row is not None and row.processing_status in ("scheduled", "detected"):
+                row.title = (reunion.get("tema") or row.title or "")[:500]
+                row.starts_at = starts
+                row.ends_at = ends
+                row.external_attendees = _attendees_from_participantes(reunion.get("participantes") or "")
+                row.event_snapshot = reunion
+                row.processing_status = "skipped"
+                row.skip_reason = filter_reason
+                touched += 1
+            continue
+
+        if row is not None and row.processing_status == "skipped" and _skipped_by_calendar_filter(
+            row.skip_reason
+        ):
+            row.processing_status = "scheduled"
+            row.skip_reason = None
+            row.dossier_scheduled_at = scheduled_at
 
         if row is not None and row.processing_status in ("completed", "processing"):
             row.title = (reunion.get("tema") or row.title or "")[:500]
@@ -380,9 +417,17 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
             db.commit()
             continue
 
+        user = db.get(User, event.user_id)
+        passes, filter_reason = calendar_event_passes_filters(reunion, integration, user)
+        if not passes:
+            event.processing_status = "skipped"
+            event.skip_reason = filter_reason
+            stats["skipped"] += 1
+            db.commit()
+            continue
+
         org = db.get(Organization, event.organization_id)
         org_ctx = format_dossier_context_for_prompt(org) if org else ""
-        user = db.get(User, event.user_id)
         out_lang = resolve_output_language_from_user_locale(user.locale if user else None)
 
         t0 = time.perf_counter()

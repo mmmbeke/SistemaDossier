@@ -7,11 +7,7 @@
     "dev:turbo": "node --max-old-space-size=8192 node_modules/next/dist/bin/next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "test:e2e": "node scripts/playwright-local.mjs test",
-    "test:e2e:ui": "node scripts/playwright-local.mjs test --ui",
-    "test:e2e:install": "node scripts/playwright-local.mjs install chromium",
-    "test:e2e:setup": "node scripts/playwright-local.mjs install chromium && node scripts/playwright-local.mjs test"
+    "lint": "eslint"
   },
   "dependencies": {
     "next": "16.2.6",
@@ -21,7 +17,6 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.51.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

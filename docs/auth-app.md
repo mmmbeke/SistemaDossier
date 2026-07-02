@@ -56,12 +56,3 @@ Causas habituales de confusión:
 3. **`NEXT_PUBLIC_API_URL`** del frontend no apunta al mismo backend que crees (otro puerto, contenedor, etc.). Tras cambiar `.env.local` hay que **reiniciar** `npm run dev`.
 
 Errores **422** suelen ser validación (campos vacíos, contraseña corta, etc.); el mensaje en pantalla ahora incluye el nombre del campo cuando FastAPI lo devuelve en `loc`.
-
-## Quitar solo datos de prueba del repo (seed / `@test.local`)
-
-Los scripts **no crean otra base de datos**: escriben en la misma instancia que indica tu `.env`. Si ejecutaste `scripts/seed_test_data.py` o `scripts/test_postgres_connection.py --http`, puedes borrar esas filas con:
-
-```bash
-python scripts/cleanup_dev_test_data.py          # simulación
-python scripts/cleanup_dev_test_data.py --apply  # borrado real
-```
