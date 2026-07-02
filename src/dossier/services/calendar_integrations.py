@@ -60,6 +60,7 @@ def upsert_microsoft_calendar_tokens(
             organization_id=organization_id,
             provider="microsoft",
             advance_minutes=_initial_advance_minutes(),
+            skip_internal_meetings=False,
         )
         db.add(row)
 
@@ -122,6 +123,7 @@ def upsert_google_calendar_tokens(
             organization_id=organization_id,
             provider="google",
             advance_minutes=_initial_advance_minutes(),
+            skip_internal_meetings=False,
         )
         db.add(row)
 

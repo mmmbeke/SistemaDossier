@@ -1544,6 +1544,8 @@ export type CalendarAutomationStatus = {
   advance_minutes_stored?: number;
   advance_minutes_from_env?: boolean;
   server_default_minutes?: number;
+  work_meetings_only?: boolean;
+  skip_internal_meetings?: boolean;
   has_calendars?: boolean;
   scheduled_events: number;
   next_due: string | null;
@@ -1552,7 +1554,13 @@ export type CalendarAutomationStatus = {
     email: string | null;
     is_enabled: boolean;
     advance_minutes: number;
+    skip_internal_meetings?: boolean;
   }[];
+};
+
+export type CalendarAutomationSettingsPatch = {
+  advance_minutes?: number;
+  skip_internal_meetings?: boolean;
 };
 
 export async function fetchCalendarAutomationStatus(): Promise<CalendarAutomationStatus> {
@@ -1583,10 +1591,13 @@ export async function fetchCalendarAutomationStatus(): Promise<CalendarAutomatio
   return parsed as CalendarAutomationStatus;
 }
 
-export async function patchCalendarAutomationSettings(advanceMinutes: number): Promise<{
+export async function patchCalendarAutomationSettings(
+  patch: CalendarAutomationSettingsPatch
+): Promise<{
   advance_minutes_stored: number;
   advance_minutes_effective: number;
   advance_minutes_from_env: boolean;
+  skip_internal_meetings?: boolean;
   events_rescheduled?: number;
   message: string;
 }> {
@@ -1604,7 +1615,7 @@ export async function patchCalendarAutomationSettings(advanceMinutes: number): P
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ advance_minutes: advanceMinutes }),
+      body: JSON.stringify(patch),
     });
   } catch {
     throwFetchFailed();

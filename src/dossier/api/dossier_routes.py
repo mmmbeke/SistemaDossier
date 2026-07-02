@@ -39,8 +39,13 @@ from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.corporate_company_search import search_corporate_company_candidates
 from dossier.services.person_research_pipeline import run_person_research_and_persist
 from dossier.services.dossier_generation_job_service import enqueue_person_research_job
+<<<<<<< HEAD
 from dossier.services.output_language import effective_output_language, normalize_output_language
 from dossier.utils.html_text import strip_html_to_plain_line
+=======
+from dossier.services.output_language import normalize_output_language
+from dossier.services.calendar_automation import suppress_calendar_event_if_no_dossiers_remain
+>>>>>>> origin/principal
 from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
 from dossier.services.dossier_folder_utils import (
     build_dossier_list_entries,
@@ -372,7 +377,10 @@ def delete_dossier_by_id(
     d = db.get(Dossier, dossier_id)
     if d is None or d.organization_id != org.id:
         raise HTTPException(status_code=404, detail="Dossier no encontrado.")
+    calendar_event_id = d.calendar_event_id
     db.delete(d)
+    db.flush()
+    suppress_calendar_event_if_no_dossiers_remain(db, calendar_event_id)
     db.commit()
     return Response(status_code=204)
 

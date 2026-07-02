@@ -364,6 +364,30 @@ def _google_token_for_calendar_route(
     return get_google_calendar_access_token_for_user(db, user.id)
 
 
+def _filter_reuniones_for_app_user(
+    db: Session,
+    authorization: Optional[str],
+    access_token: Optional[str],
+    provider: str,
+    reuniones: list,
+) -> list:
+    """Aplica filtros de reunión de trabajo / externos cuando la ruta usa JWT de la app."""
+    if access_token:
+        return reuniones
+    from dossier.db.models import CalendarIntegration
+    from dossier.services.calendar_event_filters import filter_calendar_reuniones
+
+    _, user = auth_payload_and_user(db, authorization)
+    integration = db.execute(
+        select(CalendarIntegration).where(
+            CalendarIntegration.user_id == user.id,
+            CalendarIntegration.provider == provider,
+            CalendarIntegration.revoked_at.is_(None),
+        )
+    ).scalar_one_or_none()
+    return filter_calendar_reuniones(reuniones, integration=integration, user=user)
+
+
 def _oauth_frontend_base(*, for_calendar_callback: bool = False) -> str:
     """URL del front (sin barra final) para redirigir tras OAuth con ``state``."""
     base = (
@@ -742,6 +766,9 @@ def api_listar_eventos_calendario(
             dias_adelante=dias,
             incluir_pasadas=incluir_pasadas,
         )
+        reuniones = _filter_reuniones_for_app_user(
+            db, authorization, access_token, "microsoft", reuniones
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except UnicodeError as e:
@@ -780,6 +807,9 @@ def api_listar_eventos_google_calendar(
             top=top,
             dias_adelante=dias,
             incluir_pasadas=incluir_pasadas,
+        )
+        reuniones = _filter_reuniones_for_app_user(
+            db, authorization, access_token, "google", reuniones
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -1292,6 +1322,8 @@ def calendar_automation_status(
         i.advance_minutes for i in integrations if i.advance_minutes in {15, 20, 30, 60, 1440}
     ]
     stored = stored_advances[0] if stored_advances else effective
+    skip_internal_values = [bool(i.skip_internal_meetings) for i in integrations]
+    skip_internal = skip_internal_values[0] if skip_internal_values else False
 
     pending = db.execute(
         select(CalendarEvent).where(
@@ -1308,6 +1340,8 @@ def calendar_automation_status(
         "advance_minutes_stored": stored,
         "advance_minutes_from_env": False,
         "server_default_minutes": default_advance_minutes(),
+        "work_meetings_only": True,
+        "skip_internal_meetings": skip_internal,
         "scheduled_events": len(pending),
         "next_due": min(due_times).isoformat() if due_times else None,
         "has_calendars": len(integrations) > 0,
@@ -1317,6 +1351,7 @@ def calendar_automation_status(
                 "email": row.provider_email,
                 "is_enabled": row.is_enabled,
                 "advance_minutes": row.advance_minutes,
+                "skip_internal_meetings": row.skip_internal_meetings,
             }
             for row in integrations
         ],
@@ -1330,13 +1365,28 @@ _ALLOWED_ADVANCE_MINUTES = {15, 20, 30, 60, 1440}
 def update_calendar_automation_settings(
     user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
     db: Session = Depends(get_db_if_configured),
-    advance_minutes: int = Body(..., embed=True),
+    body: dict = Body(...),
 ):
-    """Anticipación (minutos antes de la reunión) para las integraciones del usuario."""
-    if advance_minutes not in _ALLOWED_ADVANCE_MINUTES:
+    """Preferencias de automatización: anticipación y filtro de reuniones externas."""
+    advance_minutes = body.get("advance_minutes")
+    skip_internal_meetings = body.get("skip_internal_meetings")
+
+    if advance_minutes is None and skip_internal_meetings is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Indica advance_minutes y/o skip_internal_meetings.",
+        )
+
+    if advance_minutes is not None and advance_minutes not in _ALLOWED_ADVANCE_MINUTES:
         raise HTTPException(
             status_code=400,
             detail="advance_minutes debe ser 15, 20, 30, 60 o 1440.",
+        )
+
+    if skip_internal_meetings is not None and not isinstance(skip_internal_meetings, bool):
+        raise HTTPException(
+            status_code=400,
+            detail="skip_internal_meetings debe ser true o false.",
         )
 
     user, _org = user_org
@@ -1354,26 +1404,46 @@ def update_calendar_automation_settings(
             status_code=404,
             detail="No hay calendarios conectados. Conecta Google u Outlook primero.",
         )
+
+    rescheduled = 0
     for row in rows:
-        row.advance_minutes = advance_minutes
+        if advance_minutes is not None:
+            row.advance_minutes = advance_minutes
+        if skip_internal_meetings is not None:
+            row.skip_internal_meetings = skip_internal_meetings
     db.commit()
 
-    rescheduled = reschedule_user_calendar_events(db, user.id, advance_minutes)
+    if advance_minutes is not None:
+        rescheduled = reschedule_user_calendar_events(db, user.id, advance_minutes)
 
-    if rescheduled:
-        message = (
-            f"Anticipación actualizada a {advance_minutes} min. "
-            f"{rescheduled} reunión(es) reprogramada(s)."
-        )
-    else:
-        message = f"Anticipación actualizada a {advance_minutes} min."
+    if skip_internal_meetings is not None:
+        for integration in rows:
+            if integration.is_enabled:
+                from dossier.services.calendar_automation import sync_calendar_events_for_integration
+
+                sync_calendar_events_for_integration(db, integration)
+
+    messages: list[str] = []
+    if advance_minutes is not None:
+        if rescheduled:
+            messages.append(
+                f"Anticipación actualizada a {advance_minutes} min ({rescheduled} reunión(es) reprogramada(s))."
+            )
+        else:
+            messages.append(f"Anticipación actualizada a {advance_minutes} min.")
+    if skip_internal_meetings is not None:
+        label = "activado" if skip_internal_meetings else "desactivado"
+        messages.append(f"Filtro de reuniones externas {label}.")
+
+    effective_advance = advance_minutes if advance_minutes is not None else rows[0].advance_minutes
 
     return {
-        "advance_minutes_stored": advance_minutes,
-        "advance_minutes_effective": advance_minutes,
+        "advance_minutes_stored": effective_advance,
+        "advance_minutes_effective": effective_advance,
         "advance_minutes_from_env": False,
+        "skip_internal_meetings": rows[0].skip_internal_meetings,
         "events_rescheduled": rescheduled,
-        "message": message,
+        "message": " ".join(messages) if messages else "Preferencias actualizadas.",
     }
 
 

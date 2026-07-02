@@ -35,6 +35,7 @@ const selectStyle = {
 export default function AutomationPage() {
   const { t } = useTranslation();
   const [beforeMinutes, setBeforeMinutes] = useState("20");
+  const [externalOnly, setExternalOnly] = useState(false);
   const [hasCalendars, setHasCalendars] = useState(false);
   const [scheduledEvents, setScheduledEvents] = useState(0);
   const [nextDue, setNextDue] = useState<string | null>(null);
@@ -57,6 +58,7 @@ export default function AutomationPage() {
       setHasCalendars(Boolean(st.has_calendars ?? (st.integrations?.length ?? 0) > 0));
       const stored = st.advance_minutes_stored ?? st.advance_minutes;
       setBeforeMinutes(String(stored));
+      setExternalOnly(Boolean(st.skip_internal_meetings));
       setScheduledEvents(st.scheduled_events);
       setNextDue(st.next_due);
       setLoad("ready");
@@ -77,10 +79,28 @@ export default function AutomationPage() {
     setSaving(true);
     setErr(null);
     try {
-      const res = await patchCalendarAutomationSettings(Number(value));
+      const res = await patchCalendarAutomationSettings({ advance_minutes: Number(value) });
       setSaveMsg(res.message);
       void loadStatus();
     } catch (e) {
+      setErr(e instanceof DossierApiError ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleExternalOnlyChange(checked: boolean) {
+    if (!hasCalendars) return;
+    setExternalOnly(checked);
+    setSaveMsg(null);
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await patchCalendarAutomationSettings({ skip_internal_meetings: checked });
+      setSaveMsg(res.message);
+      void loadStatus();
+    } catch (e) {
+      setExternalOnly(!checked);
       setErr(e instanceof DossierApiError ? e.message : String(e));
     } finally {
       setSaving(false);
@@ -115,6 +135,13 @@ export default function AutomationPage() {
               {t("automation.rules_desc")}
             </p>
 
+            <p
+              className="rounded-lg border px-3 py-2 text-xs leading-relaxed"
+              style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}
+            >
+              {t("automation.work_meetings_hint")}
+            </p>
+
             {!hasCalendars && load === "ready" ? (
               <p
                 className="rounded-lg border border-dashed px-3 py-2 text-xs"
@@ -141,6 +168,25 @@ export default function AutomationPage() {
                   </option>
                 ))}
               </select>
+            </label>
+
+            <label
+              className={`flex items-start gap-3 text-sm ${!hasCalendars ? "opacity-50" : ""}`}
+            >
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded border"
+                style={{ borderColor: "var(--border-default)" }}
+                checked={externalOnly}
+                disabled={selectDisabled}
+                onChange={(e) => void handleExternalOnlyChange(e.target.checked)}
+              />
+              <span className="flex flex-col gap-1">
+                <span style={{ color: "var(--text-secondary)" }}>{t("automation.skip_internal")}</span>
+                <span className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  {t("automation.skip_internal_hint")}
+                </span>
+              </span>
             </label>
 
             {saving ? (

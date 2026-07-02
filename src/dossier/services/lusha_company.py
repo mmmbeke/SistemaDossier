@@ -9,7 +9,7 @@ _CORP_SUFFIX = re.compile(
     r"\s+(?:CORP\.?|INC\.?|LTD\.?|LLC\.?|S\.A\.?|SA\.?|LIMITED|PLC)\.?\s*$",
     re.IGNORECASE,
 )
-_PERSONAL_EMAIL_DOMAINS = frozenset(
+PERSONAL_EMAIL_DOMAINS = frozenset(
     {
         "gmail.com",
         "googlemail.com",
@@ -41,7 +41,7 @@ def email_to_company_domain(email: str | None) -> str | None:
     if not email or "@" not in email:
         return None
     domain = email.split("@", 1)[1].strip().lower()
-    if not domain or domain in _PERSONAL_EMAIL_DOMAINS:
+    if not domain or domain in PERSONAL_EMAIL_DOMAINS:
         return None
     return domain
 

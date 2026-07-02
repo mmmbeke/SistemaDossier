@@ -140,7 +140,7 @@ class CalendarIntegration(Base):
     calendar_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     advance_minutes: Mapped[int] = mapped_column(Integer, default=20)
-    skip_internal_meetings: Mapped[bool] = mapped_column(Boolean, default=True)
+    skip_internal_meetings: Mapped[bool] = mapped_column(Boolean, default=False)
     skip_recurring_after_first: Mapped[bool] = mapped_column(Boolean, default=True)
     min_attendees: Mapped[int] = mapped_column(Integer, default=1)
     domain_whitelist: Mapped[list[str]] = mapped_column(
