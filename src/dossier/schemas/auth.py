@@ -87,6 +87,26 @@ class ForgotPasswordResponse(BaseModel):
     ok: Literal[True] = True
 
 
+class UserPreferencesPatch(BaseModel):
+    """Cuerpo PATCH /auth/me/preferences — idioma de interfaz y salida de dossiers."""
+
+    locale: str | None = Field(default=None, max_length=10)
+    timezone: str | None = Field(default=None, max_length=100)
+    dossier_output_language: str | None = Field(
+        default=None,
+        max_length=10,
+        description="match | es | en | pt | it | fr | de | auto",
+    )
+
+    @field_validator("locale", "timezone", "dossier_output_language", mode="before")
+    @classmethod
+    def strip_optional(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s or None
+
+
 class UserPublic(BaseModel):
     """Perfil público + tenant activo (organización primaria)."""
 
@@ -104,6 +124,9 @@ class UserPublic(BaseModel):
     # Contexto opcional (JSON `organizations.settings.dossier_context`) para personalizar dossiers.
     organization_company_summary: str | None = None
     organization_industry_or_area: str | None = None
+    locale: str = "es"
+    timezone: str = "UTC"
+    dossier_output_language: str = "match"
 
 
 class OrganizationPlanPatch(BaseModel):

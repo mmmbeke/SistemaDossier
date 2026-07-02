@@ -13,8 +13,9 @@ import {
   type DossierFolderDetailResponse,
   type DossierListItem,
 } from "@/lib/dossier-api";
-import { removeDossierFromFolder } from "@/lib/dossier-list-utils";
 import { getCalendarMeetingSubject } from "@/lib/calendar-dossier-meta";
+import { removeDossierFromFolder } from "@/lib/dossier-list-utils";
+import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 const UUID_RE =
@@ -111,11 +112,12 @@ export default function DossierFolderPage() {
     );
   }
 
-  const displayTitle =
+  const displayTitle = stripHtmlToPlainLine(
     getCalendarMeetingSubject({
       calendar_meeting: folder.calendar_meeting,
       dossier_data: folder.dossiers[0]?.dossier_data,
-    }) || folder.title;
+    }) || folder.title
+  );
 
   return (
     <div className="mx-auto max-w-5xl p-6">
@@ -134,7 +136,7 @@ export default function DossierFolderPage() {
           📁 {t("dossiers.folder_label")}
         </p>
         <h1 className="mt-1 text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-          {displayTitle}
+          {displayTitle || "—"}
         </h1>
         <CalendarMeetingLabel
           trigger_source={folder.trigger_source}

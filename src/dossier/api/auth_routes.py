@@ -40,12 +40,17 @@ from dossier.schemas.auth import (
     OrganizationPlanPatch,
     RegisterRequest,
     TokenResponse,
+    UserPreferencesPatch,
     UserPublic,
 )
 from dossier.security import create_access_token, hash_password, verify_password
 from dossier.security.jwt_tokens import decode_access_token
 
 router = APIRouter(prefix="/auth", tags=["Autenticación app"])
+
+_ALLOWED_DOSSIER_OUTPUT_PREFS = frozenset(
+    {"match", "auto", "es", "en", "pt", "it", "fr", "de"}
+)
 
 
 def _signup_org_credits() -> tuple[int, int]:
@@ -171,6 +176,9 @@ def build_user_public(db: Session, user: User) -> UserPublic:
         workspace_kind=wk,
         organization_company_summary=org_summary,
         organization_industry_or_area=org_industry,
+        locale=user.locale or "es",
+        timezone=user.timezone or "UTC",
+        dossier_output_language=getattr(user, "dossier_output_language", None) or "match",
     )
 
 
@@ -378,6 +386,47 @@ def read_current_user(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db_if_configured),
 ) -> UserPublic:
+    return build_user_public(db, user)
+
+
+@router.patch("/me/preferences", response_model=UserPublic)
+def patch_user_preferences(
+    body: UserPreferencesPatch,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_if_configured),
+) -> UserPublic:
+    """Sincroniza idioma de interfaz, zona horaria e idioma de salida de dossiers."""
+    if (
+        body.locale is None
+        and body.timezone is None
+        and body.dossier_output_language is None
+    ):
+        raise HTTPException(status_code=400, detail="No hay campos para actualizar.")
+
+    if body.locale is not None:
+        loc = body.locale.strip().lower().replace("_", "-")
+        if loc not in ("en", "en-gb", "es", "pt", "it", "fr", "de"):
+            raise HTTPException(status_code=400, detail="Locale no soportado.")
+        user.locale = loc
+
+    if body.timezone is not None:
+        tz = body.timezone.strip()
+        if not tz or len(tz) > 100:
+            raise HTTPException(status_code=400, detail="Zona horaria inválida.")
+        user.timezone = tz
+
+    if body.dossier_output_language is not None:
+        pref = body.dossier_output_language.strip().lower()
+        if pref not in _ALLOWED_DOSSIER_OUTPUT_PREFS:
+            raise HTTPException(
+                status_code=400,
+                detail="dossier_output_language no soportado.",
+            )
+        user.dossier_output_language = pref
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
     return build_user_public(db, user)
 
 

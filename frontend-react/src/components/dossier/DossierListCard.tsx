@@ -6,6 +6,7 @@ import DeleteDossierIconButton from "@/components/dossier/DeleteDossierIconButto
 import DossierStatusBadge from "@/components/dossier/DossierStatusBadge";
 import { formatDate } from "@/lib/format";
 import type { DossierListItem } from "@/lib/dossier-api";
+import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 type Props = {
@@ -42,7 +43,7 @@ function moduleIcon(kind: DossierListItem["module_kind"]) {
 
 export default function DossierListCard({ dossier, deletingId, onDelete }: Props) {
   const { t, preferences } = useTranslation();
-  const title = dossier.subject_name || dossier.subject_email || "—";
+  const title = stripHtmlToPlainLine(dossier.subject_name || dossier.subject_email) || "—";
   const dateRaw = dossier.updated_at || dossier.created_at;
   const dateLabel = dateRaw ? formatDate(dateRaw, preferences) : null;
   const isDeleting = deletingId === dossier.id;

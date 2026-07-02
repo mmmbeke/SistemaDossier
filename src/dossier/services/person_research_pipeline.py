@@ -22,7 +22,7 @@ from dossier.gemini.analyze import normalize_person_report_text
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.calendar_event_dossiers import _person_failure_message
-from dossier.services.output_language import normalize_output_language
+from dossier.services.output_language import effective_output_language, normalize_output_language
 from dossier.services.person_dossier_dedup import (
     person_research_fingerprint,
     person_research_response_from_redis_cache,
@@ -43,7 +43,7 @@ def run_person_research_and_persist(
     Ejecuta investigación de persona, persiste en ``dossiers`` y devuelve la respuesta API.
     """
     org_ctx = format_dossier_context_for_prompt(org)
-    out_lang = normalize_output_language(body.output_language or user.locale)
+    out_lang = effective_output_language(user, body.output_language)
     fp = person_research_fingerprint(body, org.id, output_language=out_lang)
     skip_cache = bool(body.force_refresh)
 

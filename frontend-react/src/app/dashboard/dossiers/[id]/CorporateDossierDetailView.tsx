@@ -17,6 +17,7 @@ import {
   type PersonResearchPayload,
 } from "@/lib/dossier-api";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import { formatLongDate } from "@/lib/format";
@@ -309,7 +310,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             ) : null}
           </div>
           <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-            {dossier.subject_name || t("detail.api_no_subject")}
+            {stripHtmlToPlainLine(dossier.subject_name) || t("detail.api_no_subject")}
           </h1>
           <CalendarMeetingLabel
             trigger_source={dossier.trigger_source}

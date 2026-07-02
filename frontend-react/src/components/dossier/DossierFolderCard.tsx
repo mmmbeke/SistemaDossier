@@ -7,6 +7,7 @@ import DossierStatusBadge from "@/components/dossier/DossierStatusBadge";
 import { formatDate } from "@/lib/format";
 import { dossierItemMatchesTypeFilter, type TypeFilterValue } from "@/lib/dossier-list-utils";
 import { getCalendarMeetingSubject } from "@/lib/calendar-dossier-meta";
+import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import type { DossierFolderListItem, DossierListItem } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
@@ -80,7 +81,7 @@ function ChildDossierChip({
         className="min-w-0 text-left transition hover:opacity-90"
       >
         <span className="block truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-          {row.subject_name || row.subject_email || "—"}
+          {stripHtmlToPlainLine(row.subject_name || row.subject_email) || "—"}
         </span>
         <span className="mt-0.5 block text-xs capitalize" style={{ color: "var(--text-muted)" }}>
           {row.depth_level}
@@ -91,7 +92,6 @@ function ChildDossierChip({
           </span>
         ) : null}
       </Link>
-
     </div>
   );
 }
@@ -129,11 +129,12 @@ export default function DossierFolderCard({
         ? t("dossiers.folder_one_dossier")
         : t("dossiers.folder_n_dossiers");
   const dossierCount = typeFilter === "all" ? folder.dossiers.length : ordered.length;
-  const displayTitle =
+  const displayTitle = stripHtmlToPlainLine(
     getCalendarMeetingSubject({
       calendar_meeting: folder.calendar_meeting,
       dossier_data: folder.dossiers[0]?.dossier_data,
-    }) || folder.title;
+    }) || folder.title
+  );
 
   return (
     <article
@@ -161,7 +162,7 @@ export default function DossierFolderCard({
               className="text-base font-semibold leading-snug"
               style={{ color: "var(--text-primary)" }}
             >
-              {displayTitle}
+              {displayTitle || "—"}
             </p>
             <CalendarMeetingLabel
               trigger_source={folder.trigger_source}

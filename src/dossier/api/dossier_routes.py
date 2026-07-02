@@ -39,7 +39,8 @@ from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.corporate_company_search import search_corporate_company_candidates
 from dossier.services.person_research_pipeline import run_person_research_and_persist
 from dossier.services.dossier_generation_job_service import enqueue_person_research_job
-from dossier.services.output_language import normalize_output_language
+from dossier.services.output_language import effective_output_language, normalize_output_language
+from dossier.utils.html_text import strip_html_to_plain_line
 from dossier.services.calendar_automation import suppress_calendar_event_if_no_dossiers_remain
 from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
 from dossier.services.dossier_folder_utils import (
@@ -160,7 +161,7 @@ def generate_corporate_dossier(
     user, org = user_org
     charge = _corporate_credit_charging_enabled()
     cost = DEPTH_CREDITS[body.depth] if charge else 0
-    out_lang = normalize_output_language(body.output_language or user.locale)
+    out_lang = effective_output_language(user, body.output_language)
 
     db.refresh(org)
 
@@ -339,7 +340,7 @@ def get_dossier_by_id(
     return {
         "id": str(d.id),
         "organization_id": str(d.organization_id),
-        "subject_name": d.subject_name,
+        "subject_name": strip_html_to_plain_line(d.subject_name, max_len=255) or d.subject_name,
         "subject_email": d.subject_email,
         "status": d.status,
         "depth_level": d.depth_level,
