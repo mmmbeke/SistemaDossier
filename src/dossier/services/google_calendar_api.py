@@ -78,22 +78,27 @@ def listar_reuniones_google(
     """Lista eventos del calendario principal, normalizados."""
     now = datetime.now(timezone.utc)
     if incluir_pasadas:
-        time_min = now - timedelta(days=30)
+        time_min = now - timedelta(days=min(90, dias_adelante))
         time_max = now + timedelta(days=dias_adelante)
+        fetch_top = min(max(top * 4, top), 50)
     else:
         time_min = now
         time_max = now + timedelta(days=dias_adelante)
+        fetch_top = max(top, 1)
 
     params: dict[str, str | int | bool] = {
         "timeMin": _iso_z(time_min),
         "timeMax": _iso_z(time_max),
-        "maxResults": max(top, 1),
+        "maxResults": fetch_top,
         "singleEvents": True,
         "orderBy": "startTime",
     }
     datos = _get(access_token, params)
     items = datos.get("items") or []
-    return [normalizar_evento_google(e) for e in items[:top]]
+    reuniones = [normalizar_evento_google(e) for e in items]
+    if incluir_pasadas:
+        reuniones.sort(key=lambda r: r.get("inicio") or "", reverse=True)
+    return reuniones[:top]
 
 
 def diagnostico_google_calendar(access_token: str) -> dict:

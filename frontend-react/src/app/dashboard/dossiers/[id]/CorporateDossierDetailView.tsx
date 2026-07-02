@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
+import DeleteDossierIconButton from "@/components/dossier/DeleteDossierIconButton";
 import {
   DossierApiError,
   deleteDossierFromApi,
@@ -383,18 +384,10 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
               </>
             )
           ) : null}
-          <button
-            type="button"
-            disabled={deleting}
+          <DeleteDossierIconButton
+            isDeleting={deleting}
             onClick={() => void handleDelete()}
-            className="inline-flex items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition hover:bg-red-500/10 disabled:opacity-50"
-            style={{
-              borderColor: "rgba(248,113,113,0.45)",
-              color: "var(--text-muted)",
-            }}
-          >
-            {deleting ? t("dossiers.deleting") : t("detail.delete")}
-          </button>
+          />
           {deleteErr && (
             <p className="max-w-xs text-right text-xs text-red-400" role="alert">
               {deleteErr}
