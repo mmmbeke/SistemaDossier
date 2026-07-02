@@ -6,7 +6,6 @@ export type Plan = {
   price: string;
   credits: string;
   features: string[];
-  highlighted?: boolean;
 };
 
 export const PLANS: Plan[] = [
@@ -27,7 +26,6 @@ export const PLANS: Plan[] = [
       "Automatización calendario",
       "Email + chat support",
     ],
-    highlighted: true,
   },
   {
     id: "enterprise",

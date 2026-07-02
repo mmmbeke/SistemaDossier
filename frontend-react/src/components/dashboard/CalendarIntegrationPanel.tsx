@@ -32,6 +32,7 @@ const I18N: Record<
   {
     subtitle: TranslationKey;
     connect: TranslationKey;
+    connected: TranslationKey;
     refresh: TranslationKey;
     loading: TranslationKey;
     error: TranslationKey;
@@ -50,6 +51,7 @@ const I18N: Record<
   google: {
     subtitle: "overview.google_subtitle",
     connect: "overview.google_connect",
+    connected: "overview.google_connected",
     refresh: "overview.google_refresh",
     loading: "overview.google_loading",
     error: "overview.google_error",
@@ -67,6 +69,7 @@ const I18N: Record<
   microsoft: {
     subtitle: "overview.microsoft_subtitle",
     connect: "overview.microsoft_connect",
+    connected: "overview.microsoft_connected",
     refresh: "overview.microsoft_refresh",
     loading: "overview.microsoft_loading",
     error: "overview.microsoft_error",
@@ -278,6 +281,9 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
   }
 
   const token = typeof window !== "undefined" ? getStoredAccessToken() : null;
+  const providerAccent = provider === "google" ? "#4285f4" : "#0078d4";
+  const providerAccentBorder =
+    provider === "google" ? "rgba(66,133,244,0.45)" : "rgba(0,120,212,0.45)";
 
   return (
     <div className="flex flex-col gap-4 px-1 py-1">
@@ -286,15 +292,31 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
       </p>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <PrimaryButton
-          type="button"
-          className="w-full sm:w-auto sm:min-w-[200px]"
-          loading={connecting}
-          disabled={!token}
-          onClick={() => void onConnect()}
-        >
-          {t(keys.connect)}
-        </PrimaryButton>
+        {connected ? (
+          <span
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold sm:w-auto sm:min-w-[200px]"
+            style={{
+              borderColor: providerAccentBorder,
+              color: providerAccent,
+              backgroundColor: "var(--bg-surface)",
+            }}
+          >
+            <span aria-hidden className="text-base leading-none">
+              ✓
+            </span>
+            {t(keys.connected)}
+          </span>
+        ) : (
+          <PrimaryButton
+            type="button"
+            className="w-full sm:w-auto sm:min-w-[200px]"
+            loading={connecting}
+            disabled={!token || load === "loading"}
+            onClick={() => void onConnect()}
+          >
+            {t(keys.connect)}
+          </PrimaryButton>
+        )}
         <button
           type="button"
           disabled={!token || load === "loading"}
@@ -334,8 +356,6 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
           {genErr}
         </UiAlert>
       )}
-
-      {token && connected ? <CalendarMeetingFormatGuide /> : null}
 
       {!token ? (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -423,7 +443,7 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
                   </pre>
                 ) : (
                   <div className="mt-1">
-                    <p className="ui-alert ui-alert-warning px-2.5 py-2">
+                    <p className="ui-alert ui-alert-warning px-2.5 py-2 text-xs">
                       {t("overview.calendar_description_empty")}
                     </p>
                     <CalendarMeetingFormatGuide variant="inline" defaultOpen />

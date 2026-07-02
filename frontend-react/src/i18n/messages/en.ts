@@ -167,17 +167,14 @@ const messages = {
   "generate.warn_sec_http": "SEC ticker list could not be loaded: US results may be missing.",
   "generate.warn_query_short": "Search text is too short.",
   "person_research.title": "Person professional insight",
-  "person_research.subtitle":
-    "Person insight from People Data Labs (PDL) and AI analysis. Not a substitute for legal vetting; process personal data only with a lawful basis.",
+  "person_research.subtitle": "Person insight from PDL or public web + AI.",
   "person_research.source_label": "Research type",
-  "person_research.source_gemini": "Public web search",
-  "person_research.source_gemini_hint":
-    "Information from the open web and report synthesis.",
-  "person_research.source_pdl": "Professional records (People Data Labs)",
-  "person_research.source_pdl_hint":
-    "Enrichment via PDL person/enrich and AI analysis. Requires PDL_API_KEY on the server.",
+  "person_research.source_gemini": "Public web",
+  "person_research.source_gemini_hint": "Open sources on the internet.",
+  "person_research.source_pdl": "PDL records",
+  "person_research.source_pdl_hint": "People Data Labs + AI analysis.",
   "person_research.email": "Email (optional)",
-  "person_research.email_ph": "e.g. name@company.com — improves PDL match quality",
+  "person_research.email_ph": "name@company.com",
   "person_research.linkedin_url": "LinkedIn (optional)",
   "person_research.linkedin_url_ph": "https://www.linkedin.com/in/…",
   "person_research.back": "Back",
@@ -198,16 +195,18 @@ const messages = {
   "person_research.reveal_contact_details":
     "Reveal email and phone in Lusha (PDL includes them in the match when available)",
   "person_research.submit": "Search and analyze",
+  "person_research.summary_scope_pdl": "PDL enrichment and AI report.",
+  "person_research.summary_scope_gemini": "Public web and AI report.",
+  "person_research.summary_billing_hint": "Charged only on success.",
   "person_research.submitting": "Generating report…",
   "person_research.generating_title": "Generating dossier for {name}…",
   "person_research.generating_background":
     "You can keep browsing the app; we will notify you when it is ready (toast bottom-right).",
-  "person_research.cancel": "Cancel generation",
+  "person_research.cancel": "Cancel",
   "person_research.cancel_error": "Could not cancel generation.",
-  "person_research.already_generating": "A person dossier is already being generated.",
-  "person_research.regenerate": "Research again",
-  "person_research.regenerate_hint":
-    "Starts a completely new search. Use this if the previous report was empty, incomplete, or missing useful data.",
+  "person_research.already_generating": "A dossier is already running.",
+  "person_research.regenerate": "New search",
+  "person_research.regenerate_hint": "Skip cache and search again",
   "person_research.error_auth": "You must be signed in.",
   "person_research.error_name": "Enter at least the person's full name.",
   "person_research.warn_title": "Warnings",
@@ -215,17 +214,15 @@ const messages = {
   "person_research.section_analysis": "Executive brief",
   "person_research.analysis_web_badge":
     "Includes public web sources. Verify claims and links before you decide.",
-  "person_research.no_analysis":
-    "No report: check server configuration (model key and web search) or the warnings above.",
+  "person_research.no_analysis": "No report generated. Check warnings or try a new search.",
   "person_research.saved_title": "Saved to My Dossiers",
-  "person_research.cache_badge": "Redis cache · test",
+  "person_research.cache_badge": "Cache",
   "person_research.saved_body":
-    "This brief was stored for your organization. Open it anytime from the list.",
+    "This report was saved to your organization. You can open it anytime from the list.",
   "person_research.saved_open": "Open dossier",
   "person_research.saved_list": "Go to My Dossiers",
   "person_research.toggle_raw": "Show / hide raw JSON",
-  "person_research.disclaimer":
-    "The brief reflects what this search session returned; the model must not invent facts. Cross-check independently for legal or HR decisions.",
+  "person_research.disclaimer": "Cross-check with independent sources before deciding.",
   "generate.country_tag_uk": "UK",
   "generate.country_tag_usa": "USA",
   "generate.company_registry_ch": "Companies House",
@@ -421,6 +418,7 @@ const messages = {
   "overview.microsoft_subtitle":
     "Connect your calendar to list upcoming meetings using your Dossier session (no Microsoft token in the browser).",
   "overview.microsoft_connect": "Connect Outlook",
+  "overview.microsoft_connected": "Outlook connected",
   "overview.microsoft_refresh": "Refresh list",
   "overview.microsoft_loading": "Loading meetings…",
   "overview.microsoft_error": "Could not load the calendar.",
@@ -444,6 +442,7 @@ const messages = {
   "overview.google_subtitle":
     "Connect Google Calendar to list upcoming events with your Dossier session (no Google token stored in the browser).",
   "overview.google_connect": "Connect Google Calendar",
+  "overview.google_connected": "Google Calendar connected",
   "overview.google_refresh": "Refresh list",
   "overview.google_loading": "Loading events…",
   "overview.google_error": "Could not load Google Calendar.",
@@ -457,7 +456,9 @@ const messages = {
     "No description on this event. Add «Company: …» and «Contact: …» in the event body in your calendar.",
   "overview.calendar_description_no_contact":
     "No «Contact:» or «Name:» line detected in the description; only the company dossier will be generated.",
-  "calendar.guide.summary": "Meeting description format guide",
+  "calendar.guide.summary": "Format guide",
+  "calendar.guide.open_inline": "View format guide",
+  "calendar.guide.close": "Close",
   "calendar.guide.intro":
     "Paste this format in the event body (Outlook or Google Calendar) so we can generate company and person dossiers automatically. One field per line.",
   "calendar.guide.template_title": "Example to copy",
