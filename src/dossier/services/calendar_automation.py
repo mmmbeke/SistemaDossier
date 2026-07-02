@@ -1,6 +1,6 @@
 """
-Automatización de calendario: sincroniza reuniones próximas y genera dossiers
-unos minutos antes del inicio (por defecto 20 min), sin intervención manual.
+Automatizaci?n de calendario: sincroniza reuniones pr?ximas y genera dossiers
+unos minutos antes del inicio (por defecto 20 min), sin intervenci?n manual.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from dossier.db.models import CalendarEvent, CalendarIntegration, Dossier, Organization, User
@@ -21,6 +21,7 @@ from dossier.services.calendar_event_dossiers import (
     generate_dossiers_from_calendar_event,
     persist_calendar_dossiers,
 )
+from dossier.services.calendar_event_filters import calendar_event_passes_filters
 from dossier.services.output_language import resolve_output_language_from_user_locale
 from dossier.services.google_calendar_api import (
     listar_reuniones_google,
@@ -55,7 +56,7 @@ def poll_interval_seconds() -> int:
 
 
 def default_advance_minutes() -> int:
-    """Valor por defecto del servidor (nuevas integraciones o preferencia inválida)."""
+    """Valor por defecto del servidor (nuevas integraciones o preferencia inv?lida)."""
     raw = os.getenv("CALENDAR_DEFAULT_ADVANCE_MINUTES", "20").strip()
     try:
         value = max(1, min(int(raw), 7 * 24 * 60))
@@ -65,19 +66,19 @@ def default_advance_minutes() -> int:
 
 
 def normalize_advance_minutes(value: int | None) -> int:
-    """Devuelve minutos válidos guardados o el default del servidor."""
+    """Devuelve minutos v?lidos guardados o el default del servidor."""
     if value is not None and value in ALLOWED_ADVANCE_MINUTES:
         return value
     return default_advance_minutes()
 
 
 def effective_advance_minutes(integration: CalendarIntegration) -> int:
-    """Anticipación que usa la automatización para esta integración (preferencia del usuario)."""
+    """Anticipaci?n que usa la automatizaci?n para esta integraci?n (preferencia del usuario)."""
     return normalize_advance_minutes(integration.advance_minutes)
 
 
 def user_advance_minutes(integrations: list[CalendarIntegration]) -> int:
-    """Anticipación efectiva del usuario (primera integración activa o default)."""
+    """Anticipaci?n efectiva del usuario (primera integraci?n activa o default)."""
     for row in integrations:
         if row.revoked_at is None and row.is_enabled:
             return effective_advance_minutes(row)
@@ -157,7 +158,7 @@ def reschedule_user_calendar_events(
     user_id: UUID,
     advance_minutes: int,
 ) -> int:
-    """Recalcula ``dossier_scheduled_at`` para reuniones futuras aún no procesadas."""
+    """Recalcula ``dossier_scheduled_at`` para reuniones futuras a?n no procesadas."""
     now = datetime.now(timezone.utc)
     rows = db.execute(
         select(CalendarEvent).where(
@@ -173,8 +174,22 @@ def reschedule_user_calendar_events(
     return len(rows)
 
 
+_FILTER_SKIP_MARKERS = (
+    "día completo",
+    "Sin señales de reunión de trabajo",
+    "Solo participantes con correo personal",
+    "Todos los participantes comparten",
+)
+
+
+def _skipped_by_calendar_filter(skip_reason: str | None) -> bool:
+    if not skip_reason:
+        return False
+    return any(marker in skip_reason for marker in _FILTER_SKIP_MARKERS)
+
+
 def sync_calendar_events_for_integration(db: Session, integration: CalendarIntegration) -> int:
-    """Importa/actualiza eventos futuros en ``calendar_events``. Devuelve cuántos se tocaron."""
+    """Importa/actualiza eventos futuros en ``calendar_events``. Devuelve cu?ntos se tocaron."""
     if not integration.is_enabled or integration.revoked_at is not None:
         return 0
 
@@ -182,7 +197,7 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
         reuniones = _list_upcoming_reuniones(integration, db)
     except Exception as e:
         logger.warning(
-            "Sync calendario falló user=%s provider=%s: %s",
+            "Sync calendario fall? user=%s provider=%s: %s",
             integration.user_id,
             integration.provider,
             e,
@@ -192,6 +207,7 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
     advance = effective_advance_minutes(integration)
     now = datetime.now(timezone.utc)
     touched = 0
+    user = db.get(User, integration.user_id)
 
     for reunion in reuniones:
         ext_id = (reunion.get("id") or "").strip()
@@ -200,6 +216,8 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
         starts = parse_event_datetime(reunion.get("inicio"))
         if starts is None or starts <= now:
             continue
+
+        passes, filter_reason = calendar_event_passes_filters(reunion, integration, user)
 
         ends = parse_event_datetime(reunion.get("fin"))
         scheduled_at = starts - timedelta(minutes=advance)
@@ -210,6 +228,25 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
                 CalendarEvent.external_event_id == ext_id,
             )
         ).scalar_one_or_none()
+
+        if not passes:
+            if row is not None and row.processing_status in ("scheduled", "detected"):
+                row.title = (reunion.get("tema") or row.title or "")[:500]
+                row.starts_at = starts
+                row.ends_at = ends
+                row.external_attendees = _attendees_from_participantes(reunion.get("participantes") or "")
+                row.event_snapshot = reunion
+                row.processing_status = "skipped"
+                row.skip_reason = filter_reason
+                touched += 1
+            continue
+
+        if row is not None and row.processing_status == "skipped" and _skipped_by_calendar_filter(
+            row.skip_reason
+        ):
+            row.processing_status = "scheduled"
+            row.skip_reason = None
+            row.dossier_scheduled_at = scheduled_at
 
         if row is not None and row.processing_status in ("completed", "processing"):
             row.title = (reunion.get("tema") or row.title or "")[:500]
@@ -255,7 +292,7 @@ def _mark_past_unprocessed_skipped(db: Session) -> int:
     ).scalars().all()
     for row in rows:
         row.processing_status = "skipped"
-        row.skip_reason = "La reunión ya comenzó antes de generar el dossier."
+        row.skip_reason = "La reuni?n ya comenz? antes de generar el dossier."
     if rows:
         db.commit()
     return len(rows)
@@ -269,7 +306,8 @@ def _generation_skip_reason(result: dict[str, Any]) -> str:
     parsed = result.get("parse") or {}
     if not (parsed.get("company_corporate") or parsed.get("person_name")):
         return (
-            "No se detectó empresa ni contacto. Usa «Empresa: …» y «Contacto: …» en la descripción."
+            "No se detect? empresa ni contacto. "
+            "Usa ?Empresa: ?? y ?Contacto: ?? en la descripci?n."
         )
 
     for key, label in (
@@ -279,14 +317,17 @@ def _generation_skip_reason(result: dict[str, Any]) -> str:
         md = (result.get(key) or "").lstrip()
         if md.startswith("# Error"):
             return f"Error al generar dossier {label}."
-        if md.startswith("No se pudo generar ningún dossier"):
+        if md.startswith("No se pudo generar ning?n dossier"):
             return "Formato del evento incompleto para generar dossiers."
 
-    return "La generación terminó pero no hubo informe válido para guardar."
+    return "La generaci?n termin? pero no hubo informe v?lido para guardar."
 
 
 def _requeue_completed_without_dossiers(db: Session) -> int:
-    """Reprograma eventos marcados completed sin filas en ``dossiers`` (reintentos)."""
+    """Reprograma eventos marcados completed sin filas en ``dossiers`` (fallos de persistencia).
+
+    No aplica a eventos en ``skipped`` (p. ej. dossier eliminado por el usuario).
+    """
     now = datetime.now(timezone.utc)
     rows = db.execute(
         select(CalendarEvent).where(
@@ -303,12 +344,42 @@ def _requeue_completed_without_dossiers(db: Session) -> int:
         row.dossier_scheduled_at = now
     if rows:
         db.commit()
-        logger.info("Automatización: %s evento(s) reprogramados (completed sin dossier)", len(rows))
+        logger.info("Automatizaci?n: %s evento(s) reprogramados (completed sin dossier)", len(rows))
     return len(rows)
 
 
+def suppress_calendar_event_if_no_dossiers_remain(
+    db: Session,
+    calendar_event_id: UUID | None,
+) -> None:
+    """
+    Tras borrar dossiers de calendario: evita que la automatizaci?n los regenere.
+
+    Si el usuario elimin? todos los dossiers ligados al evento, pasa el evento a
+    ``skipped`` en lugar de dejarlo en ``completed`` (lo que dispara reintentos).
+    """
+    if not calendar_event_id:
+        return
+    remaining = db.execute(
+        select(func.count())
+        .select_from(Dossier)
+        .where(Dossier.calendar_event_id == calendar_event_id)
+    ).scalar_one()
+    if int(remaining or 0) > 0:
+        return
+    event = db.get(CalendarEvent, calendar_event_id)
+    if event is None:
+        return
+    event.processing_status = "skipped"
+    event.skip_reason = "Dossier eliminado por el usuario; no se regenerar? autom?ticamente."
+    logger.info(
+        "Calendario: evento %s marcado skipped tras borrado manual de dossiers",
+        calendar_event_id,
+    )
+
+
 def process_due_calendar_events(db: Session) -> dict[str, int]:
-    """Genera dossiers para eventos cuya ventana de anticipación ya venció."""
+    """Genera dossiers para eventos cuya ventana de anticipaci?n ya venci?."""
     now = datetime.now(timezone.utc)
     stats = {"processed": 0, "failed": 0, "skipped": 0, "requeued": 0}
 
@@ -346,9 +417,17 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
             db.commit()
             continue
 
+        user = db.get(User, event.user_id)
+        passes, filter_reason = calendar_event_passes_filters(reunion, integration, user)
+        if not passes:
+            event.processing_status = "skipped"
+            event.skip_reason = filter_reason
+            stats["skipped"] += 1
+            db.commit()
+            continue
+
         org = db.get(Organization, event.organization_id)
         org_ctx = format_dossier_context_for_prompt(org) if org else ""
-        user = db.get(User, event.user_id)
         out_lang = resolve_output_language_from_user_locale(user.locale if user else None)
 
         t0 = time.perf_counter()
@@ -379,12 +458,12 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
                 event.skip_reason = _generation_skip_reason(result)
                 stats["failed"] += 1
                 logger.warning(
-                    "Automatización: event=%s sin dossier guardado: %s",
+                    "Automatizaci?n: event=%s sin dossier guardado: %s",
                     event.id,
                     event.skip_reason,
                 )
         except Exception as e:
-            logger.exception("Automatización: fallo dossier event=%s", event.id)
+            logger.exception("Automatizaci?n: fallo dossier event=%s", event.id)
             event.processing_status = "failed"
             event.skip_reason = str(e)[:500]
             stats["failed"] += 1

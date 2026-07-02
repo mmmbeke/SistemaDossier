@@ -81,7 +81,7 @@ sigue pudiendo redactar con lo disponible.
 
 ## Paquete `dossier` y la carpeta `src/`
 
-El código importable vive en **`src/dossier`**. `python main.py` ya inserta `src` en `sys.path`, así que la API resuelve los imports bien. Si en el futuro añades otro script en la raíz que importe `dossier`, haz como en `scripts/seed_test_data.py` (añadir `src` al path) o define `PYTHONPATH=src` en ese proceso.
+El código importable vive en **`src/dossier`**. `python main.py` ya inserta `src` en `sys.path`, así que la API resuelve los imports bien. Si en el futuro añades otro script en la raíz que importe `dossier`, importa `scripts/_bootstrap.py` (añade `src` al path) o define `PYTHONPATH=src` en ese proceso.
 ## Ampliaciones típicas (siguiente iteración)
 
 - **Checkpoint / memoria**: `MemorySaver` de LangGraph para conversaciones multi-turno (no usado aún).

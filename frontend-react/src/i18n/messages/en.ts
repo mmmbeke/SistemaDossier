@@ -552,6 +552,10 @@ const messages = {
   "btn.connect": "Connect",
   "automation.rules_title": "Lead time",
   "automation.rules_desc": "How long before the meeting starts company and person dossiers are generated.",
+  "automation.work_meetings_hint":
+    "Only work meetings are shown: events with Empresa/Contacto in the description, a video call, or corporate attendees. Personal and all-day events are hidden.",
+  "automation.skip_internal_hint":
+    "When enabled, only meetings where at least one calendar invitee has a different email domain (e.g. @company.com). Empresa/Contacto in the description is not enough—the attendee must be invited.",
   "automation.before_meeting": "Generate dossier before meeting",
   "automation.saving": "Saving…",
   "automation.connect_calendar_hint":

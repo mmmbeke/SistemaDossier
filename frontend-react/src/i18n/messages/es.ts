@@ -553,6 +553,10 @@ const messages = {
   "btn.connect": "Conectar",
   "automation.rules_title": "Anticipación",
   "automation.rules_desc": "Cuánto antes del inicio se generan los dossiers de empresa y persona.",
+  "automation.work_meetings_hint":
+    "Solo se muestran reuniones de trabajo: con Empresa/Contacto en la descripción, videollamada o asistentes corporativos. Los eventos personales y de día completo no aparecen.",
+  "automation.skip_internal_hint":
+    "Si lo activas, solo verás reuniones donde al menos un invitado del calendario tenga otro dominio de correo (p. ej. @empresa.com). Empresa/Contacto en la descripción no basta: hay que invitar al asistente.",
   "automation.before_meeting": "Generar dossier antes de la reunión",
   "automation.saving": "Guardando…",
   "automation.connect_calendar_hint":
