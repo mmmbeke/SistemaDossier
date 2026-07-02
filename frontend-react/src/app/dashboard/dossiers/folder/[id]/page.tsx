@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
+import { notFound, useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import DossierFolderCard from "@/components/dossier/DossierFolderCard";
@@ -13,6 +13,8 @@ import {
   type DossierFolderDetailResponse,
   type DossierListItem,
 } from "@/lib/dossier-api";
+import { getCalendarMeetingSubject } from "@/lib/calendar-dossier-meta";
+import { removeDossierFromFolder } from "@/lib/dossier-list-utils";
 import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
@@ -21,6 +23,7 @@ const UUID_RE =
 
 export default function DossierFolderPage() {
   const params = useParams();
+  const router = useRouter();
   const folderId = typeof params?.id === "string" ? params.id : "";
   const { t } = useTranslation();
   const [folder, setFolder] = useState<DossierFolderDetailResponse | null>(null);
@@ -62,8 +65,7 @@ export default function DossierFolderPage() {
       await deleteDossierFromApi(row.id);
       setFolder((prev) => {
         if (!prev) return prev;
-        const dossiers = prev.dossiers.filter((d) => d.id !== row.id);
-        return { ...prev, dossiers };
+        return removeDossierFromFolder(prev, row.id);
       });
     } catch (e) {
       setError(e instanceof DossierApiError ? e.message : String(e));
@@ -71,6 +73,12 @@ export default function DossierFolderPage() {
       setDeletingId(null);
     }
   }
+
+  useEffect(() => {
+    if (load === "ok" && folder === null) {
+      router.replace("/dashboard/dossiers");
+    }
+  }, [folder, load, router]);
 
   if (load === "loading") {
     return (
@@ -81,6 +89,13 @@ export default function DossierFolderPage() {
   }
 
   if (load === "err" || !folder) {
+    if (load === "ok" && folder === null) {
+      return (
+        <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>
+          {t("dossiers.folder_loading")}
+        </div>
+      );
+    }
     return (
       <div className="mx-auto max-w-lg space-y-4 p-8">
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -97,18 +112,12 @@ export default function DossierFolderPage() {
     );
   }
 
-  if (folder.dossiers.length === 0) {
-    return (
-      <div className="mx-auto max-w-lg space-y-4 p-8">
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          {t("dossiers.folder_empty")}
-        </p>
-        <Link href="/dashboard/dossiers" className="text-sm font-medium underline" style={{ color: "var(--accent-from)" }}>
-          {t("detail.back")}
-        </Link>
-      </div>
-    );
-  }
+  const displayTitle = stripHtmlToPlainLine(
+    getCalendarMeetingSubject({
+      calendar_meeting: folder.calendar_meeting,
+      dossier_data: folder.dossiers[0]?.dossier_data,
+    }) || folder.title
+  );
 
   return (
     <div className="mx-auto max-w-5xl p-6">
@@ -127,7 +136,7 @@ export default function DossierFolderPage() {
           📁 {t("dossiers.folder_label")}
         </p>
         <h1 className="mt-1 text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-          {stripHtmlToPlainLine(folder.title)}
+          {displayTitle || "—"}
         </h1>
         <CalendarMeetingLabel
           trigger_source={folder.trigger_source}
@@ -142,7 +151,12 @@ export default function DossierFolderPage() {
         </UiAlert>
       ) : null}
 
-      <DossierFolderCard folder={folder} deletingId={deletingId} onDeleteDossier={handleDeleteDossier} />
+      <DossierFolderCard
+        folder={folder}
+        typeFilter="all"
+        deletingId={deletingId}
+        onDeleteDossier={handleDeleteDossier}
+      />
     </div>
   );
 }

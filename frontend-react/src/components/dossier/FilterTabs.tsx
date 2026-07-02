@@ -1,15 +1,9 @@
 "use client";
 
-export type FilterValue = "all" | "complete" | "needs_update";
-
-type FilterTab = {
-  value: FilterValue;
-  label: string;
-  count: number;
-};
+export type FilterValue = "all" | "active" | "past" | "needs_update";
 
 type FilterTabsProps = {
-  tabs: FilterTab[];
+  tabs: { value: FilterValue; label: string; count: number }[];
   active: FilterValue;
   onChange: (value: FilterValue) => void;
 };
@@ -17,7 +11,7 @@ type FilterTabsProps = {
 export default function FilterTabs({ tabs, active, onChange }: FilterTabsProps) {
   return (
     <div
-      className="inline-flex items-center gap-1 rounded-lg border p-1"
+      className="inline-flex flex-wrap items-center gap-1 rounded-lg border p-1"
       style={{
         borderColor: "var(--border-default)",
         backgroundColor: "var(--bg-surface)",

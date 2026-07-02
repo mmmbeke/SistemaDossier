@@ -335,12 +335,16 @@ def listar_reuniones(
     """
     if incluir_pasadas:
         now = datetime.now(timezone.utc)
+        fetch_top = min(max(top * 4, top), 50)
         datos = obtener_eventos_en_rango(
             access_token,
-            top=max(top, 1),
-            inicio=now - timedelta(days=30),
+            top=fetch_top,
+            inicio=now - timedelta(days=min(90, dias_adelante)),
             fin=now + timedelta(days=dias_adelante),
         )
+        reuniones = [normalizar_evento(e) for e in datos.get("value", [])]
+        reuniones.sort(key=lambda r: r.get("inicio") or "", reverse=True)
+        return reuniones[:top]
     else:
         datos = obtener_eventos_proximos(
             access_token, top=top, dias_adelante=dias_adelante

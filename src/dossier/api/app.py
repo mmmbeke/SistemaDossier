@@ -370,6 +370,8 @@ def _filter_reuniones_for_app_user(
     access_token: Optional[str],
     provider: str,
     reuniones: list,
+    *,
+    work_meetings_only: bool = False,
 ) -> list:
     """Aplica filtros de reunión de trabajo / externos cuando la ruta usa JWT de la app."""
     if access_token:
@@ -385,7 +387,12 @@ def _filter_reuniones_for_app_user(
             CalendarIntegration.revoked_at.is_(None),
         )
     ).scalar_one_or_none()
-    return filter_calendar_reuniones(reuniones, integration=integration, user=user)
+    return filter_calendar_reuniones(
+        reuniones,
+        integration=integration,
+        user=user,
+        work_meetings_only=work_meetings_only,
+    )
 
 
 def _oauth_frontend_base(*, for_calendar_callback: bool = False) -> str:
