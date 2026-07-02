@@ -21,12 +21,8 @@ from dossier.services.calendar_event_dossiers import (
     generate_dossiers_from_calendar_event,
     persist_calendar_dossiers,
 )
-<<<<<<< HEAD
-from dossier.services.output_language import resolve_dossier_output_language_for_user
-=======
 from dossier.services.calendar_event_filters import calendar_event_passes_filters
-from dossier.services.output_language import resolve_output_language_from_user_locale
->>>>>>> origin/principal
+from dossier.services.output_language import resolve_dossier_output_language_for_user
 from dossier.services.google_calendar_api import (
     listar_reuniones_google,
     obtener_reunion_google_por_id,
@@ -178,7 +174,6 @@ def reschedule_user_calendar_events(
     return len(rows)
 
 
-<<<<<<< HEAD
 def _event_snapshot_with_output_language(
     reunion: dict[str, Any],
     user: User | None,
@@ -188,7 +183,7 @@ def _event_snapshot_with_output_language(
         resolve_dossier_output_language_for_user(user) if user else "es"
     )
     return snap
-=======
+
 _FILTER_SKIP_MARKERS = (
     "día completo",
     "Sin señales de reunión de trabajo",
@@ -201,7 +196,6 @@ def _skipped_by_calendar_filter(skip_reason: str | None) -> bool:
     if not skip_reason:
         return False
     return any(marker in skip_reason for marker in _FILTER_SKIP_MARKERS)
->>>>>>> origin/principal
 
 
 def sync_calendar_events_for_integration(db: Session, integration: CalendarIntegration) -> int:
@@ -395,11 +389,7 @@ def suppress_calendar_event_if_no_dossiers_remain(
 
 
 def process_due_calendar_events(db: Session) -> dict[str, int]:
-<<<<<<< HEAD
-    """Genera dossiers para eventos cuya ventana de anticipaci?n ya venció."""
-=======
-    """Genera dossiers para eventos cuya ventana de anticipaci?n ya venci?."""
->>>>>>> origin/principal
+    """Genera dossiers para eventos cuya ventana de anticipación ya venció."""
     now = datetime.now(timezone.utc)
     stats = {"processed": 0, "failed": 0, "skipped": 0, "requeued": 0}
 
@@ -448,14 +438,9 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
 
         org = db.get(Organization, event.organization_id)
         org_ctx = format_dossier_context_for_prompt(org) if org else ""
-<<<<<<< HEAD
-        user = db.get(User, event.user_id)
         out_lang = (
             resolve_dossier_output_language_for_user(user) if user else "es"
         )
-=======
-        out_lang = resolve_output_language_from_user_locale(user.locale if user else None)
->>>>>>> origin/principal
 
         t0 = time.perf_counter()
         try:

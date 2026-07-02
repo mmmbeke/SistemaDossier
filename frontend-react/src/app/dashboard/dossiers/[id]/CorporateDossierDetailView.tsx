@@ -7,10 +7,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
-<<<<<<< HEAD
-import { DossierApiError, deleteDossierFromApi, type DossierDetailResponse } from "@/lib/dossier-api";
-import { stripHtmlToPlainLine } from "@/lib/strip-html";
-=======
 import {
   DossierApiError,
   deleteDossierFromApi,
@@ -20,8 +16,8 @@ import {
   type PersonResearchPayload,
 } from "@/lib/dossier-api";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
->>>>>>> origin/principal
 import { useTranslation } from "@/providers/PreferencesProvider";
 import { formatLongDate } from "@/lib/format";
 
