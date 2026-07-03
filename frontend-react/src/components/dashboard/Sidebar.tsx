@@ -241,7 +241,7 @@ export default function Sidebar() {
         className="flex w-full items-center justify-center px-4 py-6"
         style={{ borderBottom: "1px solid var(--border-subtle)" }}
       >
-        <Link href="/dashboard" className="flex w-full justify-center">
+        <Link href="/dashboard" className="brand-logo-link flex w-full justify-center">
           <BrandLogo size="md" />
         </Link>
       </div>
@@ -256,15 +256,28 @@ export default function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium leading-snug transition"
+                  aria-current={active ? "page" : undefined}
+                  className={[
+                    "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium leading-snug",
+                    "transition-all duration-200 ease-out",
+                    active
+                      ? "hover:brightness-110"
+                      : "ui-hover-surface hover:translate-x-0.5 hover:text-[var(--text-primary)]",
+                  ].join(" ")}
                   style={{
                     color: active ? "var(--brand-cyan)" : "var(--text-muted)",
-                    backgroundColor: active
-                      ? "var(--bg-surface-hover)"
-                      : "transparent",
+                    backgroundColor: active ? "var(--bg-surface-hover)" : undefined,
                   }}
                 >
-                  {item.icon}
+                  <span
+                    className={
+                      active
+                        ? "shrink-0"
+                        : "shrink-0 transition-colors duration-200 group-hover:text-[var(--brand-cyan)]"
+                    }
+                  >
+                    {item.icon}
+                  </span>
                   <span className="min-w-0">{t(item.labelKey)}</span>
                 </Link>
               </li>

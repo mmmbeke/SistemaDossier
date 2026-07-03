@@ -11,6 +11,9 @@ import {
   type AuthUser,
 } from "@/lib/dossier-api";
 
+const COMPANY_SUMMARY_MAX = 500;
+const COMPANY_INDUSTRY_MAX = 200;
+
 export default function CompanyContextPanel() {
   const { t } = usePreferences();
   const [me, setMe] = useState<AuthUser | null>(null);
@@ -32,8 +35,8 @@ export default function CompanyContextPanel() {
     try {
       const u = await fetchAuthMe();
       setMe(u);
-      setSummary(u.organization_company_summary ?? "");
-      setIndustry(u.organization_industry_or_area ?? "");
+      setSummary((u.organization_company_summary ?? "").slice(0, COMPANY_SUMMARY_MAX));
+      setIndustry((u.organization_industry_or_area ?? "").slice(0, COMPANY_INDUSTRY_MAX));
     } catch (e) {
       setMe(null);
       setLoadError(e instanceof DossierApiError ? e.message : t("settings.company.load_error"));
@@ -113,10 +116,13 @@ export default function CompanyContextPanel() {
                 style={inputStyle}
                 disabled={!isAdmin || saving}
                 value={summary}
-                onChange={(e) => setSummary(e.target.value)}
-                maxLength={4000}
+                onChange={(e) => setSummary(e.target.value.slice(0, COMPANY_SUMMARY_MAX))}
+                maxLength={COMPANY_SUMMARY_MAX}
                 placeholder={t("settings.company.summary_placeholder")}
               />
+              <span className="text-xs font-normal" style={{ color: "var(--text-subtle)" }}>
+                {summary.length}/{COMPANY_SUMMARY_MAX}
+              </span>
             </label>
 
             <label className="flex flex-col gap-1.5 text-sm font-medium" style={{ color: "var(--text-primary)" }}>
@@ -126,10 +132,13 @@ export default function CompanyContextPanel() {
                 style={inputStyle}
                 disabled={!isAdmin || saving}
                 value={industry}
-                onChange={(e) => setIndustry(e.target.value)}
-                maxLength={500}
+                onChange={(e) => setIndustry(e.target.value.slice(0, COMPANY_INDUSTRY_MAX))}
+                maxLength={COMPANY_INDUSTRY_MAX}
                 placeholder={t("settings.company.industry_placeholder")}
               />
+              <span className="text-xs font-normal" style={{ color: "var(--text-subtle)" }}>
+                {industry.length}/{COMPANY_INDUSTRY_MAX}
+              </span>
             </label>
 
             <p className="text-xs" style={{ color: "var(--text-subtle)" }}>
@@ -139,9 +148,10 @@ export default function CompanyContextPanel() {
             {isAdmin ? (
               <button
                 type="button"
-                className="self-start rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                className="ui-calendar-connect-btn self-start rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                 style={{
                   backgroundImage: "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
+                  boxShadow: "0 10px 25px rgba(0, 183, 235, 0.22)",
                 }}
                 disabled={saving}
                 onClick={() => void handleSave()}

@@ -162,8 +162,8 @@ class OrganizationPlanPatch(BaseModel):
 class OrganizationDossierContextPatch(BaseModel):
     """Cuerpo PATCH /auth/organization/dossier-context — solo administradores de la organización."""
 
-    company_summary: str = Field(default="", max_length=4000)
-    industry_or_area: str = Field(default="", max_length=500)
+    company_summary: str = Field(default="", max_length=500)
+    industry_or_area: str = Field(default="", max_length=200)
 
     @field_validator("company_summary", "industry_or_area", mode="before")
     @classmethod

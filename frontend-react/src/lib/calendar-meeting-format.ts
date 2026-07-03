@@ -37,6 +37,7 @@ Cargo 2: CTO
 Email 2: maria@oxccu.com
 País 2: Chile`;
 
+/** Ejemplos de asunto (solo empresa) mostrados en la guía de calendario. */
 export const CALENDAR_MEETING_SUBJECT_EXAMPLES = [
   "Reunión comercial — Tesla",
   "Reunión con Acme Corp",

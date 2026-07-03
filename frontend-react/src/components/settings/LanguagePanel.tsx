@@ -12,15 +12,6 @@ import {
   type OutputLanguage,
 } from "@/i18n/types";
 
-const selectClass =
-  "w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none focus:ring-2";
-
-const selectStyle = {
-  backgroundColor: "var(--bg-input)",
-  borderColor: "var(--border-default)",
-  color: "var(--text-primary)",
-};
-
 const DATE_FORMAT_OPTIONS: { value: DateFormat; label: string }[] = [
   { value: "dd/mm/yyyy", label: "DD/MM/YYYY" },
   { value: "mm/dd/yyyy", label: "MM/DD/YYYY" },
@@ -64,8 +55,7 @@ export default function LanguagePanel() {
           <select
             value={preferences.locale}
             onChange={(e) => setLocale(e.target.value as Locale)}
-            className={selectClass}
-            style={selectStyle}
+            className="ui-settings-select"
           >
             {SUPPORTED_LOCALES.map((loc) => (
               <option key={loc} value={loc}>
@@ -82,12 +72,11 @@ export default function LanguagePanel() {
           <select
             value={preferences.timezone}
             onChange={(e) => setTimezone(e.target.value)}
-            className={selectClass}
-            style={selectStyle}
+            className="ui-settings-select"
           >
             {TIMEZONES.map((tz) => (
               <option key={tz} value={tz}>
-                {tz}
+                {tz.replace(/_/g, " ")}
               </option>
             ))}
           </select>
@@ -100,8 +89,7 @@ export default function LanguagePanel() {
           <select
             value={preferences.dateFormat}
             onChange={(e) => setDateFormat(e.target.value as DateFormat)}
-            className={selectClass}
-            style={selectStyle}
+            className="ui-settings-select"
           >
             {DATE_FORMAT_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -118,8 +106,7 @@ export default function LanguagePanel() {
           <select
             value={preferences.outputLanguage}
             onChange={(e) => setOutputLanguage(e.target.value as OutputLanguage)}
-            className={selectClass}
-            style={selectStyle}
+            className="ui-settings-select"
           >
             <option value="match">{t("output.match")}</option>
             {DOSSIER_OUTPUT_LANGUAGE_CODES.map((code) => (

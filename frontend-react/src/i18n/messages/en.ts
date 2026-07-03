@@ -421,7 +421,7 @@ const messages = {
   "btn.new_dossier_person": "Person",
   "btn.new_dossier_corporate": "Company",
   "stat.total_dossiers": "Total Dossiers",
-  "stat.completed_dossiers": "Completed",
+  "stat.active_dossiers": "Active",
   "stat.needs_update": "Needs Update",
   "stat.credits_balance": "Credits available",
   "stat.credits_monthly_hint": "of {limit} monthly on your plan",
@@ -435,17 +435,21 @@ const messages = {
   "overview.activity_empty": "No dossiers yet. Generate one from the dashboard.",
   "overview.activity_login_hint": "Sign in to see dossiers linked to your organisation.",
   "overview.dashboard_load_error": "Could not load dashboard data.",
+  "overview.calendars_title": "Calendars",
+  "overview.calendars_intro":
+    "Connect Outlook or Google Calendar to generate dossiers from your meetings. Each account is linked separately; active ones are in My Dossiers.",
   "overview.microsoft_title": "Microsoft Outlook",
   "overview.microsoft_subtitle":
     "Connect your calendar to list upcoming meetings using your Dossier session (no Microsoft token in the browser).",
   "overview.microsoft_connect": "Connect Outlook",
   "overview.microsoft_connected": "Outlook connected",
-  "overview.microsoft_refresh": "Refresh list",
   "overview.microsoft_loading": "Loading meetings…",
   "overview.microsoft_error": "Could not load the calendar.",
   "overview.microsoft_no_connection":
-    "Outlook is not connected for this account yet. Tap «Connect Outlook» and sign in with Microsoft.",
-  "overview.microsoft_events_empty": "No meetings in this range.",
+    "Tap «Connect Outlook» and sign in with Microsoft.",
+  "overview.microsoft_connected_hint": "Your meetings and generated dossiers are in",
+  "overview.microsoft_events_empty":
+    "No upcoming meetings. Create an Outlook event with «Company:» and «Contact:» in the description.",
   "overview.microsoft_when": "When",
   "overview.microsoft_participants": "Participants",
   "overview.microsoft_oauth_ok": "Outlook connected successfully.",
@@ -464,12 +468,13 @@ const messages = {
     "Connect Google Calendar to list upcoming events with your Dossier session (no Google token stored in the browser).",
   "overview.google_connect": "Connect Google Calendar",
   "overview.google_connected": "Google Calendar connected",
-  "overview.google_refresh": "Refresh list",
   "overview.google_loading": "Loading events…",
   "overview.google_error": "Could not load Google Calendar.",
   "overview.google_no_connection":
-    "Google Calendar is not connected yet. Tap «Connect Google Calendar» and sign in with Google.",
-  "overview.google_events_empty": "No events in this range.",
+    "Tap «Connect Google Calendar» and sign in with Google.",
+  "overview.google_connected_hint": "Your events and generated dossiers are in",
+  "overview.google_events_empty":
+    "No upcoming events. Create a Google Calendar event with «Company:» and «Contact:» in the description.",
   "overview.google_when": "When",
   "overview.google_participants": "Participantes",
   "overview.calendar_description": "Description",
@@ -483,8 +488,7 @@ const messages = {
   "calendar.guide.intro":
     "Paste this format in the event body (Outlook or Google Calendar) so we can generate company and person dossiers automatically. One field per line.",
   "calendar.guide.template_title": "Example to copy",
-  "calendar.guide.template_example":
-    "Company: OXCCU\nContact 1: James Girling\nTitle 1: CEO\nEmail 1: james@oxccu.com\nContact 2: Maria Lopez\nTitle 2: CTO\nEmail 2: maria@oxccu.com\nCountry 2: Chile",
+  "calendar.guide.template_example": "Company: \nContact: \nRole: \nEmail:\nCountry: ",
   "calendar.guide.copy": "Copy example",
   "calendar.guide.copied": "Copied",
   "calendar.guide.fields_title": "Accepted labels (es, en, pt, it, fr, de)",
@@ -630,6 +634,7 @@ const messages = {
   "dossiers.filter_complete": "Complete",
   "dossiers.status_complete": "Complete",
   "dossiers.status_failed": "Failed",
+  "dossiers.status_pending": "In progress",
   "dossiers.filter_needs_update": "Needs Update",
   "dossiers.database_loading": "Loading dossiers from the database…",
   "dossiers.database_badge": "PostgreSQL",

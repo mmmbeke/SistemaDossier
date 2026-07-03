@@ -46,19 +46,12 @@ export default function GeneralPanel() {
                   key={id}
                   type="button"
                   onClick={() => setTheme(id)}
-                  className="flex flex-col items-center gap-2 rounded-xl border-2 px-3 py-4 transition hover:opacity-95"
-                  style={{
-                    borderColor: isActive
-                      ? "rgba(59, 130, 246, 0.55)"
-                      : "transparent",
-                    backgroundColor: isActive
-                      ? "rgba(59, 130, 246, 0.08)"
-                      : "var(--bg-surface)",
-                    color: isActive ? "var(--text-primary)" : "var(--text-muted)",
-                    boxShadow: isActive
-                      ? "0 0 0 1px rgba(59, 130, 246, 0.15)"
-                      : "inset 0 0 0 1px var(--border-default)",
-                  }}
+                  aria-pressed={isActive}
+                  className={
+                    isActive
+                      ? "ui-theme-picker-btn ui-theme-picker-btn--active"
+                      : "ui-theme-picker-btn ui-theme-picker-btn--inactive"
+                  }
                 >
                   <div className="w-full max-w-[120px]">
                     <ThemePreview variant={id} />

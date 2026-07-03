@@ -66,7 +66,7 @@ export default function AddressBookPanel() {
         <button
           type="button"
           onClick={addGroup}
-          className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+          className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95"
           style={{
             backgroundImage:
               "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
