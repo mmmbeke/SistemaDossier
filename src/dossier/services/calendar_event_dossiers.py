@@ -750,6 +750,7 @@ def persist_calendar_dossiers(
     calendar_event_id: UUID | None = None,
     depth: str = "standard",
     charge_credits: bool = True,
+    trigger_source: str = "calendar",
 ) -> dict[str, Any]:
     """
     Guarda dossier corporativo y/o persona en ``dossiers`` (Mis Dossiers).
@@ -820,7 +821,7 @@ def persist_calendar_dossiers(
             generation_duration_ms=0 if corporate_cache_hit else generation_duration_ms,
             cache_key=result.get("corporate_cache_key") if corporate_cache_hit else None,
             cached_until=cache_expires if corporate_cache_hit else None,
-            trigger_source="calendar",
+            trigger_source=trigger_source,
             calendar_event_id=calendar_event_id,
             dossier_folder_id=folder_id,
         )
@@ -915,7 +916,7 @@ def persist_calendar_dossiers(
             generation_duration_ms=0 if person_cache_hit else generation_duration_ms,
             cache_key=result.get("person_cache_key") if person_cache_hit else None,
             cached_until=cache_expires if person_cache_hit else None,
-            trigger_source="calendar",
+            trigger_source=trigger_source,
             calendar_event_id=calendar_event_id,
             dossier_folder_id=folder_id,
         )

@@ -528,6 +528,7 @@ const messages = {
   "dossier_jobs.person_label": "Person dossier",
   "dossier_jobs.generating": "Generating dossier…",
   "dossier_jobs.ready": "Dossier ready",
+  "dossier_jobs.partial": "Dossier ready with warnings (check the folder)",
   "dossier_jobs.failed": "Could not generate dossier",
   "dossier_jobs.cancelled": "Generation cancelled",
   "dossier_jobs.cancel": "Cancel",
