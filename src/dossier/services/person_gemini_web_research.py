@@ -17,9 +17,10 @@ from dossier.services.person_analysis_prompts import (
     format_meeting_context_block,
     person_dossier_system_prompt,
 )
+from dossier.services.person_dossier_locales import person_web_research_strings
 
 
-def _fv(filters: dict[str, Any], key: str, default: str = "No indicado") -> str:
+def _fv(filters: dict[str, Any], key: str, default: str) -> str:
     v = filters.get(key)
     if v is None:
         return default
@@ -27,11 +28,11 @@ def _fv(filters: dict[str, Any], key: str, default: str = "No indicado") -> str:
     return s if s else default
 
 
-def _geo_line(filters: dict[str, Any]) -> str:
+def _geo_line(filters: dict[str, Any], *, not_indicated: str) -> str:
     country = (filters.get("country") or "").strip()
     city = (filters.get("city") or "").strip()
     if not country and not city:
-        return "No indicado"
+        return not_indicated
     if city and country:
         return f"{city}, {country}"
     return city or country
@@ -41,48 +42,49 @@ def _name_title_case_words(name: str) -> str:
     return " ".join((w[:1].upper() + w[1:].lower()) if w else "" for w in name.split())
 
 
-def _context_line(filters: dict[str, Any]) -> str:
+def _context_line(filters: dict[str, Any], strings: dict[str, str]) -> str:
+    not_indicated = strings["not_indicated"]
     parts: list[str] = []
-    org = _fv(filters, "contexto_organizacion_cliente", "")
-    if org != "No indicado":
-        parts.append(f"Contexto organización/cliente: {org}")
-    extra = _fv(filters, "extra_keywords", "")
-    if extra != "No indicado":
-        parts.append(f"Palabras clave / motivo de investigación: {extra}")
+    org = _fv(filters, "contexto_organizacion_cliente", not_indicated)
+    if org != not_indicated:
+        parts.append(f"{strings['org_context']}: {org}")
+    extra = _fv(filters, "extra_keywords", not_indicated)
+    if extra != not_indicated:
+        parts.append(f"{strings['keywords']}: {extra}")
     if not parts:
-        return "No indicado"
+        return not_indicated
     return " | ".join(parts)
 
 
 def _build_user_prompt(
     filters: dict[str, Any],
     meeting_context: dict[str, Any] | None = None,
+    output_language: str = "es",
 ) -> str:
+    strings = person_web_research_strings(output_language)
+    not_indicated = strings["not_indicated"]
     fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    nombre = _fv(filters, "full_name")
+    nombre = _fv(filters, "full_name", not_indicated)
     nombre_fmt = _name_title_case_words(nombre)
-    empresa = _fv(filters, "company")
-    cargo = _fv(filters, "job_area")
-    geo = _geo_line(filters)
-    ctx = _context_line(filters)
-    reunion_block = format_meeting_context_block(meeting_context)
+    empresa = _fv(filters, "company", not_indicated)
+    cargo = _fv(filters, "job_area", not_indicated)
+    geo = _geo_line(filters, not_indicated=not_indicated)
+    ctx = _context_line(filters, strings)
+    reunion_block = format_meeting_context_block(meeting_context, output_language)
 
-    return f"""Datos del encargo (fecha: {fecha}):
+    return f"""{strings['title'].format(date=fecha)}
 
-- Nombre: {nombre} (variante sugerida: {nombre_fmt})
-- Contexto: {ctx}
-- País/ciudad: {geo}
-- Empresa: {empresa}
-- Cargo/área: {cargo}
+- {strings['name']}: {nombre} ({strings['variant']}: {nombre_fmt})
+- {strings['context']}: {ctx}
+- {strings['geo']}: {geo}
+- {strings['company']}: {empresa}
+- {strings['role']}: {cargo}
 
 {reunion_block}---
 
-## Instrucciones
+{strings['instructions']}
 
-Redacta el dossier ejecutivo en el formato **exacto** del sistema (8 secciones con encabezados ###).
-Desambigua homónimos usando empresa, cargo y ubicación indicados.
-Completa todas las secciones; donde falte evidencia escribe "No disponible" o "Sin evidencia disponible".
-No incluyas listas de búsquedas ni metadatos técnicos del pipeline."""
+{strings['body']}"""
 
 
 def analyze_person_with_google_search(
@@ -118,7 +120,7 @@ def analyze_person_with_google_search(
         or deepseek_model()
     ).strip()
 
-    user_prompt = _build_user_prompt(filters, meeting_context)
+    user_prompt = _build_user_prompt(filters, meeting_context, output_language)
     return chat_completion(
         user_prompt,
         system_instruction=person_dossier_system_prompt(

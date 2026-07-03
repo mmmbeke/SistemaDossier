@@ -12,6 +12,10 @@ from dossier.services.person_analysis_prompts import (
     person_dossier_system_prompt,
 )
 from dossier.services.lusha_profile_facts import format_lusha_verified_facts_block
+from dossier.services.person_dossier_locales import (
+    person_bundle_user_header,
+    person_bundle_user_instructions,
+)
 
 
 def _truncate_json(payload: Any, max_chars: int) -> str:
@@ -38,27 +42,27 @@ def _build_user_prompt(
     meeting_context: dict[str, Any] | None = None,
     lusha_verified_facts: dict[str, Any] | None = None,
     enrichment_provider: str = "lusha",
+    output_language: str = "es",
 ) -> str:
     fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     cabecera = _header_line(filters)
-    reunion_block = format_meeting_context_block(meeting_context)
+    reunion_block = format_meeting_context_block(meeting_context, output_language)
     verified_block = format_lusha_verified_facts_block(
         lusha_verified_facts or {},
         provider=enrichment_provider,
+        output_language=output_language,
     )
     src = enrichment_provider.upper()
+    header_block = person_bundle_user_header(
+        output_language,
+        header=cabecera,
+        date=fecha,
+    )
+    instructions = person_bundle_user_instructions(output_language, src)
 
-    return f"""Persona objeto del encargo: {cabecera}
-Fecha del análisis: {fecha}
+    return f"""{header_block}
 
-{reunion_block}{verified_block}Elabora el dossier siguiendo **exactamente** las 8 secciones del sistema (Ficha de identidad → Fuentes y nivel de confianza).
-Incluye la tabla de análisis de riesgo de la sección 5.
-Completa la sección 6 si hay empresa indicada en el encargo o en el contexto de reunión.
-
-**Prioridad de fuentes:** 1) bloque «DATOS VERIFICADOS {src}» arriba; 2) JSON ``perfiles``; 3) encargo manual.
-Si LinkedIn, email o teléfono aparecen en ese bloque, **debes** incluirlos en la sección 1 (nunca «No disponible»).
-
-Usa el siguiente JSON como corpus de hechos (datos {src} y contexto):
+{reunion_block}{verified_block}{instructions}
 
 {bundle_json}
 """
@@ -89,6 +93,7 @@ def analyze_person_profile_bundle(
         meeting_context=meeting_context,
         lusha_verified_facts=lusha_verified_facts,
         enrichment_provider=enrichment_provider,
+        output_language=output_language,
     )
     return generate_text_with_llm(
         user_prompt,

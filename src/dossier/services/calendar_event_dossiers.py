@@ -44,6 +44,7 @@ from dossier.services.person_dossier_dedup import (
     person_research_response_from_redis_cache,
 )
 from dossier.services.output_language import normalize_output_language
+from dossier.utils.html_text import strip_html_to_plain_line, strip_html_to_text
 from dossier.services.person_research_service import run_person_research
 from dossier.billing.credit_policy import PERSON_IDENTITY_CREDITS, credit_charging_enabled
 from dossier.schemas.dossier_generation import DEPTH_CREDITS
@@ -331,7 +332,20 @@ def extract_corporate_emails_from_text(*texts: str | None) -> list[str]:
     return found
 
 
+def _sanitize_reunion_text_fields(reunion: dict[str, Any]) -> dict[str, Any]:
+    """Limpia HTML en asunto/descripción (Google Calendar y pegados desde Outlook)."""
+    out = dict(reunion)
+    tema = strip_html_to_plain_line(out.get("tema"))
+    if tema:
+        out["tema"] = tema
+    desc = strip_html_to_text(out.get("descripcion"))
+    if desc:
+        out["descripcion"] = desc[:2000]
+    return out
+
+
 def parse_calendar_event_for_dossiers(reunion: dict[str, Any]) -> dict[str, Any]:
+    reunion = _sanitize_reunion_text_fields(reunion)
     tema = (reunion.get("tema") or "").strip()
     descripcion = (reunion.get("descripcion") or "").strip()
     participantes = (reunion.get("participantes") or "").strip()
@@ -527,6 +541,7 @@ def generate_dossiers_from_calendar_event(
     """
     Devuelve dossiers corporativo (CH/SEC) y de persona (PDL) por separado.
     """
+    reunion = _sanitize_reunion_text_fields(reunion)
     out_lang = normalize_output_language(output_language)
     parsed = parse_calendar_event_for_dossiers(reunion)
     company_corporate = parsed["company_corporate"]
@@ -766,7 +781,8 @@ def persist_calendar_dossiers(
         or (parsed.get("tema") or "").strip()
         or (parsed.get("company_corporate") or "").strip()
         or "Reunión"
-    )[:255]
+    )
+    folder_title = strip_html_to_plain_line(folder_title, max_len=255) or "Reunión"
     calendar_folder = {"id": str(folder_id), "title": folder_title}
     depth_key = depth if depth in DEPTH_CREDITS else "standard"
     charge = charge_credits and credit_charging_enabled()
@@ -783,7 +799,13 @@ def persist_calendar_dossiers(
         status = "failed" if is_err else "complete"
         will_charge_corp = charge and not is_err and not corporate_cache_hit
         dossier_id = uuid.uuid4()
-        subject = (parsed.get("company_corporate") or parsed.get("company") or parsed.get("tema") or "Empresa")[:255]
+        subject = (
+            parsed.get("company_corporate")
+            or parsed.get("company")
+            or parsed.get("tema")
+            or "Empresa"
+        )
+        subject = strip_html_to_plain_line(subject, max_len=255) or "Empresa"
         dossier = Dossier(
             id=dossier_id,
             organization_id=org_id,

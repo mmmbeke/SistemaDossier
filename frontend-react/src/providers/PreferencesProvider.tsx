@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -20,6 +21,11 @@ import type {
 } from "@/i18n/types";
 import { DEFAULT_PREFERENCES } from "@/i18n/types";
 import { applyTheme } from "@/lib/theme";
+import {
+  authUserToPreferencesPatch,
+  preferencesToAuthPatch,
+} from "@/lib/auth-preferences-sync";
+import { getStoredAccessToken, patchAuthUserPreferences, type AuthUser } from "@/lib/dossier-api";
 
 const STORAGE_KEY = "dossier-preferences";
 
@@ -34,6 +40,8 @@ type PreferencesContextValue = {
   setOutputLanguage: (lang: OutputLanguage) => void;
   setDossierExpiry: (expiry: string) => void;
   updatePreferences: (patch: Partial<UserPreferences>) => void;
+  /** Fusiona preferencias devueltas por ``GET /auth/me`` (una vez por sesión). */
+  hydrateFromAuthUser: (me: AuthUser) => void;
 };
 
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
@@ -68,6 +76,8 @@ function savePreferences(prefs: UserPreferences) {
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [ready, setReady] = useState(false);
+  const serverHydratedRef = useRef(false);
+  const lastPushedRef = useRef("");
 
   useEffect(() => {
     const loaded = loadPreferences();
@@ -96,6 +106,59 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPreferences((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  const hydrateFromAuthUser = useCallback((me: AuthUser) => {
+    if (serverHydratedRef.current) return;
+    const serverPatch = authUserToPreferencesPatch(me);
+    const serverLocale = (me.locale || "es").trim();
+    const serverOut = (me.dossier_output_language || "match").trim();
+    const serverTimezone = (me.timezone || "UTC").trim();
+    const serverIsDefault = serverLocale === "es" && serverOut === "match";
+
+    setPreferences((prev) => {
+      const localDiffersFromServerDefaults =
+        prev.locale !== "es" || prev.outputLanguage !== "match";
+      const next =
+        serverIsDefault && localDiffersFromServerDefaults
+          ? prev
+          : { ...prev, ...serverPatch };
+      // Clave del servidor: si local ≠ servidor, el efecto de sync hará PATCH.
+      lastPushedRef.current = JSON.stringify({
+        locale: serverLocale,
+        timezone: serverTimezone,
+        dossier_output_language: serverOut,
+      });
+      return next;
+    });
+    serverHydratedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !serverHydratedRef.current) return;
+    const token = getStoredAccessToken();
+    if (!token) return;
+
+    const payload = preferencesToAuthPatch(preferences);
+    const key = JSON.stringify(payload);
+    if (key === lastPushedRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      void patchAuthUserPreferences(payload)
+        .then(() => {
+          lastPushedRef.current = key;
+        })
+        .catch(() => {
+          /* sin sesión o red: se reintenta en el próximo cambio */
+        });
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    preferences.locale,
+    preferences.timezone,
+    preferences.outputLanguage,
+    ready,
+  ]);
+
   const t = useMemo(
     () => createTranslator(preferences.locale),
     [preferences.locale]
@@ -114,8 +177,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         updatePreferences({ outputLanguage }),
       setDossierExpiry: (dossierExpiry) => updatePreferences({ dossierExpiry }),
       updatePreferences,
+      hydrateFromAuthUser,
     }),
-    [preferences, t, updatePreferences]
+    [preferences, t, updatePreferences, hydrateFromAuthUser]
   );
 
   return (

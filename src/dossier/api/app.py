@@ -55,7 +55,7 @@ from dossier.services.calendar_event_dossiers import (
     generate_dossiers_from_calendar_event,
     persist_calendar_dossiers,
 )
-from dossier.services.output_language import normalize_output_language, resolve_output_language_from_user_locale
+from dossier.services.output_language import effective_output_language
 from dossier.services.calendar_integrations import (
     upsert_google_calendar_tokens,
     upsert_microsoft_calendar_tokens,
@@ -370,6 +370,8 @@ def _filter_reuniones_for_app_user(
     access_token: Optional[str],
     provider: str,
     reuniones: list,
+    *,
+    work_meetings_only: bool = False,
 ) -> list:
     """Aplica filtros de reunión de trabajo / externos cuando la ruta usa JWT de la app."""
     if access_token:
@@ -385,7 +387,12 @@ def _filter_reuniones_for_app_user(
             CalendarIntegration.revoked_at.is_(None),
         )
     ).scalar_one_or_none()
-    return filter_calendar_reuniones(reuniones, integration=integration, user=user)
+    return filter_calendar_reuniones(
+        reuniones,
+        integration=integration,
+        user=user,
+        work_meetings_only=work_meetings_only,
+    )
 
 
 def _oauth_frontend_base(*, for_calendar_callback: bool = False) -> str:
@@ -872,7 +879,7 @@ def api_diagnostico_google_calendario(
 
 
 def _calendar_output_language(user: User, explicit: str | None) -> str:
-    return normalize_output_language(explicit or user.locale)
+    return effective_output_language(user, explicit)
 
 
 def _reunion_snapshot_with_output_language(

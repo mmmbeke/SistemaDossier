@@ -30,6 +30,18 @@ function formatMeetingStart(iso: string | undefined): string {
   }).format(d);
 }
 
+function stripMeetingDatetimeSuffix(label: string): string {
+  const sep = " · ";
+  const idx = label.lastIndexOf(sep);
+  if (idx <= 0) return label;
+  const tail = label.slice(idx + sep.length);
+  if (/^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}(?:[,\s]+?\d{1,2}:\d{2})?/.test(tail)) {
+    const subject = label.slice(0, idx).trim();
+    return subject || label;
+  }
+  return label;
+}
+
 function buildMeetingLabelFromBlock(cal: CalendarDossierMeta): string | null {
   const explicit = cal.meeting_label?.trim();
   if (explicit) return explicit;
@@ -54,6 +66,34 @@ export function getCalendarMeetingLabel(dossier: {
   if (!cal) return null;
 
   return buildMeetingLabelFromBlock(cal);
+}
+
+/** Asunto de la reunión sin fecha/hora (para títulos grandes en tarjetas). */
+export function getCalendarMeetingSubject(dossier: {
+  calendar_meeting?: string | null;
+  dossier_data?: unknown;
+}): string | null {
+  const cal = readCalendarBlock(dossier.dossier_data);
+  const tema = cal?.tema?.trim();
+  if (tema) return tema;
+
+  const explicit = cal?.meeting_label?.trim();
+  if (explicit) return stripMeetingDatetimeSuffix(explicit);
+
+  const fromApi = dossier.calendar_meeting?.trim();
+  if (fromApi) return stripMeetingDatetimeSuffix(fromApi);
+
+  if (dossier.dossier_data && typeof dossier.dossier_data === "object" && !Array.isArray(dossier.dossier_data)) {
+    const cf = (dossier.dossier_data as Record<string, unknown>).calendar_folder;
+    if (cf && typeof cf === "object" && !Array.isArray(cf)) {
+      const title = (cf as Record<string, unknown>).title;
+      if (typeof title === "string" && title.trim()) {
+        return stripMeetingDatetimeSuffix(title.trim());
+      }
+    }
+  }
+
+  return null;
 }
 
 export function isCalendarDossier(dossier: {

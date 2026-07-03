@@ -2,162 +2,204 @@
 
 import Link from "next/link";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
+import DeleteDossierIconButton from "@/components/dossier/DeleteDossierIconButton";
+import DossierStatusBadge from "@/components/dossier/DossierStatusBadge";
+import { formatDate } from "@/lib/format";
+import { dossierItemMatchesTypeFilter, type TypeFilterValue } from "@/lib/dossier-list-utils";
+import { getCalendarMeetingSubject } from "@/lib/calendar-dossier-meta";
+import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import type { DossierFolderListItem, DossierListItem } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 type Props = {
   folder: DossierFolderListItem;
+  typeFilter: TypeFilterValue;
   deletingId: string | null;
   onDeleteDossier: (row: DossierListItem) => void;
 };
 
-function statusLabel(
-  status: string,
-  t: ReturnType<typeof useTranslation>["t"]
-): string {
-  if (status === "failed") return t("dossiers.status_failed");
-  if (status === "complete") return t("dossiers.status_complete");
-  return status;
+function MeetingFolderIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-7 w-7">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" strokeLinecap="round" />
+    </svg>
+  );
 }
 
-function ChildDossierRow({
+function moduleLabel(
+  row: DossierListItem,
+  t: ReturnType<typeof useTranslation>["t"]
+): string {
+  if (row.module_kind === "corporate") return t("overview.calendar_dossier_corporate");
+  if (row.module_kind === "person") return t("overview.calendar_dossier_person");
+  return t("dossiers.folder_other_dossier");
+}
+
+function ChildDossierChip({
   row,
-  label,
   deletingId,
   onDelete,
 }: {
   row: DossierListItem;
-  label: string;
   deletingId: string | null;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
   const isFailed = row.status === "failed";
   const statusMsg = row.status_message?.trim();
+
   return (
     <div
-      className="flex gap-1 rounded-lg border"
+      className="relative flex min-w-0 flex-1 flex-col gap-2 rounded-lg border p-3 pr-10"
       style={{
         borderColor: isFailed ? "rgba(248,113,113,0.35)" : "var(--border-default)",
         backgroundColor: "var(--bg-input)",
       }}
     >
+      <DeleteDossierIconButton
+        isDeleting={deletingId === row.id}
+        onClick={onDelete}
+        className="absolute right-1 top-1"
+      />
+
+      <div className="flex items-start justify-between gap-2">
+        <span
+          className="text-[11px] font-semibold uppercase tracking-wide"
+          style={{ color: "var(--text-subtle)" }}
+        >
+          {moduleLabel(row, t)}
+        </span>
+        <DossierStatusBadge status={row.status} />
+      </div>
+
       <Link
         href={`/dashboard/dossiers/${row.id}`}
-        className="flex min-w-0 flex-1 flex-col gap-1 p-3 text-left"
+        className="min-w-0 text-left transition hover:opacity-90"
       >
-        <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-subtle)" }}>
-          {label}
+        <span className="block truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+          {stripHtmlToPlainLine(row.subject_name || row.subject_email) || "—"}
         </span>
-        <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-          {row.subject_name || row.subject_email || "—"}
-        </span>
-        <span
-          className="text-xs"
-          style={{ color: isFailed ? "#f87171" : "var(--text-muted)" }}
-        >
-          {statusLabel(row.status, t)} · {row.depth_level}
+        <span className="mt-0.5 block text-xs capitalize" style={{ color: "var(--text-muted)" }}>
+          {row.depth_level}
         </span>
         {isFailed && statusMsg ? (
-          <span className="text-xs leading-snug" style={{ color: "var(--text-muted)" }}>
+          <span className="mt-1 block text-xs leading-snug" style={{ color: "var(--text-muted)" }}>
             {statusMsg}
           </span>
         ) : null}
       </Link>
-      <button
-        type="button"
-        disabled={deletingId === row.id}
-        onClick={onDelete}
-        className="shrink-0 self-stretch rounded-r-lg px-2 text-xs transition hover:bg-red-500/15 disabled:opacity-50"
-        style={{ color: "var(--text-muted)" }}
-        title={t("dossiers.delete_aria")}
-        aria-label={t("dossiers.delete_aria")}
-      >
-        {deletingId === row.id ? t("dossiers.deleting") : t("dossiers.delete")}
-      </button>
     </div>
   );
 }
 
-export default function DossierFolderCard({ folder, deletingId, onDeleteDossier }: Props) {
-  const { t } = useTranslation();
+export default function DossierFolderCard({
+  folder,
+  typeFilter,
+  deletingId,
+  onDeleteDossier,
+}: Props) {
+  const { t, preferences } = useTranslation();
+  const dateRaw = folder.updated_at || folder.created_at;
+  const dateLabel = dateRaw ? formatDate(dateRaw, preferences) : null;
+  const allComplete = folder.dossiers.every((d) => d.status === "complete");
+  const folderStatus = allComplete ? "complete" : folder.status;
+
+  if (folder.dossiers.length === 0) {
+    return null;
+  }
+
   const corporate = folder.dossiers.find((d) => d.module_kind === "corporate");
   const person = folder.dossiers.find((d) => d.module_kind === "person");
   const others = folder.dossiers.filter(
     (d) => d.id !== corporate?.id && d.id !== person?.id
   );
+  const ordered = [corporate, person, ...others]
+    .filter((d): d is DossierListItem => Boolean(d))
+    .filter((d) => dossierItemMatchesTypeFilter(d, typeFilter));
+  const dossierCountLabel =
+    typeFilter === "all"
+      ? folder.dossiers.length === 1
+        ? t("dossiers.folder_one_dossier")
+        : t("dossiers.folder_n_dossiers")
+      : ordered.length === 1
+        ? t("dossiers.folder_one_dossier")
+        : t("dossiers.folder_n_dossiers");
+  const dossierCount = typeFilter === "all" ? folder.dossiers.length : ordered.length;
+  const displayTitle = stripHtmlToPlainLine(
+    getCalendarMeetingSubject({
+      calendar_meeting: folder.calendar_meeting,
+      dossier_data: folder.dossiers[0]?.dossier_data,
+    }) || folder.title
+  );
 
   return (
     <article
-      className="col-span-1 flex flex-col gap-3 rounded-xl border p-4 sm:col-span-2 lg:col-span-3"
+      className="h-full rounded-xl border transition hover:border-strong"
       style={{
         borderColor: "var(--border-default)",
-        backgroundColor: "var(--bg-surface)",
+        backgroundImage:
+          "linear-gradient(180deg, var(--bg-card-start) 0%, var(--bg-card-end) 100%)",
       }}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--accent-from)" }}>
-            📁 {t("dossiers.folder_label")}
-          </p>
-          <Link
-            href={`/dashboard/dossiers/folder/${folder.id}`}
-            className="mt-1 block text-base font-semibold hover:underline"
-            style={{ color: "var(--text-primary)" }}
+      <div className="flex flex-col gap-4 p-4">
+        <div className="flex min-w-0 gap-3">
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center self-start rounded-xl"
+            style={{
+              backgroundColor: "var(--bg-surface-strong)",
+              color: "var(--accent-from)",
+            }}
+            aria-hidden
           >
-            {folder.title}
-          </Link>
-          <CalendarMeetingLabel
-            trigger_source={folder.trigger_source}
-            calendar_meeting={folder.calendar_meeting}
-            dossier_data={folder.dossiers[0]?.dossier_data}
-            compact
-          />
-          <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            {folder.dossiers.length}{" "}
-            {folder.dossiers.length === 1 ? t("dossiers.folder_one_dossier") : t("dossiers.folder_n_dossiers")}{" "}
-            · {folder.status}
-            {folder.created_at ? ` · ${folder.created_at.slice(0, 10)}` : ""}
-          </p>
+            <MeetingFolderIcon />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p
+              className="text-base font-semibold leading-snug"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {displayTitle || "—"}
+            </p>
+            <CalendarMeetingLabel
+              trigger_source={folder.trigger_source}
+              calendar_meeting={folder.calendar_meeting}
+              dossier_data={folder.dossiers[0]?.dossier_data}
+              compact
+            />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <DossierStatusBadge status={folderStatus} />
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {dossierCount} {dossierCountLabel}
+              </span>
+              {dateLabel ? (
+                <span className="text-xs" style={{ color: "var(--text-subtle)" }}>
+                  · {dateLabel}
+                </span>
+              ) : null}
+            </div>
+          </div>
         </div>
-        <Link
-          href={`/dashboard/dossiers/folder/${folder.id}`}
-          className="shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition hover:opacity-90"
-          style={{
-            borderColor: "var(--border-default)",
-            color: "var(--accent-from)",
-          }}
-        >
-          {t("dossiers.folder_open")}
-        </Link>
-      </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {corporate ? (
-          <ChildDossierRow
-            row={corporate}
-            label={t("overview.calendar_dossier_corporate")}
-            deletingId={deletingId}
-            onDelete={() => onDeleteDossier(corporate)}
-          />
-        ) : null}
-        {person ? (
-          <ChildDossierRow
-            row={person}
-            label={t("overview.calendar_dossier_person")}
-            deletingId={deletingId}
-            onDelete={() => onDeleteDossier(person)}
-          />
-        ) : null}
-        {others.map((row) => (
-          <ChildDossierRow
-            key={row.id}
-            row={row}
-            label={t("dossiers.folder_other_dossier")}
-            deletingId={deletingId}
-            onDelete={() => onDeleteDossier(row)}
-          />
-        ))}
+        <div
+          className={
+            ordered.length === 1
+              ? "grid grid-cols-1 gap-2"
+              : "grid grid-cols-1 gap-2 sm:grid-cols-2"
+          }
+        >
+          {ordered.map((row) => (
+            <ChildDossierChip
+              key={row.id}
+              row={row}
+              deletingId={deletingId}
+              onDelete={() => onDeleteDossier(row)}
+            />
+          ))}
+        </div>
       </div>
     </article>
   );

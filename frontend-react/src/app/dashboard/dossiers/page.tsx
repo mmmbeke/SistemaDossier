@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import FilterTabs, { type FilterValue } from "@/components/dossier/FilterTabs";
-import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
-import DossierFolderCard from "@/components/dossier/DossierFolderCard";
+import DashboardCard from "@/components/dashboard/DashboardCard";
 import TopBar from "@/components/dashboard/TopBar";
+import FilterTabs, { type FilterValue } from "@/components/dossier/FilterTabs";
+import DossierGroupedList from "@/components/dossier/DossierGroupedList";
 import NewDossierButton from "@/components/dossier/NewDossierButton";
 import UiAlert from "@/components/ui/UiAlert";
 import {
@@ -13,11 +13,20 @@ import {
   deleteDossierFromApi,
   fetchDossiersFromApi,
   getStoredAccessToken,
-  isDossierFolderEntry,
   type DossierListEntry,
   type DossierListItem,
 } from "@/lib/dossier-api";
-import { countListEntries, entryMatchesFilter, entryMatchesQuery } from "@/lib/dossier-list-utils";
+import {
+  countListEntries,
+  entryMatchesFilter,
+  entryMatchesQuery,
+  entryMatchesTypeFilter,
+  groupListEntriesByMeetingTime,
+  isNonEmptyListEntry,
+  removeDossierFromListEntries,
+  sortListEntriesByDate,
+  type TypeFilterValue,
+} from "@/lib/dossier-list-utils";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 type DbLoadState = "idle" | "loading" | "ready" | "error";
@@ -26,6 +35,7 @@ export default function DossiersPage() {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterValue>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilterValue>("all");
   const [dbLoad, setDbLoad] = useState<DbLoadState>("idle");
   const [dbItems, setDbItems] = useState<DossierListEntry[]>([]);
   const [dbError, setDbError] = useState<string | null>(null);
@@ -61,16 +71,27 @@ export default function DossiersPage() {
     };
   }, []);
 
+  const counts = useMemo(
+    () => countListEntries(dbItems.filter(isNonEmptyListEntry)),
+    [dbItems]
+  );
+
   const filteredDb = useMemo(() => {
     return dbItems.filter(
-      (entry) => entryMatchesQuery(entry, query) && entryMatchesFilter(entry, filter)
+      (entry) =>
+        isNonEmptyListEntry(entry) &&
+        entryMatchesQuery(entry, query) &&
+        entryMatchesFilter(entry, filter) &&
+        entryMatchesTypeFilter(entry, typeFilter)
     );
-  }, [dbItems, query, filter]);
+  }, [dbItems, query, filter, typeFilter]);
+
+  const groupedDb = useMemo(() => groupListEntriesByMeetingTime(filteredDb), [filteredDb]);
+  const sortedFlatDb = useMemo(() => sortListEntriesByDate(filteredDb), [filteredDb]);
 
   const useLiveDb = dbLoad === "ready";
   const hasSession = Boolean(getStoredAccessToken());
-  const counts = useMemo(() => countListEntries(dbItems), [dbItems]);
-  const filterAllLabel = t("dossiers.filter_all").replace(/\s*\(\d+\)/, ` (${counts.all})`);
+  const filterAllLabel = t("dossiers.filter_all").replace(/\s*\(\d+\)/, "");
 
   async function handleDeleteDossier(row: DossierListItem) {
     if (deletingId) return;
@@ -79,19 +100,7 @@ export default function DossiersPage() {
     setDbError(null);
     try {
       await deleteDossierFromApi(row.id);
-      setDbItems((prev) =>
-        prev
-          .map((entry) => {
-            if (isDossierFolderEntry(entry)) {
-              const dossiers = entry.dossiers.filter((d) => d.id !== row.id);
-              if (dossiers.length === 0) return null;
-              return { ...entry, dossiers };
-            }
-            if (entry.id === row.id) return null;
-            return entry;
-          })
-          .filter((e): e is DossierListEntry => e !== null)
-      );
+      setDbItems((prev) => removeDossierFromListEntries(prev, row.id));
     } catch (e) {
       setDbError(e instanceof DossierApiError ? e.message : String(e));
     } finally {
@@ -106,12 +115,6 @@ export default function DossiersPage() {
         subtitle={t("dossiers.subtitle")}
         action={<NewDossierButton />}
       />
-
-      {dbLoad === "loading" && (
-        <p className="mb-4 text-sm" style={{ color: "var(--text-muted)" }}>
-          {t("dossiers.database_loading")}
-        </p>
-      )}
 
       {dbLoad === "error" && dbError && (
         <UiAlert variant="warning" className="mb-4" role="alert">
@@ -141,145 +144,121 @@ export default function DossiersPage() {
         </div>
       )}
 
-      <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div
-          className="flex h-11 flex-1 items-center gap-2 rounded-lg border px-3.5"
-          style={{
-            borderColor: "var(--border-default)",
-            backgroundColor: "var(--bg-input)",
-          }}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="h-4 w-4"
-            style={{ color: "var(--text-subtle)" }}
+      <DashboardCard className="mb-6 !p-4 sm:!p-5">
+        <div className="flex flex-col gap-4">
+          <div
+            className="flex h-11 items-center gap-2 rounded-lg border px-3.5"
+            style={{
+              borderColor: "var(--border-default)",
+              backgroundColor: "var(--bg-input)",
+            }}
           >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            type="text"
-            placeholder={t("dossiers.search_short")}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="flex-1 bg-transparent text-sm outline-none"
-            style={{ color: "var(--text-primary)" }}
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              className="text-xs"
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="h-4 w-4 shrink-0"
               style={{ color: "var(--text-subtle)" }}
             >
-              {t("common.clear")}
-            </button>
-          )}
-        </div>
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              placeholder={t("dossiers.search_short")}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="flex-1 bg-transparent text-sm outline-none"
+              style={{ color: "var(--text-primary)" }}
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="shrink-0 text-xs"
+                style={{ color: "var(--text-subtle)" }}
+              >
+                {t("common.clear")}
+              </button>
+            )}
+          </div>
 
-        <FilterTabs
-          active={filter}
-          onChange={setFilter}
-          tabs={[
-            { value: "all", label: filterAllLabel, count: counts.all },
-            { value: "complete", label: t("dossiers.filter_complete"), count: counts.complete },
-            {
-              value: "needs_update",
-              label: t("dossiers.filter_needs_update"),
-              count: counts.needs_update,
-            },
-          ]}
-        />
-      </section>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterTabs
+                active={filter}
+                onChange={setFilter}
+                tabs={[
+                  { value: "all", label: filterAllLabel, count: counts.all },
+                  { value: "active", label: t("dossiers.filter_active"), count: counts.active },
+                  { value: "past", label: t("dossiers.filter_past"), count: counts.past },
+                  {
+                    value: "needs_update",
+                    label: t("dossiers.filter_needs_update"),
+                    count: counts.needs_update,
+                  },
+                ]}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium shrink-0" style={{ color: "var(--text-muted)" }}>
+                {t("dossiers.filter_type_label")}
+              </span>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value as TypeFilterValue)}
+                className="h-9 rounded-lg border px-2.5 text-sm outline-none"
+                style={{
+                  borderColor: "var(--border-default)",
+                  backgroundColor: "var(--bg-input)",
+                  color: "var(--text-primary)",
+                }}
+                aria-label={t("dossiers.filter_type_label")}
+              >
+                <option value="all">{t("dossiers.filter_type_all")}</option>
+                <option value="person">{t("dossiers.filter_type_person")}</option>
+                <option value="corporate">{t("dossiers.filter_type_corporate")}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </DashboardCard>
+
+      {dbLoad === "loading" && (
+        <p className="mb-4 text-sm" style={{ color: "var(--text-muted)" }}>
+          {t("dossiers.database_loading")}
+        </p>
+      )}
 
       {useLiveDb && (
         <section className="mb-10">
-          <div className="mb-3 flex items-center gap-2">
-            <span
-              className="rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide"
-              style={{
-                backgroundColor: "var(--bg-surface)",
-                color: "var(--accent-from)",
-                border: "1px solid var(--border-default)",
-              }}
-            >
-              {t("dossiers.database_badge")}
-            </span>
-          </div>
-
           {filteredDb.length === 0 ? (
             <div
-              className="flex flex-col items-center justify-center gap-2 rounded-xl border px-6 py-12 text-center"
+              className="flex flex-col items-center justify-center gap-2 rounded-lg border px-6 py-10 text-center"
               style={{
                 borderColor: "var(--border-default)",
                 backgroundColor: "var(--bg-surface)",
               }}
             >
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                {dbItems.length === 0
-                  ? t("dossiers.database_empty")
-                  : t("dossiers.no_results_hint")}
+              <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                {dbItems.length === 0 ? t("dossiers.database_empty") : t("dossiers.no_results")}
               </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredDb.map((entry) =>
-                isDossierFolderEntry(entry) ? (
-                  <DossierFolderCard
-                    key={entry.id}
-                    folder={entry}
-                    deletingId={deletingId}
-                    onDeleteDossier={handleDeleteDossier}
-                  />
-                ) : (
-                  <div
-                    key={entry.id}
-                    className="flex gap-1 rounded-xl border transition hover:border-strong"
-                    style={{
-                      borderColor: "var(--border-default)",
-                      backgroundColor: "var(--bg-surface)",
-                    }}
-                  >
-                    <Link
-                      href={`/dashboard/dossiers/${entry.id}`}
-                      className="flex min-w-0 flex-1 flex-col gap-2 p-4 text-left"
-                    >
-                      <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                        {entry.subject_name || entry.subject_email || "—"}
-                      </span>
-                      <CalendarMeetingLabel
-                        trigger_source={entry.trigger_source}
-                        calendar_meeting={entry.calendar_meeting}
-                        dossier_data={entry.dossier_data}
-                        compact
-                      />
-                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                        {entry.subject_email || "—"} · {entry.status} · {entry.depth_level}
-                      </span>
-                      {entry.created_at && (
-                        <span className="text-xs" style={{ color: "var(--text-subtle)" }}>
-                          {entry.created_at.slice(0, 10)}
-                        </span>
-                      )}
-                    </Link>
-                    <button
-                      type="button"
-                      disabled={deletingId === entry.id}
-                      onClick={() => void handleDeleteDossier(entry)}
-                      className="shrink-0 self-stretch rounded-r-xl px-3 text-xs font-medium transition hover:bg-red-500/15 disabled:opacity-50"
-                      style={{ color: "var(--text-muted)" }}
-                      title={t("dossiers.delete_aria")}
-                      aria-label={t("dossiers.delete_aria")}
-                    >
-                      {deletingId === entry.id ? t("dossiers.deleting") : t("dossiers.delete")}
-                    </button>
-                  </div>
-                )
+              {dbItems.length > 0 && (
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  {t("dossiers.no_results_hint")}
+                </p>
               )}
             </div>
+          ) : (
+            <DossierGroupedList
+              groups={groupedDb}
+              flatEntries={sortedFlatDb}
+              filter={filter}
+              typeFilter={typeFilter}
+              deletingId={deletingId}
+              onDeleteDossier={handleDeleteDossier}
+            />
           )}
         </section>
       )}
