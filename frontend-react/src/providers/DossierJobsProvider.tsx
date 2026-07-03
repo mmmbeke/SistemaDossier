@@ -32,6 +32,7 @@ import {
   type PersonResearchApiResponse,
 } from "@/lib/dossier-api";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import type { TranslationKey } from "@/i18n/types";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 
 const STORAGE_KEY = "dossier_active_job_ids";
@@ -532,7 +533,10 @@ const HIDE_ACTIVE_TOAST_ON_PATH: Record<string, string> = {
   corporate_manual: CORPORATE_PATH,
 };
 
-function jobToastLabel(job: TrackedJob, t: (key: string) => string): string {
+function jobToastLabel(
+  job: TrackedJob,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
+): string {
   if (job.meeting_label) return job.meeting_label;
   if (job.job_type === "person_manual") return t("dossier_jobs.person_label");
   if (job.job_type === "corporate_manual") return t("dossier_jobs.corporate_label");
