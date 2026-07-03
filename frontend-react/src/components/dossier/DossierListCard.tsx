@@ -13,6 +13,7 @@ type Props = {
   dossier: DossierListItem;
   deletingId: string | null;
   onDelete: () => void;
+  showDelete?: boolean;
 };
 
 function moduleIcon(kind: DossierListItem["module_kind"]) {
@@ -41,7 +42,7 @@ function moduleIcon(kind: DossierListItem["module_kind"]) {
   );
 }
 
-export default function DossierListCard({ dossier, deletingId, onDelete }: Props) {
+export default function DossierListCard({ dossier, deletingId, onDelete, showDelete = true }: Props) {
   const { t, preferences } = useTranslation();
   const title = stripHtmlToPlainLine(dossier.subject_name || dossier.subject_email) || "—";
   const dateRaw = dossier.updated_at || dossier.created_at;
@@ -99,11 +100,13 @@ export default function DossierListCard({ dossier, deletingId, onDelete }: Props
         </div>
       </Link>
 
-      <DeleteDossierIconButton
-        isDeleting={isDeleting}
-        onClick={onDelete}
-        className="absolute right-2 top-2"
-      />
+      {showDelete ? (
+        <DeleteDossierIconButton
+          isDeleting={isDeleting}
+          onClick={onDelete}
+          className="absolute right-2 top-2"
+        />
+      ) : null}
     </article>
   );
 }

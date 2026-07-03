@@ -68,7 +68,7 @@ export default function BillingPanel() {
 
   async function handleSelectPlan(plan: PlanTier) {
     const active = (me?.organization_plan as PlanTier | undefined) ?? "free";
-    if (!me || plan === active) return;
+    if (!me || me.role !== "admin" || plan === active) return;
     setActionError(null);
     setSavingPlan(plan);
     try {
@@ -82,6 +82,7 @@ export default function BillingPanel() {
   }
 
   const currentPlan = (me?.organization_plan as PlanTier | undefined) ?? "free";
+  const isAdmin = me?.role === "admin";
   const balance = me?.credits_balance ?? 0;
   const monthly = me?.credits_monthly_limit ?? 0;
   const capLabel = isUnlimitedMonthly(monthly) ? t("billing.unlimited") : String(monthly);
@@ -161,7 +162,7 @@ export default function BillingPanel() {
                   {t("billing.credits_hint")}
                 </p>
                 <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-                  {t("billing.plan_note")}
+                  {isAdmin ? t("billing.plan_note") : t("billing.org_plan_member_note")}
                 </p>
               </div>
             </>
@@ -169,6 +170,20 @@ export default function BillingPanel() {
         </div>
       </DashboardCard>
 
+      {!isAdmin && me ? (
+        <p
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{
+            borderColor: "var(--border-default)",
+            color: "var(--text-muted)",
+            backgroundColor: "var(--bg-surface)",
+          }}
+        >
+          {t("billing.not_admin")}
+        </p>
+      ) : null}
+
+      {isAdmin ? (
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {PLANS.map((plan) => {
           const isCurrentPlan = plan.id === currentPlan;
@@ -231,6 +246,7 @@ export default function BillingPanel() {
           );
         })}
       </div>
+      ) : null}
     </div>
   );
 }

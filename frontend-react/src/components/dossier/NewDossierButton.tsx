@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 type NewDossierButtonProps = {
@@ -29,6 +30,7 @@ function CorporateIcon() {
 
 export default function NewDossierButton({ className = "" }: NewDossierButtonProps) {
   const { t } = useTranslation();
+  const { canMutate, loading } = useAuthMe();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +64,8 @@ export default function NewDossierButton({ className = "" }: NewDossierButtonPro
       icon: <CorporateIcon />,
     },
   ] as const;
+
+  if (!loading && !canMutate) return null;
 
   return (
     <div ref={rootRef} className={`relative ${className}`}>

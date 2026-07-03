@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -67,6 +68,19 @@ class PersonResearchRequest(BaseModel):
         False,
         description="Si true, ejecuta una investigación nueva sin reutilizar un informe previo en caché.",
     )
+    replace_dossier_id: UUID | None = Field(
+        None,
+        description="Si se indica, actualiza este dossier existente (misma carpeta de reunión).",
+    )
+
+    @field_validator("replace_dossier_id", mode="before")
+    @classmethod
+    def _coerce_replace_id(cls, v: object) -> UUID | None:
+        if v is None or v == "":
+            return None
+        if isinstance(v, UUID):
+            return v
+        return UUID(str(v).strip())
 
     @field_validator("email", "linkedin_url", mode="before")
     @classmethod

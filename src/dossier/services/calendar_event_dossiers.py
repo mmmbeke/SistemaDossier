@@ -98,6 +98,17 @@ _COUNTRY_IN_DESC = re.compile(
     r"(?i)(?:país|pais|country)(?:\s*\([^)]*\))?\s*:\s*(.+?)(?:\n|$)"
 )
 
+_NUMBERED_CONTACT = re.compile(
+    r"(?i)(?:contacto|nombre|name|contact)\s*(\d+)\s*:\s*(.+?)(?:\n|$)"
+)
+_NUMBERED_JOB = re.compile(
+    r"(?i)(?:cargo|puesto|rol|título|titulo|área|area|job|title|role)\s*(\d+)\s*:\s*(.+?)(?:\n|$)"
+)
+_NUMBERED_EMAIL = re.compile(r"(?i)email\s*(\d+)\s*[:.]\s*(.+?)(?:\n|$)")
+_NUMBERED_COUNTRY = re.compile(
+    r"(?i)(?:país|pais|country)(?:\s*\([^)]*\))?\s*(\d+)\s*:\s*(.+?)(?:\n|$)"
+)
+
 _OPTIONAL_FIELD_PLACEHOLDERS = frozenset(
     {
         "(país)",
@@ -196,9 +207,93 @@ def _description_signals_person_only(descripcion: str) -> bool:
     d = (descripcion or "").strip()
     if not d:
         return False
-    has_person = any(pat.search(d) for pat in _PERSON_PATTERNS)
+    has_person = bool(extract_numbered_persons_from_description(d)) or any(
+        pat.search(d) for pat in _PERSON_PATTERNS
+    )
     has_empresa = bool(_EMPRESA_DESC.search(d))
     return has_person and not has_empresa
+
+
+def _indexed_fields(pattern: re.Pattern[str], text: str) -> dict[int, str]:
+    out: dict[int, str] = {}
+    for m in pattern.finditer(text):
+        idx = int(m.group(1))
+        val = _clean_optional_field(m.group(2))
+        if val:
+            out[idx] = val
+    return out
+
+
+def extract_numbered_persons_from_description(descripcion: str) -> list[dict[str, Any]]:
+    """
+    Varios contactos numerados en la descripción::
+
+        Contacto 1: James Girling
+        Cargo 1: CEO
+        Email 1: james@oxccu.com
+        Contacto 2: María López
+        Cargo 2: CTO
+    """
+    d = (descripcion or "").strip()
+    if not d:
+        return []
+
+    names = _indexed_fields(_NUMBERED_CONTACT, d)
+    if not names:
+        return []
+
+    jobs = _indexed_fields(_NUMBERED_JOB, d)
+    emails = _indexed_fields(_NUMBERED_EMAIL, d)
+    countries = _indexed_fields(_NUMBERED_COUNTRY, d)
+
+    persons: list[dict[str, Any]] = []
+    for idx in sorted(names.keys()):
+        name = names[idx].strip()
+        if len(name) < 2:
+            continue
+        job, country = _split_job_and_country(jobs.get(idx), countries.get(idx))
+        email = emails.get(idx)
+        if email:
+            email = email.strip().lower()
+            if "@" not in email:
+                email = None
+        persons.append(
+            {
+                "index": idx,
+                "full_name": name,
+                "job_area": job,
+                "country": country,
+                "email": email,
+            }
+        )
+    return persons
+
+
+def extract_all_persons_from_description(
+    descripcion: str,
+    tema: str = "",
+) -> list[dict[str, Any]]:
+    """Lista de contactos: numerados (Contacto N) o un único «Contacto:»."""
+    numbered = extract_numbered_persons_from_description(descripcion)
+    if numbered:
+        return numbered
+
+    name, job, country = extract_person_from_description(descripcion)
+    if not name:
+        name = extract_person_from_subject(tema)
+    if not name or len(name) < 2:
+        return []
+
+    email = extract_email_from_description(descripcion)
+    return [
+        {
+            "index": 1,
+            "full_name": name,
+            "job_area": job,
+            "country": country,
+            "email": email,
+        }
+    ]
 
 
 def extract_person_from_subject(tema: str) -> str:
@@ -357,16 +452,25 @@ def parse_calendar_event_for_dossiers(reunion: dict[str, Any]) -> dict[str, Any]
         or (company_subject if company_corporate else "")
     )
     person_name, person_job, person_country = extract_person_from_description(descripcion)
+    persons = extract_all_persons_from_description(descripcion, tema)
+    first_person = persons[0] if persons else {}
+    person_name = first_person.get("full_name") or person_name
+    person_job = first_person.get("job_area") if persons else person_job
+    person_country = first_person.get("country") if persons else person_country
+    person_email = first_person.get("email")
     if not person_name:
         person_name = extract_person_from_subject(tema)
-    person_email = extract_email_from_description(descripcion)
-    if not person_email:
+    if person_email is None:
+        person_email = extract_email_from_description(descripcion)
+    if not person_email and len(persons) == 1:
         corp_emails = extract_corporate_emails_from_text(descripcion, participantes)
-        person_email = corp_emails[0] if corp_emails else None
-    if not person_name and descripcion:
+        if corp_emails:
+            person_email = corp_emails[0]
+            persons[0]["email"] = person_email
+    if not persons and not person_name and descripcion:
         logger.info(
             "Calendario: descripción sin persona detectable (len=%s). "
-            "Usa «Contacto:» o «Nombre:» en el cuerpo del evento.",
+            "Usa «Contacto:» / «Contacto 1:» o «Nombre:» en el cuerpo del evento.",
             len(descripcion),
         )
     return {
@@ -375,6 +479,7 @@ def parse_calendar_event_for_dossiers(reunion: dict[str, Any]) -> dict[str, Any]
         "company_corporate": company_corporate,
         "company_corporate_source": company_corporate_source,
         "company_person": company_person,
+        "persons": persons,
         "person_name": person_name,
         "person_job": person_job,
         "person_country": person_country,
@@ -530,6 +635,97 @@ def _person_research_from_cache_or_pipeline(
     return result, cache_hit, redis_key
 
 
+def _generate_one_person_dossier(
+    *,
+    person: dict[str, Any],
+    reunion: dict[str, Any],
+    parsed: dict[str, Any],
+    company_corporate: str,
+    company_person: str,
+    tema: str,
+    participantes: str,
+    organization_id: UUID | None,
+    organization_context_block: str | None,
+    output_language: str,
+) -> dict[str, Any]:
+    """Genera un dossier de persona para un contacto del evento."""
+    person_name = (person.get("full_name") or "").strip()
+    person_job = person.get("job_area")
+    person_country = person.get("country")
+    person_email = person.get("email")
+    if not person_email:
+        corp_emails = extract_corporate_emails_from_text(
+            parsed.get("descripcion") or "",
+            participantes,
+        )
+        person_email = corp_emails[0] if corp_emails else None
+
+    out: dict[str, Any] = {
+        "index": person.get("index"),
+        "full_name": person_name,
+        "job_area": person_job,
+        "country": person_country,
+        "email": person_email,
+        "md": None,
+        "payload": None,
+        "cache_hit": False,
+        "cache_key": None,
+        "error": None,
+    }
+    if len(person_name) < 2:
+        return out
+
+    try:
+        meeting_ctx = {
+            "tema": tema,
+            "descripcion": parsed.get("descripcion") or (reunion.get("descripcion") or ""),
+            "participantes": participantes,
+            "empresa_reunion": company_corporate or company_person or None,
+            "contacto_declarado": person_name,
+            "cargo_declarado": person_job,
+            "inicio": reunion.get("inicio"),
+            "ubicacion": reunion.get("ubicacion"),
+        }
+        person_src = default_person_research_source()
+        req = PersonResearchRequest(
+            full_name=person_name,
+            company=company_person or None,
+            job_area=person_job,
+            country=person_country,
+            email=person_email,
+            research_source=person_src,
+            max_profiles=1,
+            reveal_contact_details=False,
+            output_language=output_language,
+        )
+        if organization_id is not None:
+            person_payload, person_cache_hit, person_cache_key = _person_research_from_cache_or_pipeline(
+                req=req,
+                organization_id=organization_id,
+                organization_context_block=organization_context_block,
+                meeting_context=meeting_ctx,
+                output_language=output_language,
+            )
+        else:
+            person_payload = run_person_research(
+                req,
+                organization_context_block=organization_context_block,
+                meeting_context=meeting_ctx,
+                output_language=output_language,
+            )
+            person_cache_hit = False
+            person_cache_key = None
+        out["md"] = (person_payload.get("gemini_analysis_markdown") or "").strip() or None
+        out["payload"] = person_payload
+        out["cache_hit"] = person_cache_hit
+        out["cache_key"] = person_cache_key
+    except Exception as e:
+        logger.exception("Fallo dossier persona desde calendario (%s)", person_name)
+        out["error"] = str(e)
+        out["md"] = f"# Error en dossier persona\n\n{e}"
+    return out
+
+
 def generate_dossiers_from_calendar_event(
     reunion: dict[str, Any],
     *,
@@ -546,14 +742,12 @@ def generate_dossiers_from_calendar_event(
     parsed = parse_calendar_event_for_dossiers(reunion)
     company_corporate = parsed["company_corporate"]
     company_person = parsed["company_person"]
-    person_name = parsed["person_name"]
-    person_job = parsed["person_job"]
-    person_country = parsed.get("person_country")
-    person_email = parsed.get("person_email")
+    persons = parsed.get("persons") or []
     tema = parsed["tema"]
     participantes = parsed["participantes"]
 
     corporate_md: str | None = None
+    dossier_personas: list[dict[str, Any]] = []
     person_md: str | None = None
     person_payload: dict[str, Any] | None = None
     errors: list[str] = []
@@ -581,61 +775,41 @@ def generate_dossiers_from_calendar_event(
             errors.append(f"Corporativo: {e}")
             corporate_md = f"# Error en dossier corporativo\n\n{e}"
 
-    if person_name and len(person_name) >= 2:
-        try:
-            meeting_ctx = {
-                "tema": tema,
-                "descripcion": parsed.get("descripcion") or (reunion.get("descripcion") or ""),
-                "participantes": participantes,
-                "empresa_reunion": company_corporate or company_person or None,
-                "contacto_declarado": person_name,
-                "cargo_declarado": person_job,
-                "inicio": reunion.get("inicio"),
-                "ubicacion": reunion.get("ubicacion"),
-            }
-            person_src = default_person_research_source()
-            req = PersonResearchRequest(
-                full_name=person_name,
-                company=company_person or None,
-                job_area=person_job,
-                country=person_country,
-                email=person_email,
-                research_source=person_src,
-                max_profiles=1,
-                reveal_contact_details=False,
-                output_language=out_lang,
-            )
-            if organization_id is not None:
-                person_payload, person_cache_hit, person_cache_key = _person_research_from_cache_or_pipeline(
-                    req=req,
-                    organization_id=organization_id,
-                    organization_context_block=organization_context_block,
-                    meeting_context=meeting_ctx,
-                    output_language=out_lang,
-                )
-            else:
-                person_payload = run_person_research(
-                    req,
-                    organization_context_block=organization_context_block,
-                    meeting_context=meeting_ctx,
-                    output_language=out_lang,
-                )
-            person_md = (person_payload.get("gemini_analysis_markdown") or "").strip() or None
-        except Exception as e:
-            logger.exception("Fallo dossier persona desde calendario")
-            errors.append(f"Persona: {e}")
-            person_md = f"# Error en dossier persona\n\n{e}"
+    for person in persons:
+        one = _generate_one_person_dossier(
+            person=person,
+            reunion=reunion,
+            parsed=parsed,
+            company_corporate=company_corporate,
+            company_person=company_person,
+            tema=tema,
+            participantes=participantes,
+            organization_id=organization_id,
+            organization_context_block=organization_context_block,
+            output_language=out_lang,
+        )
+        dossier_personas.append(one)
+        if one.get("error"):
+            label = one.get("full_name") or f"Contacto {one.get('index') or '?'}"
+            errors.append(f"Persona ({label}): {one['error']}")
+        if person_md is None and one.get("md"):
+            person_md = one["md"]
+            person_payload = one.get("payload")
+            person_cache_hit = bool(one.get("cache_hit"))
+            person_cache_key = one.get("cache_key")
 
-    if not corporate_md and not person_md:
+    if not corporate_md and not any(p.get("md") for p in dossier_personas):
         corporate_md = (
             "No se pudo generar ningún dossier. "
             "Usa este formato en la descripción del evento:\n\n"
             "**Asunto:** Kick-off proyecto Q3\n\n"
             "**Descripción:**\n"
             "Empresa: SpaceX\n"
-            "Contacto: Elon Musk\n"
-            "Cargo: CEO\n"
-            "País (opcional): Estados Unidos"
+            "Contacto 1: Elon Musk\n"
+            "Cargo 1: CEO\n"
+            "País 1: Estados Unidos\n"
+            "Contacto 2: Gwynne Shotwell\n"
+            "Cargo 2: Presidenta"
         )
 
     return {
@@ -644,6 +818,7 @@ def generate_dossiers_from_calendar_event(
         "dossier_corporativo": corporate_md,
         "dossier_persona": person_md,
         "dossier_persona_research": person_payload,
+        "dossier_personas": dossier_personas,
         "dossier_generado": corporate_md or person_md or "",
         "errors": errors,
         "corporate_cache_hit": corporate_cache_hit,
@@ -857,9 +1032,37 @@ def persist_calendar_dossiers(
 
     person_md = result.get("dossier_persona")
     person_payload = result.get("dossier_persona_research")
-    person_name = (parsed.get("person_name") or "").strip()
-    if len(person_name) >= 2:
-        valid_person_md = normalize_person_report_text(person_md)
+    dossier_personas = result.get("dossier_personas")
+    if not dossier_personas:
+        person_name = (parsed.get("person_name") or "").strip()
+        if len(person_name) >= 2:
+            dossier_personas = [
+                {
+                    "full_name": person_name,
+                    "job_area": parsed.get("person_job"),
+                    "country": parsed.get("person_country"),
+                    "email": parsed.get("person_email"),
+                    "md": person_md,
+                    "payload": person_payload,
+                    "cache_hit": person_cache_hit,
+                    "cache_key": result.get("person_cache_key"),
+                }
+            ]
+    else:
+        dossier_personas = list(dossier_personas)
+
+    saved["persons"] = []
+    for pentry in dossier_personas or []:
+        person_name = (pentry.get("full_name") or "").strip()
+        if len(person_name) < 2:
+            continue
+
+        p_md = pentry.get("md")
+        p_payload = pentry.get("payload")
+        p_cache_hit = bool(pentry.get("cache_hit"))
+        p_cache_key = pentry.get("cache_key")
+
+        valid_person_md = normalize_person_report_text(p_md)
         if valid_person_md:
             status = "complete"
             status_message = None
@@ -868,29 +1071,28 @@ def persist_calendar_dossiers(
         else:
             status = "failed"
             status_message = _person_failure_message(
-                person_payload=person_payload if isinstance(person_payload, dict) else None,
+                person_payload=p_payload if isinstance(p_payload, dict) else None,
                 errors=result.get("errors"),
-                person_md=person_md if isinstance(person_md, str) else None,
+                person_md=p_md if isinstance(p_md, str) else None,
             )
             body = ""
             success = False
 
-        will_charge_person = charge and status == "complete" and not person_cache_hit
-        person_research = result.get("dossier_persona_research")
+        will_charge_person = charge and status == "complete" and not p_cache_hit
         lusha_diag: dict[str, Any] | None = None
         person_research_source = "pdl"
-        if isinstance(person_research, dict):
-            fa = person_research.get("filters_applied")
+        if isinstance(p_payload, dict):
+            fa = p_payload.get("filters_applied")
             if isinstance(fa, dict) and fa.get("research_source"):
                 person_research_source = str(fa["research_source"])
             lusha_diag = {
-                "profiles_count": len(person_research.get("profiles") or []),
-                "profile_urls": person_research.get("profile_urls") or [],
-                "warnings": person_research.get("warnings") or [],
-                "gemini_google_search_used": person_research.get("gemini_google_search_used"),
-                "filters_applied": person_research.get("filters_applied"),
+                "profiles_count": len(p_payload.get("profiles") or []),
+                "profile_urls": p_payload.get("profile_urls") or [],
+                "warnings": p_payload.get("warnings") or [],
+                "gemini_google_search_used": p_payload.get("gemini_google_search_used"),
+                "filters_applied": p_payload.get("filters_applied"),
             }
-        person_email_stored = (parsed.get("person_email") or "")[:255] or None
+        person_email_stored = (pentry.get("email") or parsed.get("person_email") or "")[:255] or None
         dossier_id = uuid.uuid4()
         dossier = Dossier(
             id=dossier_id,
@@ -913,19 +1115,20 @@ def persist_calendar_dossiers(
                 "success": success,
                 "billing": "charged" if will_charge_person else "none",
                 "cache": {
-                    "hit": person_cache_hit,
+                    "hit": p_cache_hit,
                     "redis": redis_person_cache_available(),
                 },
                 "calendar": cal,
                 "calendar_folder": calendar_folder,
                 "calendar_folder_role": "person",
                 "person_filters": {
-                    "full_name": parsed.get("person_name"),
-                    "job_area": parsed.get("person_job"),
+                    "full_name": person_name,
+                    "job_area": pentry.get("job_area"),
                     "company": parsed.get("company_person"),
-                    "country": parsed.get("person_country"),
-                    "email": parsed.get("person_email"),
+                    "country": pentry.get("country"),
+                    "email": pentry.get("email") or parsed.get("person_email"),
                     "research_source": person_research_source,
+                    "contact_index": pentry.get("index"),
                 },
                 "lusha_diagnostics": lusha_diag,
                 "output_language": output_lang,
@@ -935,20 +1138,24 @@ def persist_calendar_dossiers(
             data_sources_used=[person_research_source, "deepseek"],
             generation_started_at=now,
             generation_completed_at=now,
-            generation_duration_ms=0 if person_cache_hit else generation_duration_ms,
-            cache_key=result.get("person_cache_key") if person_cache_hit else None,
-            cached_until=cache_expires if person_cache_hit else None,
+            generation_duration_ms=0 if p_cache_hit else generation_duration_ms,
+            cache_key=p_cache_key if p_cache_hit else None,
+            cached_until=cache_expires if p_cache_hit else None,
             trigger_source=trigger_source,
             calendar_event_id=calendar_event_id,
             dossier_folder_id=folder_id,
         )
         db.add(dossier)
-        saved["person"] = {
+        person_ref = {
             "id": str(dossier_id),
             "status": status,
             "subject_name": person_name[:255],
             "status_message": status_message,
+            "cache_hit": p_cache_hit,
         }
+        saved["persons"].append(person_ref)
+        if "person" not in saved:
+            saved["person"] = person_ref
         if "folder" not in saved:
             saved["folder"] = {"id": str(folder_id), "title": folder_title}
 

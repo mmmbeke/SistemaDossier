@@ -13,7 +13,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from dossier.api.auth_routes import get_current_user_and_org, get_db_if_configured
+from dossier.api.auth_routes import (
+    OrgAuthContext,
+    get_org_auth_context,
+    get_db_if_configured,
+    require_mutator,
+)
 from dossier.cache.corporate_dossier_redis import (
     build_corporate_cache_key_hash,
     cached_until_from_now,
@@ -41,12 +46,27 @@ from dossier.services.person_research_pipeline import run_person_research_and_pe
 from dossier.services.dossier_generation_job_service import enqueue_person_research_job
 from dossier.services.output_language import effective_output_language, normalize_output_language
 from dossier.utils.html_text import strip_html_to_plain_line
-from dossier.services.calendar_automation import suppress_calendar_event_if_no_dossiers_remain
+from dossier.services.dossier_deletion_service import (
+    delete_dossier_record,
+    delete_dossiers_in_folder,
+    finalize_dossier_deletions,
+)
 from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
 from dossier.services.dossier_folder_utils import (
     build_dossier_list_entries,
     serialize_dossier_list_item,
     serialize_folder,
+)
+from dossier.services.dossier_visibility import (
+    apply_dossier_visibility,
+    get_visible_dossier_or_404,
+    user_can_delete_dossier,
+)
+from dossier.schemas.dossier_share import DossierShareCreate
+from dossier.security.rbac import normalize_org_role
+from dossier.services.dossier_share_service import (
+    dossier_permissions_payload,
+    list_dossier_shares,
 )
 
 router = APIRouter(tags=["Dossiers"])
@@ -93,18 +113,17 @@ def _append_corporate_org_context(markdown: str, org_context_block: str) -> str:
 
 @router.get("/dossiers/corporate/company-search")
 def corporate_company_search(
-    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    ctx: Annotated[OrgAuthContext, Depends(get_org_auth_context)],
     q: str = Query(..., min_length=2, max_length=200),
 ):
     """Búsqueda UK (Companies House) + US (SEC tickers) para desambiguar nombres de empresa."""
-    _user, _org = user_org
     return search_corporate_company_candidates(q)
 
 
 @router.post("/dossiers/person/research")
 def person_professional_research(
     body: PersonResearchRequest,
-    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     db: Session = Depends(get_db_if_configured),
 ):
     """
@@ -120,7 +139,7 @@ def person_professional_research(
     Con ``REDIS_URL`` configurado, reutiliza el informe en Redis para la misma organización
     y mismos filtros. ``dossier_source``: ``redis_cache`` (hit) o ``generated`` (miss).
     """
-    user, org = user_org
+    user, org = ctx.user, ctx.org
 
     if body.async_mode:
         job = enqueue_person_research_job(db, user=user, org=org, body=body)
@@ -144,7 +163,7 @@ def person_professional_research(
 @router.post("/dossiers/corporate/generate")
 def generate_corporate_dossier(
     body: CreateCorporateDossierRequest,
-    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     db: Session = Depends(get_db_if_configured),
 ):
     """
@@ -158,7 +177,7 @@ def generate_corporate_dossier(
     El saldo se descuenta en PostgreSQL (trigger) salvo `billing: none` o cobro desactivado
     (`DOSSIER_CHARGE_CREDITS=0`). Si el pipeline devuelve error, no se cobra.
     """
-    user, org = user_org
+    user, org = ctx.user, ctx.org
     charge = _corporate_credit_charging_enabled()
     cost = DEPTH_CREDITS[body.depth] if charge else 0
     out_lang = effective_output_language(user, body.output_language)
@@ -308,19 +327,18 @@ def generate_corporate_dossier(
 @router.get("/dossiers/folders/{folder_id}")
 def get_dossier_folder(
     folder_id: UUID,
-    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    ctx: Annotated[OrgAuthContext, Depends(get_org_auth_context)],
     db: Session = Depends(get_db_if_configured),
 ):
     """Carpeta con los dossiers (empresa + persona) de un mismo evento de calendario."""
-    _user, org = user_org
-    rows = db.execute(
-        select(Dossier)
-        .where(
-            Dossier.organization_id == org.id,
-            Dossier.dossier_folder_id == folder_id,
-        )
-        .order_by(Dossier.created_at.asc())
-    ).scalars().all()
+    user, org, role = ctx.user, ctx.org, ctx.role
+    stmt = apply_dossier_visibility(
+        select(Dossier).where(Dossier.dossier_folder_id == folder_id),
+        user_id=user.id,
+        organization_id=org.id,
+        role=role,
+    ).order_by(Dossier.created_at.asc())
+    rows = db.execute(stmt).scalars().all()
     if not rows:
         raise HTTPException(status_code=404, detail="Carpeta no encontrada.")
     return serialize_folder(rows)
@@ -329,17 +347,22 @@ def get_dossier_folder(
 @router.get("/dossiers/{dossier_id}")
 def get_dossier_by_id(
     dossier_id: UUID,
-    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    ctx: Annotated[OrgAuthContext, Depends(get_org_auth_context)],
     db: Session = Depends(get_db_if_configured),
 ):
-    """Devuelve un dossier si pertenece a la organización del JWT."""
-    _user, org = user_org
-    d = db.get(Dossier, dossier_id)
-    if d is None or d.organization_id != org.id:
-        raise HTTPException(status_code=404, detail="Dossier no encontrado.")
+    """Devuelve un dossier si el usuario tiene permiso de lectura."""
+    user, org, role = ctx.user, ctx.org, ctx.role
+    d = get_visible_dossier_or_404(
+        db,
+        dossier_id=dossier_id,
+        user_id=user.id,
+        organization_id=org.id,
+        role=role,
+    )
     return {
         "id": str(d.id),
         "organization_id": str(d.organization_id),
+        "requested_by_user_id": str(d.requested_by_user_id),
         "subject_name": strip_html_to_plain_line(d.subject_name, max_len=255) or d.subject_name,
         "subject_email": d.subject_email,
         "status": d.status,
@@ -355,50 +378,209 @@ def get_dossier_by_id(
         "generation_duration_ms": d.generation_duration_ms,
         "status_message": d.status_message,
         "trigger_source": d.trigger_source,
+        "dossier_folder_id": str(d.dossier_folder_id) if d.dossier_folder_id else None,
         "calendar_meeting": calendar_meeting_summary_from_dossier_data(
             d.dossier_data if isinstance(d.dossier_data, dict) else None,
             trigger_source=d.trigger_source,
         ),
+        "permissions": dossier_permissions_payload(
+            db,
+            dossier=d,
+            user_id=user.id,
+            organization_id=org.id,
+            role=role,
+        ),
+        "shares": list_dossier_shares(db, dossier_id=d.id),
     }
+
+
+@router.get("/dossiers/{dossier_id}/shares")
+def get_dossier_shares(
+    dossier_id: UUID,
+    ctx: Annotated[OrgAuthContext, Depends(get_org_auth_context)],
+    db: Session = Depends(get_db_if_configured),
+):
+    """Lista usuarios con los que se compartió el dossier."""
+    user, org, role = ctx.user, ctx.org, ctx.role
+    d = get_visible_dossier_or_404(
+        db,
+        dossier_id=dossier_id,
+        user_id=user.id,
+        organization_id=org.id,
+        role=role,
+    )
+    from dossier.services.dossier_share_service import (
+        list_dossier_shares,
+        user_can_share_dossier,
+    )
+
+    if not user_can_share_dossier(dossier=d, user_id=user.id, role=role):
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver las comparticiones.")
+    return {"dossier_id": str(d.id), "items": list_dossier_shares(db, dossier_id=d.id)}
+
+
+@router.post("/dossiers/{dossier_id}/shares", status_code=201)
+def create_dossier_share(
+    dossier_id: UUID,
+    body: DossierShareCreate,
+    ctx: Annotated[OrgAuthContext, Depends(get_org_auth_context)],
+    db: Session = Depends(get_db_if_configured),
+):
+    """Comparte un dossier con otro miembro de la organización."""
+    from dossier.services.dossier_share_service import (
+        list_dossier_shares,
+        share_dossier_with_user,
+        user_can_share_dossier,
+    )
+
+    user, org, role = ctx.user, ctx.org, ctx.role
+    d = get_visible_dossier_or_404(
+        db,
+        dossier_id=dossier_id,
+        user_id=user.id,
+        organization_id=org.id,
+        role=role,
+    )
+    if not user_can_share_dossier(dossier=d, user_id=user.id, role=role):
+        raise HTTPException(status_code=403, detail="No tienes permiso para compartir este dossier.")
+
+    share_dossier_with_user(
+        db,
+        dossier=d,
+        shared_with_user_id=body.user_id,
+        shared_by_user_id=user.id,
+        organization_id=org.id,
+    )
+    db.commit()
+    items = list_dossier_shares(db, dossier_id=d.id)
+    created = next((i for i in items if i["user_id"] == str(body.user_id)), items[-1] if items else None)
+    return {"dossier_id": str(d.id), "share": created, "items": items}
+
+
+@router.delete("/dossiers/{dossier_id}/shares/{target_user_id}", status_code=204)
+def delete_dossier_share(
+    dossier_id: UUID,
+    target_user_id: UUID,
+    ctx: Annotated[OrgAuthContext, Depends(get_org_auth_context)],
+    db: Session = Depends(get_db_if_configured),
+):
+    """Dejar de compartir un dossier con un usuario."""
+    from dossier.services.dossier_share_service import (
+        unshare_dossier_with_user,
+        user_can_share_dossier,
+    )
+
+    user, org, role = ctx.user, ctx.org, ctx.role
+    d = get_visible_dossier_or_404(
+        db,
+        dossier_id=dossier_id,
+        user_id=user.id,
+        organization_id=org.id,
+        role=role,
+    )
+    if not user_can_share_dossier(dossier=d, user_id=user.id, role=role):
+        raise HTTPException(status_code=403, detail="No tienes permiso para modificar las comparticiones.")
+
+    if not unshare_dossier_with_user(
+        db,
+        dossier_id=d.id,
+        shared_with_user_id=target_user_id,
+    ):
+        raise HTTPException(status_code=404, detail="Compartición no encontrada.")
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/dossiers/folders/{folder_id}", status_code=204)
+def delete_dossier_folder(
+    folder_id: UUID,
+    ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
+    db: Session = Depends(get_db_if_configured),
+):
+    """Elimina todos los dossiers de una carpeta (p. ej. reunión de calendario)."""
+    user, org, role = ctx.user, ctx.org, ctx.role
+    rows = db.execute(
+        select(Dossier).where(
+            Dossier.organization_id == org.id,
+            Dossier.dossier_folder_id == folder_id,
+        )
+    ).scalars().all()
+    if not rows:
+        raise HTTPException(status_code=404, detail="Carpeta no encontrada.")
+
+    if normalize_org_role(role) != "admin":
+        if not all(
+            user_can_delete_dossier(
+                db,
+                dossier=row,
+                user_id=user.id,
+                organization_id=org.id,
+                role=role,
+            )
+            for row in rows
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="No puedes eliminar una carpeta que contiene dossiers de otros usuarios.",
+            )
+
+    deleted = delete_dossiers_in_folder(
+        db,
+        organization_id=org.id,
+        folder_id=folder_id,
+    )
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail="Carpeta no encontrada.")
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.delete("/dossiers/{dossier_id}", status_code=204)
 def delete_dossier_by_id(
     dossier_id: UUID,
-    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     db: Session = Depends(get_db_if_configured),
 ):
-    """Elimina un dossier de la organización del JWT (filas hijas con ON DELETE CASCADE en BD)."""
-    _user, org = user_org
+    """Elimina un dossier si el usuario tiene permiso."""
+    user, org, role = ctx.user, ctx.org, ctx.role
     d = db.get(Dossier, dossier_id)
     if d is None or d.organization_id != org.id:
         raise HTTPException(status_code=404, detail="Dossier no encontrado.")
-    calendar_event_id = d.calendar_event_id
-    db.delete(d)
+    if not user_can_delete_dossier(
+        db,
+        dossier=d,
+        user_id=user.id,
+        organization_id=org.id,
+        role=role,
+    ):
+        raise HTTPException(status_code=403, detail="No tienes permiso para eliminar este dossier.")
+    calendar_event_id = delete_dossier_record(db, d)
     db.flush()
-    suppress_calendar_event_if_no_dossiers_remain(db, calendar_event_id)
+    finalize_dossier_deletions(db, {calendar_event_id})
     db.commit()
     return Response(status_code=204)
 
 
 @router.get("/dossiers")
 def list_dossiers_for_org(
-    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    ctx: Annotated[OrgAuthContext, Depends(get_org_auth_context)],
     db: Session = Depends(get_db_if_configured),
     limit: int = Query(50, ge=1, le=100),
 ):
     """
-    Lista dossiers de la organización activa (`org_id` en el JWT).
+    Lista dossiers visibles para el usuario según su rol RBAC.
 
-    Requiere haber ejecutado el SQL de migración (tabla `dossiers` y dependencias).
+    - admin: todos los de la organización
+    - user: propios + compartidos
+    - viewer: solo compartidos
     """
-    _user, org = user_org
-    stmt = (
-        select(Dossier)
-        .where(Dossier.organization_id == org.id)
-        .order_by(Dossier.created_at.desc())
-        .limit(limit)
-    )
+    user, org, role = ctx.user, ctx.org, ctx.role
+    stmt = apply_dossier_visibility(
+        select(Dossier),
+        user_id=user.id,
+        organization_id=org.id,
+        role=role,
+    ).order_by(Dossier.created_at.desc()).limit(limit)
     rows = db.execute(stmt).scalars().all()
     return {
         "organization_id": str(org.id),

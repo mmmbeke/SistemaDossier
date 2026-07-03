@@ -71,6 +71,7 @@ function GuideContent({
         <ul className="list-disc space-y-1 pl-5">
           <li>{t("calendar.guide.field_company")}</li>
           <li>{t("calendar.guide.field_contact")}</li>
+          <li>{t("calendar.guide.field_contact_multi")}</li>
           <li>{t("calendar.guide.field_job")}</li>
           <li>{t("calendar.guide.field_email")}</li>
           <li>{t("calendar.guide.field_country")}</li>

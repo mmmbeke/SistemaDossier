@@ -25,9 +25,11 @@ from starlette.requests import Request
 
 from dossier.api.admin_routes import router as admin_router
 from dossier.api.auth_routes import (
+    OrgAuthContext,
     auth_payload_and_user,
     get_current_user_and_org,
     get_db_if_configured,
+    require_mutator,
     router as auth_router,
 )
 from dossier.api.integrations_routes import router as integrations_router
@@ -73,6 +75,7 @@ from dossier.services.graph_calendar import (
 from dossier.services.calendar_automation_worker import start_calendar_automation_thread
 from dossier.services.dossier_generation_job_service import enqueue_calendar_dossier_job
 from dossier.services.dossier_generation_worker import start_dossier_generation_worker
+from dossier.services.dossier_retention_worker import start_dossier_retention_worker
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
 from dossier.schemas.dossier_generation import DEPTH_CREDITS, DossierDepth
 
@@ -122,12 +125,15 @@ async def lifespan(app: FastAPI):
     (útil en desarrollo sin haber corrido aún toda la migración).
     """
     if is_database_configured():
+        engine = get_engine()
+        from dossier.db.schema_patches import apply_schema_patches
+
+        apply_schema_patches(engine)
         auto = os.getenv("DATABASE_AUTO_CREATE_TABLES", "1").strip().lower()
         if auto not in ("0", "false", "no"):
             from dossier.db import models  # noqa: F401 — registra modelos en metadata
             from dossier.db.base import Base
 
-            engine = get_engine()
             Base.metadata.create_all(bind=engine)
     warmup_corporate_dossier_redis()
     logger.info(
@@ -137,9 +143,11 @@ async def lifespan(app: FastAPI):
     )
     stop_automation = start_calendar_automation_thread()
     stop_generation = start_dossier_generation_worker()
+    stop_retention = start_dossier_retention_worker()
     try:
         yield
     finally:
+        stop_retention()
         stop_generation()
         stop_automation()
 
@@ -1038,7 +1046,7 @@ def _resolve_google_reuniones(
 @app.get("/calendario/generar-dossiers", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
 @app.get("/calendario/generar-dossiers-outlook", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
 def api_generar_dossiers_desde_calendario(
-    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     top: int = Query(5, ge=1, le=10, description="Máximo de reuniones a procesar con IA"),
     event_id: Optional[str] = Query(
         None, description="Si se indica, solo genera dossier para esa reunión"
@@ -1051,7 +1059,7 @@ def api_generar_dossiers_desde_calendario(
     db: Session = Depends(get_db_if_configured),
 ):
     """Empresa (asunto) → Companies House / SEC; persona (descripción) → Lusha."""
-    user, org = user_org
+    user, org = ctx.user, ctx.org
     org_ctx = format_dossier_context_for_prompt(org)
     token = _graph_token_for_calendar_route(db, authorization, access_token)
 
@@ -1086,7 +1094,7 @@ def api_generar_dossiers_desde_calendario(
 @app.post("/calendario/generar-dossiers", tags=["Calendario"])
 @app.post("/calendario/generar-dossiers-outlook", tags=["Calendario"])
 def api_generar_dossiers_desde_calendario_post(
-    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     body: CalendarGenerarDossiersBody,
     access_token: Optional[str] = Query(
         None,
@@ -1100,7 +1108,7 @@ def api_generar_dossiers_desde_calendario_post(
     y pueden corromperse en query string). Si el cliente envía ``reunion`` del listado,
     no se vuelve a pedir el evento a Graph.
     """
-    user, org = user_org
+    user, org = ctx.user, ctx.org
     org_ctx = format_dossier_context_for_prompt(org)
     token = _graph_token_for_calendar_route(db, authorization, access_token)
     top = body.top if body.top is not None else 5
@@ -1151,7 +1159,7 @@ def api_generar_dossiers_desde_calendario_post(
 
 @app.get("/calendario/generar-dossiers-google", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
 def api_generar_dossiers_desde_google_calendar(
-    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     top: int = Query(5, ge=1, le=10, description="Máximo de eventos a procesar con IA"),
     event_id: Optional[str] = Query(
         None, description="Si se indica, solo genera dossier para ese evento de Google Calendar"
@@ -1164,7 +1172,7 @@ def api_generar_dossiers_desde_google_calendar(
     db: Session = Depends(get_db_if_configured),
 ):
     """Empresa (asunto) → Companies House / SEC; persona (descripción) → Lusha."""
-    user, org = user_org
+    user, org = ctx.user, ctx.org
     org_ctx = format_dossier_context_for_prompt(org)
     token = _google_token_for_calendar_route(db, authorization, access_token)
 
@@ -1198,13 +1206,13 @@ def api_generar_dossiers_desde_google_calendar(
 
 @app.post("/calendario/generar-dossiers-google", tags=["Calendario"])
 def api_generar_dossiers_desde_google_calendar_post(
-    user_org: Annotated[tuple[User, Organization], Depends(get_current_user_and_org)],
+    ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     body: CalendarGenerarDossiersBody,
     access_token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db_if_configured),
 ):
-    user, org = user_org
+    user, org = ctx.user, ctx.org
     org_ctx = format_dossier_context_for_prompt(org)
     token = _google_token_for_calendar_route(db, authorization, access_token)
     top = body.top if body.top is not None else 5

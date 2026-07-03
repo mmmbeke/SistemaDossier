@@ -13,6 +13,7 @@ import {
   patchCalendarAutomationSettings,
 } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
+import MutatorGuard from "@/components/auth/MutatorGuard";
 import type { TranslationKey } from "@/i18n/types";
 
 const BEFORE_OPTIONS: { value: string; key: TranslationKey }[] = [
@@ -110,7 +111,8 @@ export default function AutomationPage() {
   const selectDisabled = saving || load === "loading" || !hasCalendars;
 
   return (
-    <>
+    <MutatorGuard>
+      <>
       <TopBar title={t("automation.title")} subtitle={t("automation.subtitle")} />
 
       {err ? (
@@ -231,5 +233,6 @@ export default function AutomationPage() {
         </DashboardCard>
       </div>
     </>
+    </MutatorGuard>
   );
 }

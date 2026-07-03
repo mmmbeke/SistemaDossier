@@ -8,15 +8,19 @@ import remarkGfm from "remark-gfm";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import DeleteDossierIconButton from "@/components/dossier/DeleteDossierIconButton";
+import ShareDossierPanel from "@/components/dossier/ShareDossierPanel";
 import {
   DossierApiError,
   deleteDossierFromApi,
   getStoredAccessToken,
   type DossierDetailResponse,
   type PersonResearchApiResponse,
-  type PersonResearchPayload,
 } from "@/lib/dossier-api";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import {
+  buildPersonResearchHref,
+  buildPersonResearchPayloadFromDossier,
+} from "@/lib/person-research-from-dossier";
 import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { useTranslation } from "@/providers/PreferencesProvider";
@@ -60,66 +64,17 @@ function parseDossierData(data: unknown): {
   };
 }
 
-function refineHrefForDossier(subject: string | null, pipeline: string | null): string {
+function refineHrefForDossier(
+  dossier: DossierDetailResponse,
+  pipeline: string | null,
+): string {
   if (pipeline === "person_research") {
-    return "/dashboard/person-research";
+    return buildPersonResearchHref(dossier);
   }
-  const q = (subject ?? "").trim();
+  const q = (dossier.subject_name ?? "").trim();
   const base = "/dashboard/corporate";
   if (!q) return base;
   return `${base}?q=${encodeURIComponent(q)}&pick=1`;
-}
-
-function buildPersonResearchPayloadFromDossier(
-  dossier: DossierDetailResponse,
-  outputLanguage: string,
-  forceRefresh: boolean,
-): PersonResearchPayload | null {
-  const dd = dossier.dossier_data;
-  if (!dd || typeof dd !== "object") return null;
-  const root = dd as Record<string, unknown>;
-  const pf = root.person_filters;
-  const filters =
-    pf && typeof pf === "object" ? (pf as Record<string, unknown>) : {};
-
-  const name = (
-    typeof filters.full_name === "string" ? filters.full_name : dossier.subject_name || ""
-  ).trim();
-  if (name.length < 2) return null;
-
-  const rs =
-    typeof filters.research_source === "string" ? filters.research_source.trim() : "pdl";
-  const payload: PersonResearchPayload = {
-    full_name: name,
-    research_source: rs === "gemini_web" ? "gemini_web" : "pdl",
-    max_profiles: 1,
-    output_language:
-      typeof root.output_language === "string" && root.output_language.trim()
-        ? root.output_language.trim()
-        : outputLanguage,
-  };
-
-  const email =
-    (typeof filters.email === "string" ? filters.email : dossier.subject_email || "").trim();
-  const company = typeof filters.company === "string" ? filters.company.trim() : "";
-  const jobArea = typeof filters.job_area === "string" ? filters.job_area.trim() : "";
-  const country = typeof filters.country === "string" ? filters.country.trim() : "";
-  const city = typeof filters.city === "string" ? filters.city.trim() : "";
-  const extra =
-    typeof filters.extra_keywords === "string" ? filters.extra_keywords.trim() : "";
-  const linkedin =
-    typeof filters.linkedin_url === "string" ? filters.linkedin_url.trim() : "";
-
-  if (email) payload.email = email;
-  if (company) payload.company = company;
-  if (jobArea) payload.job_area = jobArea;
-  if (country) payload.country = country;
-  if (city) payload.city = city;
-  if (extra) payload.extra_keywords = extra;
-  if (linkedin) payload.linkedin_url = linkedin;
-  if (forceRefresh) payload.force_refresh = true;
-
-  return payload;
 }
 
 export default function CorporateDossierDetailView({ dossier }: Props) {
@@ -134,6 +89,11 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
 
   const meta = useMemo(() => parseDossierData(dossier.dossier_data), [dossier.dossier_data]);
   const isPersonPipeline = meta.pipeline === "person_research";
+  const perms = dossier.permissions;
+  const canMutate = perms?.can_mutate ?? true;
+  const canDelete = perms?.can_delete ?? true;
+  const canShare = perms?.can_share ?? false;
+  const [shares, setShares] = useState(dossier.shares ?? []);
 
   const activeJob =
     jobs.find((j) => j.id === activeJobId) ?? (isPersonPipeline ? getActivePersonJob() : null);
@@ -150,10 +110,8 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
       setActiveJobId(null);
       setRegenerating(false);
       const saved = (job.result as PersonResearchApiResponse).saved_dossier?.id;
-      if (saved && saved !== dossier.id) {
+      if (saved) {
         router.push(`/dashboard/dossiers/${saved}`);
-      } else if (saved) {
-        router.refresh();
       }
     }
     if (job.status === "failed" || job.status === "cancelled") {
@@ -208,7 +166,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
     const payload = buildPersonResearchPayloadFromDossier(
       dossier,
       resolveDossierOutputLanguage(preferences),
-      true,
+      { forceRefresh: true, replaceDossierId: dossier.id },
     );
     if (!payload) {
       setRegenerateErr(t("person_research.error_name"));
@@ -333,17 +291,19 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
         </div>
 
         <div className="flex shrink-0 flex-col gap-2 lg:items-end">
-          <Link
-            href={refineHrefForDossier(dossier.subject_name, meta.pipeline)}
-            className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
-            style={{
-              backgroundImage:
-                "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
-            }}
-          >
-            {isPersonPipeline ? t("detail.person_refine_cta") : t("detail.refine_cta")}
-          </Link>
-          {isPersonPipeline ? (
+          {canMutate ? (
+            <Link
+              href={refineHrefForDossier(dossier, meta.pipeline)}
+              className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
+              style={{
+                backgroundImage:
+                  "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
+              }}
+            >
+              {isPersonPipeline ? t("detail.person_refine_cta") : t("detail.refine_cta")}
+            </Link>
+          ) : null}
+          {canMutate && isPersonPipeline ? (
             isRegenerating ? (
               <div
                 className="w-full max-w-xs rounded-lg border px-4 py-3 text-sm lg:text-right"
@@ -385,10 +345,12 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
               </>
             )
           ) : null}
-          <DeleteDossierIconButton
-            isDeleting={deleting}
-            onClick={() => void handleDelete()}
-          />
+          {canDelete ? (
+            <DeleteDossierIconButton
+              isDeleting={deleting}
+              onClick={() => void handleDelete()}
+            />
+          ) : null}
           {deleteErr && (
             <p className="max-w-xs text-right text-xs text-red-400" role="alert">
               {deleteErr}
@@ -401,6 +363,29 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
           )}
         </div>
       </header>
+
+      {canShare ? (
+        <div className="mb-8">
+          <ShareDossierPanel
+            dossierId={dossier.id}
+            initialShares={shares}
+            onSharesChange={setShares}
+          />
+        </div>
+      ) : null}
+
+      {!canMutate && perms ? (
+        <p
+          className="mb-6 rounded-lg border px-4 py-3 text-sm"
+          style={{
+            borderColor: "var(--border-default)",
+            color: "var(--text-muted)",
+            backgroundColor: "var(--bg-surface)",
+          }}
+        >
+          {t("dossiers.viewer_readonly_hint")}
+        </p>
+      ) : null}
 
       {isPersonPipeline && lushaDiagnostics ? (
         <div
@@ -504,7 +489,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
               </ul>
             )}
             <Link
-              href={refineHrefForDossier(dossier.subject_name, meta.pipeline)}
+              href={refineHrefForDossier(dossier, meta.pipeline)}
               className="inline-flex w-full items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90"
               style={{ borderColor: "var(--border-default)", color: "var(--accent-from)" }}
             >

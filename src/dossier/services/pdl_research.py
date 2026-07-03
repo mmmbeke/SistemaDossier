@@ -152,7 +152,7 @@ def fetch_pdl_profiles(
             warnings.append("PDL respondió 429 (límite de tasa). Espera y reintenta.")
         else:
             warnings.append(
-                "PDL no devolvió perfiles. Prueba email corporativo, LinkedIn o acrónimo de empresa."
+                "No se encontró perfil verificable. Prueba email corporativo, LinkedIn o acrónimo de empresa."
             )
 
     if req.reveal_contact_details:

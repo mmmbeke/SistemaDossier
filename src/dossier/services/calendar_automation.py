@@ -314,10 +314,10 @@ def _generation_skip_reason(result: dict[str, Any]) -> str:
         return "; ".join(str(e) for e in errors)[:500]
 
     parsed = result.get("parse") or {}
-    if not (parsed.get("company_corporate") or parsed.get("person_name")):
+    if not (parsed.get("company_corporate") or parsed.get("person_name") or parsed.get("persons")):
         return (
             "No se detect? empresa ni contacto. "
-            "Usa ?Empresa: ?? y ?Contacto: ?? en la descripci?n."
+            "Usa ?Empresa: ?? y ?Contacto: ?? / ?Contacto 1: ?? en la descripci?n."
         )
 
     for key, label in (
@@ -329,6 +329,12 @@ def _generation_skip_reason(result: dict[str, Any]) -> str:
             return f"Error al generar dossier {label}."
         if md.startswith("No se pudo generar ning?n dossier"):
             return "Formato del evento incompleto para generar dossiers."
+
+    for pentry in result.get("dossier_personas") or []:
+        md = (pentry.get("md") or "").lstrip()
+        if md.startswith("# Error"):
+            name = pentry.get("full_name") or "persona"
+            return f"Error al generar dossier de {name}."
 
     return "La generaci?n termin? pero no hubo informe v?lido para guardar."
 

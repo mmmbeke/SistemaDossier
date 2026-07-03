@@ -68,10 +68,13 @@ def serialize_job(job: DossierGenerationJob) -> dict[str, Any]:
 def estimate_reunion_credits(reunion: dict[str, Any], *, depth: DossierDepth = "standard") -> int:
     parsed = parse_calendar_event_for_dossiers(reunion)
     has_corporate = bool(parsed.get("company_corporate") or parsed.get("participantes"))
-    has_person = len((parsed.get("person_name") or "").strip()) >= 2
+    persons = parsed.get("persons") or []
+    person_count = len(persons)
+    if person_count == 0 and len((parsed.get("person_name") or "").strip()) >= 2:
+        person_count = 1
     return calendar_event_credit_estimate(
         has_corporate=has_corporate,
-        has_person=has_person,
+        person_count=person_count,
         depth=depth,
     )
 
@@ -263,9 +266,12 @@ def _credits_consumed_from_saved(
     corp = saved.get("corporate")
     if corp and corp.get("status") == "complete" and not r.get("corporate_cache_hit"):
         total += DEPTH_CREDITS[depth]
-    person = saved.get("person")
-    if person and person.get("status") == "complete" and not r.get("person_cache_hit"):
-        total += PERSON_IDENTITY_CREDITS
+    person_refs = saved.get("persons") or []
+    if not person_refs and saved.get("person"):
+        person_refs = [saved["person"]]
+    for pref in person_refs:
+        if pref and pref.get("status") == "complete" and not pref.get("cache_hit"):
+            total += PERSON_IDENTITY_CREDITS
     return total
 
 
@@ -273,15 +279,20 @@ def _calendar_job_failure_message(item: dict[str, Any]) -> str | None:
     """None si el job puede marcarse completed; mensaje si debe fallar."""
     saved = item.get("saved_dossiers") or {}
     corporate = saved.get("corporate")
+    person_refs = saved.get("persons") or []
     person = saved.get("person")
-    if not corporate and not person:
+    if not person_refs and person:
+        person_refs = [person]
+    if not corporate and not person_refs:
         errors = item.get("errors") or []
         if errors:
             return "; ".join(str(e) for e in errors)[:500]
         return "No se guardó ningún dossier para esta reunión."
 
     has_complete = any(
-        ref and ref.get("status") == "complete" for ref in (corporate, person) if ref
+        ref and ref.get("status") == "complete"
+        for ref in ([corporate] if corporate else []) + person_refs
+        if ref
     )
     if has_complete:
         return None
@@ -289,8 +300,12 @@ def _calendar_job_failure_message(item: dict[str, Any]) -> str | None:
     parts: list[str] = []
     if corporate and corporate.get("status") == "failed":
         parts.append("corporativo")
-    if person and person.get("status") == "failed":
-        parts.append("persona")
+    failed_persons = [p for p in person_refs if p and p.get("status") == "failed"]
+    if failed_persons:
+        if len(person_refs) > 1:
+            parts.append(f"persona ({len(failed_persons)} de {len(person_refs)})")
+        else:
+            parts.append("persona")
     if parts:
         return f"No se pudo generar el dossier {' ni '.join(parts)}."
     return "No se guardó ningún dossier válido para esta reunión."

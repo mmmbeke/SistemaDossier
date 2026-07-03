@@ -110,8 +110,8 @@ def run_person_research(
             gemini_google_search_used = True
             if not gemini_only and not profiles:
                 warnings.append(
-                    "Informe generado solo con DeepSeek y los datos del encargo — "
-                    "PDL no devolvió perfiles. Revisa empresa, email corporativo o LinkedIn."
+                    "No se encontró un perfil verificable en registros profesionales. "
+                    "El informe se generó con los datos del encargo; prueba añadir email, LinkedIn o cargo."
                 )
         except RuntimeError as e:
             warnings.append(str(e))

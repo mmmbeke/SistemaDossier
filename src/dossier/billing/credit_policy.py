@@ -22,11 +22,12 @@ def enterprise_unlimited(org: Organization) -> bool:
 def calendar_event_credit_estimate(
     *,
     has_corporate: bool,
-    has_person: bool,
+    has_person: bool = False,
+    person_count: int = 0,
     depth: DossierDepth = "standard",
     charge: bool | None = None,
 ) -> int:
-    """Créditos máximos si todo sale bien (corporativo + persona)."""
+    """Créditos máximos si todo sale bien (corporativo + persona(s))."""
     if charge is None:
         charge = credit_charging_enabled()
     if not charge:
@@ -34,6 +35,6 @@ def calendar_event_credit_estimate(
     total = 0
     if has_corporate:
         total += DEPTH_CREDITS[depth]
-    if has_person:
-        total += PERSON_IDENTITY_CREDITS
+    pc = person_count if person_count > 0 else (1 if has_person else 0)
+    total += pc * PERSON_IDENTITY_CREDITS
     return total
