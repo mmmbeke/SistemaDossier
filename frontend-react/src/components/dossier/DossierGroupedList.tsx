@@ -15,7 +15,8 @@ function renderEntry(
   entry: DossierListEntry,
   typeFilter: TypeFilterValue,
   deletingId: string | null,
-  onDeleteDossier: (row: DossierListItem) => void
+  onDeleteDossier: (row: DossierListItem) => void,
+  showDelete: boolean,
 ) {
   if (isDossierFolderEntry(entry)) {
     return (
@@ -25,6 +26,7 @@ function renderEntry(
         typeFilter={typeFilter}
         deletingId={deletingId}
         onDeleteDossier={onDeleteDossier}
+        showDelete={showDelete}
       />
     );
   }
@@ -34,6 +36,7 @@ function renderEntry(
       dossier={entry}
       deletingId={deletingId}
       onDelete={() => onDeleteDossier(entry)}
+      showDelete={showDelete}
     />
   );
 }
@@ -46,6 +49,7 @@ type SectionProps = {
   deletingId: string | null;
   onDeleteDossier: (row: DossierListItem) => void;
   gridClass?: string;
+  showDelete?: boolean;
 };
 
 function DossierListSection({
@@ -56,6 +60,7 @@ function DossierListSection({
   deletingId,
   onDeleteDossier,
   gridClass = MEETING_GRID_CLASS,
+  showDelete = true,
 }: SectionProps) {
   const { t } = useTranslation();
   if (entries.length === 0) return null;
@@ -77,7 +82,9 @@ function DossierListSection({
       </div>
 
       <div className={gridClass}>
-        {entries.map((entry) => renderEntry(entry, typeFilter, deletingId, onDeleteDossier))}
+        {entries.map((entry) =>
+          renderEntry(entry, typeFilter, deletingId, onDeleteDossier, showDelete)
+        )}
       </div>
     </section>
   );
@@ -91,23 +98,29 @@ type Props = {
   };
   flatEntries: DossierListEntry[];
   filter: FilterValue;
+  viewMode?: "meeting_folders" | "standalone";
   typeFilter: TypeFilterValue;
   deletingId: string | null;
   onDeleteDossier: (row: DossierListItem) => void;
+  showDelete?: boolean;
 };
 
 export default function DossierGroupedList({
   groups,
   flatEntries,
   filter,
+  viewMode = "meeting_folders",
   typeFilter,
   deletingId,
   onDeleteDossier,
+  showDelete = true,
 }: Props) {
-  if (filter !== "all") {
+  if (filter !== "all" || viewMode === "standalone") {
     return (
-      <div className={MEETING_GRID_CLASS}>
-        {flatEntries.map((entry) => renderEntry(entry, typeFilter, deletingId, onDeleteDossier))}
+      <div className={viewMode === "standalone" ? OTHER_GRID_CLASS : MEETING_GRID_CLASS}>
+        {flatEntries.map((entry) =>
+          renderEntry(entry, typeFilter, deletingId, onDeleteDossier, showDelete)
+        )}
       </div>
     );
   }
@@ -121,6 +134,7 @@ export default function DossierGroupedList({
         typeFilter={typeFilter}
         deletingId={deletingId}
         onDeleteDossier={onDeleteDossier}
+        showDelete={showDelete}
       />
       <DossierListSection
         titleKey="dossiers.section_past"
@@ -129,6 +143,7 @@ export default function DossierGroupedList({
         typeFilter={typeFilter}
         deletingId={deletingId}
         onDeleteDossier={onDeleteDossier}
+        showDelete={showDelete}
       />
       <DossierListSection
         titleKey="dossiers.section_other"
@@ -138,6 +153,7 @@ export default function DossierGroupedList({
         deletingId={deletingId}
         onDeleteDossier={onDeleteDossier}
         gridClass={OTHER_GRID_CLASS}
+        showDelete={showDelete}
       />
     </div>
   );

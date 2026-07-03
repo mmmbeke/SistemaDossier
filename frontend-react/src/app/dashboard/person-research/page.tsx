@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import TopBar from "@/components/dashboard/TopBar";
@@ -16,6 +16,8 @@ import {
   type PersonResearchPayload,
 } from "@/lib/dossier-api";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import { parsePersonResearchSearchParams } from "@/lib/person-research-from-dossier";
+import MutatorGuard from "@/components/auth/MutatorGuard";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 import ReactMarkdown from "react-markdown";
@@ -41,6 +43,7 @@ function estimatePersonResearchEta(source: ResearchSourceUi, maxProfiles: number
 export default function PersonResearchPage() {
   const { t } = useTranslation();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { preferences } = usePreferences();
   const { enqueuePersonResearchJob, cancelJob, getActivePersonJob, jobs } = useDossierJobs();
   const [researchSource, setResearchSource] = useState<ResearchSourceUi>("pdl");
@@ -53,6 +56,7 @@ export default function PersonResearchPage() {
   const [city, setCity] = useState("");
   const [extraKeywords, setExtraKeywords] = useState("");
   const [maxProfiles, setMaxProfiles] = useState(1);
+  const [replaceDossierId, setReplaceDossierId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<PersonResearchApiResponse | null>(null);
@@ -60,6 +64,7 @@ export default function PersonResearchPage() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [me, setMe] = useState<AuthUser | null>(null);
   const redirectAfterSaveRef = useRef<string | null>(null);
+  const prefillAppliedRef = useRef(false);
   const usesEnrichment = researchSource === "pdl";
 
   const summaryScopeKey =
@@ -85,6 +90,23 @@ export default function PersonResearchPage() {
   }, []);
 
   useEffect(() => {
+    if (prefillAppliedRef.current) return;
+    const prefill = parsePersonResearchSearchParams(searchParams);
+    if (!prefill.replaceDossierId && !prefill.fullName) return;
+    prefillAppliedRef.current = true;
+    if (prefill.replaceDossierId) setReplaceDossierId(prefill.replaceDossierId);
+    if (prefill.fullName) setFullName(prefill.fullName);
+    if (prefill.jobArea) setJobArea(prefill.jobArea);
+    if (prefill.company) setCompany(prefill.company);
+    if (prefill.email) setEmail(prefill.email);
+    if (prefill.linkedinUrl) setLinkedinUrl(prefill.linkedinUrl);
+    if (prefill.country) setCountry(prefill.country);
+    if (prefill.city) setCity(prefill.city);
+    if (prefill.extraKeywords) setExtraKeywords(prefill.extraKeywords);
+    if (prefill.researchSource) setResearchSource(prefill.researchSource);
+  }, [searchParams]);
+
+  useEffect(() => {
     if (!activeJobId) return;
     const job = jobs.find((j) => j.id === activeJobId);
     if (!job) return;
@@ -93,9 +115,10 @@ export default function PersonResearchPage() {
       setResult(personResult);
       setActiveJobId(null);
       const dossierId = personResult.saved_dossier?.id;
-      if (dossierId && redirectAfterSaveRef.current !== dossierId) {
-        redirectAfterSaveRef.current = dossierId;
-        router.push(`/dashboard/dossiers/${dossierId}`);
+      const targetId = replaceDossierId || dossierId;
+      if (targetId && redirectAfterSaveRef.current !== targetId) {
+        redirectAfterSaveRef.current = targetId;
+        router.push(`/dashboard/dossiers/${targetId}`);
       }
     }
     if (job.status === "failed" || job.status === "cancelled") {
@@ -104,7 +127,7 @@ export default function PersonResearchPage() {
         setError(job.error_message);
       }
     }
-  }, [jobs, activeJobId, router]);
+  }, [jobs, activeJobId, router, replaceDossierId]);
 
   function buildPayload(name: string, forceRefresh = false): PersonResearchPayload {
     const payload: PersonResearchPayload = {
@@ -128,6 +151,7 @@ export default function PersonResearchPage() {
     if (ci) payload.city = ci;
     if (ex) payload.extra_keywords = ex;
     if (forceRefresh) payload.force_refresh = true;
+    if (replaceDossierId) payload.replace_dossier_id = replaceDossierId;
     return payload;
   }
 
@@ -188,6 +212,7 @@ export default function PersonResearchPage() {
   }
 
   return (
+    <MutatorGuard>
     <>
       <nav className="mb-6">
         <Link
@@ -208,6 +233,18 @@ export default function PersonResearchPage() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-5">
           <div className="lg:col-span-3">
         <DashboardCard title={t("person_research.section_filters")}>
+          {replaceDossierId ? (
+            <p
+              className="mb-4 rounded-lg border px-3 py-2 text-xs leading-relaxed"
+              style={{
+                borderColor: "var(--alert-info-border)",
+                backgroundColor: "var(--alert-info-bg)",
+                color: "var(--alert-info-text)",
+              }}
+            >
+              {t("person_research.replace_hint")}
+            </p>
+          ) : null}
           <form className="flex flex-col gap-4" onSubmit={(e) => void handleSubmit(e)}>
             <div>
               <p className="mb-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
@@ -561,5 +598,6 @@ export default function PersonResearchPage() {
         </div>
       </div>
     </>
+    </MutatorGuard>
   );
 }

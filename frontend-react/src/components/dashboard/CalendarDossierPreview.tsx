@@ -4,12 +4,19 @@ import Link from "next/link";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { CalendarSavedDossierRef } from "@/lib/dossier-api";
 
+type CalendarPersonPreview = {
+  name: string;
+  body: string | null;
+  saved?: CalendarSavedDossierRef;
+};
+
 type CalendarDossierPreviewProps = {
   eventKey: string;
   activeEventKey: string;
   tema: string;
   corporate?: string | null;
   person?: string | null;
+  persons?: CalendarPersonPreview[];
   lushaWarnings?: string[];
   savedCorporate?: CalendarSavedDossierRef;
   savedPerson?: CalendarSavedDossierRef;
@@ -80,6 +87,7 @@ export default function CalendarDossierPreview({
   tema,
   corporate,
   person,
+  persons,
   lushaWarnings,
   savedCorporate,
   savedPerson,
@@ -89,7 +97,15 @@ export default function CalendarDossierPreview({
   const { t } = useTranslation();
   if (activeEventKey !== eventKey) return null;
 
-  const hasSaved = savedCorporate?.id || savedPerson?.id;
+  const personBlocks: CalendarPersonPreview[] =
+    persons && persons.length > 0
+      ? persons
+      : person?.trim()
+        ? [{ name: t("overview.calendar_dossier_person"), body: person, saved: savedPerson }]
+        : [];
+
+  const hasSaved =
+    savedCorporate?.id || savedPerson?.id || personBlocks.some((p) => p.saved?.id);
 
   return (
     <div className="mt-3 space-y-1">
@@ -148,13 +164,26 @@ export default function CalendarDossierPreview({
         saved={savedCorporate}
         viewLabel={t("overview.calendar_dossier_view_saved")}
       />
-      <DossierBlock
-        label={t("overview.calendar_dossier_person")}
-        body={person}
-        emptyLabel={t("overview.calendar_dossier_person_empty")}
-        saved={savedPerson}
-        viewLabel={t("overview.calendar_dossier_view_saved")}
-      />
+      {personBlocks.length > 0 ? (
+        personBlocks.map((p, i) => (
+          <DossierBlock
+            key={`${p.name}-${i}`}
+            label={p.name}
+            body={p.body}
+            emptyLabel={t("overview.calendar_dossier_person_empty")}
+            saved={p.saved}
+            viewLabel={t("overview.calendar_dossier_view_saved")}
+          />
+        ))
+      ) : (
+        <DossierBlock
+          label={t("overview.calendar_dossier_person")}
+          body={null}
+          emptyLabel={t("overview.calendar_dossier_person_empty")}
+          saved={savedPerson}
+          viewLabel={t("overview.calendar_dossier_view_saved")}
+        />
+      )}
     </div>
   );
 }

@@ -112,7 +112,14 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     const serverLocale = (me.locale || "es").trim();
     const serverOut = (me.dossier_output_language || "match").trim();
     const serverTimezone = (me.timezone || "UTC").trim();
-    const serverIsDefault = serverLocale === "es" && serverOut === "match";
+    const serverExpiry =
+      me.dossier_retention_days === null || me.dossier_retention_days === undefined
+        ? "never"
+        : String(me.dossier_retention_days);
+    const serverIsDefault =
+      serverLocale === "es" &&
+      serverOut === "match" &&
+      (serverExpiry === "30" || serverExpiry === "never");
 
     setPreferences((prev) => {
       const localDiffersFromServerDefaults =
@@ -126,6 +133,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         locale: serverLocale,
         timezone: serverTimezone,
         dossier_output_language: serverOut,
+        dossier_retention_days:
+          serverExpiry === "never" ? null : Number(serverExpiry),
       });
       return next;
     });
@@ -156,6 +165,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     preferences.locale,
     preferences.timezone,
     preferences.outputLanguage,
+    preferences.dossierExpiry,
     ready,
   ]);
 

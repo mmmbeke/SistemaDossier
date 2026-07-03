@@ -19,7 +19,43 @@ def normalize_person_report_text(text: str | None) -> str | None:
     t = text.strip()
     if t in EMPTY_PERSON_REPORT_MARKERS:
         return None
-    return t
+    return sanitize_client_person_report(t)
+
+
+def sanitize_client_person_report(text: str) -> str:
+    """Quita jerga interna (Lusha, JSON, API, pipeline) del informe mostrado al cliente."""
+    t = text.strip()
+    if not t:
+        return t
+
+    # Eliminar preámbulos donde el modelo «se excusa» en lugar de entregar el dossier.
+    refusal = re.search(
+        r"(?is)(?:no se pudo elaborar|no se pudo completar|could not complete|"
+        r"cannot complete|sin un json|without a json|api lusha|json\s*[`\"']?perfiles)"
+        r".{0,1200}?(?=###\s*1\.|##\s*1\.|#\s*DOSSIER|\Z)",
+        t,
+    )
+    if refusal and refusal.start() < 400:
+        trimmed = t[refusal.end() :].lstrip()
+        if trimmed:
+            t = trimmed
+
+    replacements: tuple[tuple[str, str], ...] = (
+        (r"(?i)\bAPI Lusha\b", "fuentes de datos verificadas"),
+        (r"(?i)\bLusha API\b", "fuentes de datos verificadas"),
+        (r"(?i)\bLusha\b", "fuentes de enriquecimiento"),
+        (r"(?i)\bPeople Data Labs\b", "registros profesionales"),
+        (r"(?i)\bPDL\b", "registros profesionales"),
+        (r"(?i)JSON\s*[`\"']?perfiles[`\"']?", "datos de perfil verificados"),
+        (r"(?i)\bJSON\b", "datos estructurados"),
+        (r"(?i)\bpipeline\b", "proceso de investigación"),
+        (r"(?i)\bDeepSeek\b", "análisis con IA"),
+        (r"(?i)\bGemini\b", "análisis con IA"),
+    )
+    for pattern, repl in replacements:
+        t = re.sub(pattern, repl, t)
+
+    return t.strip()
 
 
 def is_rate_limit_error(exc: BaseException) -> bool:

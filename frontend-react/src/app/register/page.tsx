@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import AuthShell from "@/components/AuthShell";
 import FormField from "@/components/FormField";
@@ -9,8 +9,10 @@ import PrimaryButton from "@/components/PrimaryButton";
 import {
   authRegister,
   DossierApiError,
+  fetchOrgInvitePreview,
   persistAuthToken,
   writeDossierUserPreview,
+  type OrgInvitePreview,
 } from "@/lib/dossier-api";
 import { useTranslation, usePreferences } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
@@ -96,6 +98,8 @@ function modeButtonClass(active: boolean): string {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get("invite")?.trim() || "";
   const { t, locale: uiLocale } = useTranslation();
   const { preferences } = usePreferences();
   const [accountKind, setAccountKind] = useState<AccountKind>("work");
@@ -113,9 +117,44 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   /** Mensaje de error de la API (email duplicado, BD no lista, red, etc.). */
   const [formError, setFormError] = useState<string | null>(null);
+  const [invitePreview, setInvitePreview] = useState<OrgInvitePreview | null>(null);
+  const [inviteLoading, setInviteLoading] = useState(Boolean(inviteToken));
   const draftHydratedRef = useRef(false);
 
+  const isInviteFlow = Boolean(inviteToken && invitePreview?.valid);
+
   const fullName = buildFullName(firstName, lastName);
+
+  useEffect(() => {
+    if (!inviteToken) {
+      setInviteLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setInviteLoading(true);
+    void fetchOrgInvitePreview(inviteToken)
+      .then((preview) => {
+        if (cancelled) return;
+        setInvitePreview(preview);
+        if (preview.valid) {
+          setAccountKind("work");
+          setEmail(preview.email);
+        }
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setInvitePreview(null);
+        setFormError(
+          e instanceof DossierApiError ? e.message : t("settings.members.invite_invalid")
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setInviteLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteToken, t]);
 
   useEffect(() => {
     setTimezone(preferences.timezone || "UTC");
@@ -192,10 +231,10 @@ export default function RegisterPage() {
     const next: Errors = {};
     if (!firstName.trim()) next.firstName = t("auth.error.first_name_required");
     if (!lastName.trim()) next.lastName = t("auth.error.last_name_required");
-    if (accountKind === "work" && !company.trim()) {
+    if (!isInviteFlow && accountKind === "work" && !company.trim()) {
       next.company = t("auth.error.company_required");
     }
-    if (accountKind === "work") {
+    if (!isInviteFlow && accountKind === "work") {
       const manual = orgSlug.trim().toLowerCase();
       if (manual && (!SLUG_PATTERN.test(manual) || manual.length < 2)) {
         next.orgSlug = t("auth.error.slug_invalid");
@@ -219,7 +258,7 @@ export default function RegisterPage() {
     if (!accepted) next.terms = t("auth.error.terms_required");
 
     const derived = resolvedOrganizationSlug();
-    if (!derived || !SLUG_PATTERN.test(derived) || derived.length < 2) {
+    if (!isInviteFlow && (!derived || !SLUG_PATTERN.test(derived) || derived.length < 2)) {
       if (accountKind === "work" && !next.orgSlug) {
         next.company = t("auth.error.slug_unreadable");
       }
@@ -270,8 +309,12 @@ export default function RegisterPage() {
         email: email.trim().toLowerCase(),
         password,
         full_name: fullName,
-        workspace_kind: accountKind,
-        ...(accountKind === "work" ? { company_name: company.trim() } : {}),
+        workspace_kind: isInviteFlow ? "work" : accountKind,
+        ...(isInviteFlow
+          ? { invite_token: inviteToken }
+          : accountKind === "work"
+            ? { company_name: company.trim() }
+            : {}),
       });
       // Tras crear cuenta dejamos sesión iniciada (misma UX que "recuérdame" en login).
       persistAuthToken(data.access_token, true);
@@ -337,6 +380,34 @@ export default function RegisterPage() {
             {formError}
           </div>
         ) : null}
+        {inviteLoading ? (
+          <p className="text-sm" style={{ color: textSubtle }}>
+            {t("settings.members.invite_loading")}
+          </p>
+        ) : null}
+        {isInviteFlow && invitePreview ? (
+          <div
+            className="rounded-lg border px-3 py-3 text-sm"
+            style={{
+              borderColor: borderDefault,
+              backgroundColor: "var(--bg-surface)",
+              color: textSecondary,
+            }}
+          >
+            <p className="font-medium" style={{ color: textPrimary }}>
+              {t("settings.members.register_invite_title", {
+                org: invitePreview.organization_name,
+              })}
+            </p>
+            <p className="mt-1 text-xs" style={{ color: textSubtle }}>
+              {t("settings.members.register_invite_hint", {
+                domain: invitePreview.email_domain,
+                role: invitePreview.role,
+              })}
+            </p>
+          </div>
+        ) : null}
+        {!isInviteFlow ? (
         <div className="flex flex-col gap-1.5">
           <span
             className="text-xs font-medium uppercase tracking-wide"
@@ -381,6 +452,7 @@ export default function RegisterPage() {
             {t("auth.register.mode_caption")}
           </p>
         </div>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField
@@ -403,7 +475,7 @@ export default function RegisterPage() {
           />
         </div>
 
-        {accountKind === "work" ? (
+        {accountKind === "work" && !isInviteFlow ? (
           <>
             <FormField
               label={t("auth.register.company")}
@@ -449,6 +521,7 @@ export default function RegisterPage() {
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          readOnly={isInviteFlow}
           error={errors.email}
         />
 

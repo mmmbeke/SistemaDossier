@@ -51,6 +51,26 @@ def _normalize_linkedin(url: str) -> str:
     return u
 
 
+def _last_name_spelling_variants(last: str) -> list[str]:
+    """Variantes ortográficas frecuentes (p. ej. Jeria / Jerias)."""
+    l = last.strip()
+    if len(l) < 3:
+        return [l] if l else []
+    variants = [l]
+    if l.endswith("s") and len(l) > 4:
+        variants.append(l[:-1])
+    elif not l.endswith("s"):
+        variants.append(f"{l}s")
+    out: list[str] = []
+    seen: set[str] = set()
+    for v in variants:
+        key = v.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(v)
+    return out
+
+
 def build_pdl_enrich_strategies(req: PersonResearchRequest) -> list[tuple[str, dict[str, Any]]]:
     """Parámetros para GET /v5/person/enrich (una estrategia por intento)."""
     strategies: list[tuple[str, dict[str, Any]]] = []
@@ -82,23 +102,36 @@ def build_pdl_enrich_strategies(req: PersonResearchRequest) -> list[tuple[str, d
     )
 
     if first and last:
-        for comp in companies:
-            add(f"nombre + company ({comp[:40]})", {
-                "first_name": first,
-                "last_name": last,
-                "company": comp,
-            })
-        if location:
-            add("nombre + location", {
-                "first_name": first,
-                "last_name": last,
-                "location": location,
-            })
-        if req.country and not location:
-            add("nombre + country", {
-                "first_name": first,
-                "last_name": last,
-                "country": req.country.strip(),
+        last_variants = _last_name_spelling_variants(last)
+        for last_v in last_variants:
+            for comp in companies:
+                suffix = f" ({last_v})" if last_v != last else ""
+                add(f"nombre + company ({comp[:40]}){suffix}", {
+                    "first_name": first,
+                    "last_name": last_v,
+                    "company": comp,
+                })
+            if location:
+                add(f"nombre + location{suffix if last_v != last else ''}", {
+                    "first_name": first,
+                    "last_name": last_v,
+                    "location": location,
+                })
+            if req.country and not location:
+                add(f"nombre + country{suffix if last_v != last else ''}", {
+                    "first_name": first,
+                    "last_name": last_v,
+                    "country": req.country.strip(),
+                })
+        parts = name.split()
+        if len(parts) >= 3:
+            add("nombre compuesto + company", {
+                "first_name": parts[0],
+                "last_name": " ".join(parts[1:]),
+                "company": companies[0],
+            } if companies else {
+                "first_name": parts[0],
+                "last_name": " ".join(parts[1:]),
             })
     elif single and companies:
         add("name + company", {"name": single, "company": companies[0]})

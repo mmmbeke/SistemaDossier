@@ -21,6 +21,7 @@ import {
 } from "@/lib/dossier-api";
 import { getCalendarMeetingLabel } from "@/lib/calendar-dossier-meta";
 import { countListEntries } from "@/lib/dossier-list-utils";
+import { canMutateDossiers } from "@/lib/org-role";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 
@@ -247,6 +248,18 @@ export default function OverviewPage() {
   const titleName = welcomeName || t("overview.anonymous");
   const creditsBalance = me?.credits_balance;
   const monthlyLimit = me?.credits_monthly_limit;
+  const visibleQuickActions = useMemo(
+    () =>
+      canMutateDossiers(me?.role)
+        ? quickActions
+        : quickActions.filter(
+            (a) =>
+              a.href !== "/dashboard/person-research" &&
+              a.href !== "/dashboard/corporate" &&
+              a.href !== "/dashboard/automation"
+          ),
+    [me?.role]
+  );
   const creditsTrend =
     dashLoad === "ready" && me && typeof monthlyLimit === "number" && monthlyLimit > 0
       ? t("stat.credits_monthly_hint", { limit: monthlyLimit })
@@ -323,23 +336,27 @@ export default function OverviewPage() {
         />
       </section>
 
-      <section className="mb-8">
-        <DashboardCard
-          title={t("overview.microsoft_title")}
-          action={<CalendarFormatGuideAction provider="microsoft" />}
-        >
-          <MicrosoftOutlookPanel />
-        </DashboardCard>
-      </section>
+      {canMutateDossiers(me?.role) ? (
+        <>
+          <section className="mb-8">
+            <DashboardCard
+              title={t("overview.microsoft_title")}
+              action={<CalendarFormatGuideAction provider="microsoft" />}
+            >
+              <MicrosoftOutlookPanel />
+            </DashboardCard>
+          </section>
 
-      <section className="mb-8">
-        <DashboardCard
-          title={t("overview.google_title")}
-          action={<CalendarFormatGuideAction provider="google" />}
-        >
-          <GoogleCalendarPanel />
-        </DashboardCard>
-      </section>
+          <section className="mb-8">
+            <DashboardCard
+              title={t("overview.google_title")}
+              action={<CalendarFormatGuideAction provider="google" />}
+            >
+              <GoogleCalendarPanel />
+            </DashboardCard>
+          </section>
+        </>
+      ) : null}
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <DashboardCard title={t("activity.title")}>
@@ -399,7 +416,7 @@ export default function OverviewPage() {
 
         <DashboardCard title={t("quick.title")}>
           <ul className="flex flex-col gap-2">
-            {quickActions.map((action) => (
+            {visibleQuickActions.map((action) => (
               <li key={action.labelKey}>
                 <Link
                   href={action.href}

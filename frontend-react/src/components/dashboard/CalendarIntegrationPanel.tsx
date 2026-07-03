@@ -17,6 +17,7 @@ import {
 } from "@/lib/dossier-api";
 import CalendarDossierPreview from "@/components/dashboard/CalendarDossierPreview";
 import CalendarMeetingFormatGuide from "@/components/dashboard/CalendarMeetingFormatGuide";
+import { descriptionHasPersonHint } from "@/lib/calendar-meeting-format";
 import UiAlert from "@/components/ui/UiAlert";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { useTranslation } from "@/providers/PreferencesProvider";
@@ -109,10 +110,6 @@ function meetingDescriptionText(descripcion: string | undefined): string {
   return (descripcion || "").trim();
 }
 
-function descriptionHasPersonHint(descripcion: string): boolean {
-  return /(?:contacto|nombre|name)\s*:/i.test(descripcion);
-}
-
 function formatMeetingWhen(inicio: string, fin: string, bcp47: string): string {
   const si = Date.parse(inicio);
   if (Number.isNaN(si)) return (inicio || "—").slice(0, 40);
@@ -154,6 +151,7 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
     tema: string;
     corporate: string | null;
     person: string | null;
+    persons?: Array<{ name: string; body: string | null; saved?: CalendarSavedDossierRef }>;
     savedCorporate?: CalendarSavedDossierRef;
     savedPerson?: CalendarSavedDossierRef;
   savedFolder?: { id: string; title: string };
@@ -246,18 +244,30 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
       const first = job.result as CalendarGenerarDossierItem;
       const corporate = first.dossier_corporativo ?? null;
       const person = first.dossier_persona ?? null;
+      const dossierPersonas = first.dossier_personas ?? [];
+      const savedPersons = first.saved_dossiers?.persons ?? [];
+      const persons =
+        dossierPersonas.length > 0
+          ? dossierPersonas.map((p, i) => ({
+              name: p.full_name?.trim() || `Contacto ${p.index ?? i + 1}`,
+              body: p.md ?? null,
+              saved: savedPersons[i],
+            }))
+          : undefined;
       const research = first.dossier_persona_research as
         | { warnings?: string[] }
         | undefined;
       const lushaWarnings = Array.isArray(research?.warnings)
         ? research!.warnings!.filter((w): w is string => typeof w === "string" && w.trim().length > 0)
         : undefined;
-      if (!corporate?.trim() && !person?.trim() && !first.dossier_generado?.trim()) continue;
+      const hasPersonPreview = Boolean(person?.trim()) || (persons?.some((p) => p.body?.trim()) ?? false);
+      if (!corporate?.trim() && !hasPersonPreview && !first.dossier_generado?.trim()) continue;
       setPreview({
         eventKey: id,
         tema: first.reunion?.tema || r.tema || "—",
         corporate,
         person,
+        persons,
         lushaWarnings,
         savedCorporate: first.saved_dossiers?.corporate,
         savedPerson: first.saved_dossiers?.person,
@@ -481,6 +491,7 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
                   tema={preview.tema}
                   corporate={preview.corporate}
                   person={preview.person}
+                  persons={preview.persons}
                   lushaWarnings={preview.lushaWarnings}
                   savedCorporate={preview.savedCorporate}
                   savedPerson={preview.savedPerson}

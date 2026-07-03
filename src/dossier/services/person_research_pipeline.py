@@ -37,6 +37,20 @@ from dossier.services.person_research_service import run_person_research
 logger = logging.getLogger(__name__)
 
 
+def _preserve_calendar_dossier_metadata(
+    existing_data: dict[str, Any] | None,
+    new_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Mantiene vínculo con carpeta de reunión al regenerar un dossier persona."""
+    if not isinstance(existing_data, dict):
+        return new_data
+    for key in ("calendar", "calendar_folder", "calendar_folder_role"):
+        val = existing_data.get(key)
+        if val is not None:
+            new_data[key] = val
+    return new_data
+
+
 def run_person_research_and_persist(
     db: Session,
     *,
@@ -135,12 +149,35 @@ def run_person_research_and_persist(
     cache_row_key = person_cache_redis_key(fp) if cache_hit else None
     cache_expires = cached_until_from_now() if cache_hit else None
 
+    existing: Dossier | None = None
+    if body.replace_dossier_id is not None:
+        existing = db.get(Dossier, body.replace_dossier_id)
+        if existing is None or existing.organization_id != org.id:
+            raise ValueError("El dossier a actualizar no existe o no pertenece a tu organización.")
+
+    lusha_diag = None
+    person_research_source = "pdl"
+    fa = result.get("filters_applied")
+    if isinstance(fa, dict) and fa.get("research_source"):
+        person_research_source = str(fa["research_source"])
+    lusha_diag = {
+        "profiles_count": len(result.get("profiles") or []),
+        "profile_urls": result.get("profile_urls") or [],
+        "warnings": result.get("warnings") or [],
+        "gemini_google_search_used": result.get("gemini_google_search_used"),
+        "filters_applied": result.get("filters_applied"),
+    }
+
     if md:
         is_err = md.lstrip().startswith("# Error")
         status = "failed" if is_err else "complete"
-        will_charge = charge and person_cost > 0 and not is_err and not cache_hit
-        dossier_id = uuid.uuid4()
-
+        will_charge = (
+            charge
+            and person_cost > 0
+            and not is_err
+            and not cache_hit
+            and existing is None
+        )
         dossier_data_body: dict[str, Any] = {
             "format": "markdown",
             "body": md,
@@ -160,40 +197,65 @@ def run_person_research_and_persist(
                 "country": body.country,
                 "city": body.city,
                 "extra_keywords": body.extra_keywords,
+                "email": body.email,
+                "linkedin_url": body.linkedin_url,
                 "research_source": body.research_source.value,
             },
+            "lusha_diagnostics": lusha_diag,
             "output_language": out_lang,
         }
+        if existing is not None:
+            prev = existing.dossier_data if isinstance(existing.dossier_data, dict) else {}
+            dossier_data_body = _preserve_calendar_dossier_metadata(prev, dossier_data_body)
+            contact_index = (prev.get("person_filters") or {}).get("contact_index")
+            if contact_index is not None and isinstance(dossier_data_body.get("person_filters"), dict):
+                dossier_data_body["person_filters"]["contact_index"] = contact_index
 
-        dossier = Dossier(
-            id=dossier_id,
-            organization_id=org.id,
-            requested_by_user_id=user.id,
-            contact_id=None,
-            subject_name=body.full_name.strip()[:255],
-            subject_email=(body.email or "")[:255] or None,
-            module_identity=True,
-            module_corporate=False,
-            module_media=False,
-            depth_level="basic",
-            credits_consumed=person_cost if will_charge else 0,
-            status=status,
-            status_message="Error en el informe generado." if is_err else None,
-            dossier_data=dossier_data_body,
-            agents_activated=[],
-            agents_failed=(["deepseek_person_analysis"] if is_err else []),
-            data_sources_used=[],
-            generation_started_at=now,
-            generation_completed_at=now,
-            generation_duration_ms=elapsed_ms,
-            cache_key=cache_row_key,
-            cached_until=cache_expires,
-            trigger_source="manual",
-        )
-        db.add(dossier)
-        db.commit()
-        db.refresh(dossier)
-        db.refresh(org)
+            existing.subject_name = body.full_name.strip()[:255]
+            existing.subject_email = (body.email or "")[:255] or None
+            existing.status = status
+            existing.status_message = "Error en el informe generado." if is_err else None
+            existing.dossier_data = dossier_data_body
+            existing.agents_failed = (["deepseek_person_analysis"] if is_err else [])
+            existing.generation_started_at = now
+            existing.generation_completed_at = now
+            existing.generation_duration_ms = elapsed_ms
+            existing.cache_key = cache_row_key
+            existing.cached_until = cache_expires
+            db.commit()
+            db.refresh(existing)
+            dossier = existing
+        else:
+            dossier_id = uuid.uuid4()
+            dossier = Dossier(
+                id=dossier_id,
+                organization_id=org.id,
+                requested_by_user_id=user.id,
+                contact_id=None,
+                subject_name=body.full_name.strip()[:255],
+                subject_email=(body.email or "")[:255] or None,
+                module_identity=True,
+                module_corporate=False,
+                module_media=False,
+                depth_level="standard",
+                credits_consumed=person_cost if will_charge else 0,
+                status=status,
+                status_message="Error en el informe generado." if is_err else None,
+                dossier_data=dossier_data_body,
+                agents_activated=[],
+                agents_failed=(["deepseek_person_analysis"] if is_err else []),
+                data_sources_used=[person_research_source, "deepseek"],
+                generation_started_at=now,
+                generation_completed_at=now,
+                generation_duration_ms=elapsed_ms,
+                cache_key=cache_row_key,
+                cached_until=cache_expires,
+                trigger_source="manual",
+            )
+            db.add(dossier)
+            db.commit()
+            db.refresh(dossier)
+            db.refresh(org)
 
         saved = {
             "id": str(dossier.id),
@@ -201,6 +263,7 @@ def run_person_research_and_persist(
             "status": dossier.status,
             "credits_consumed": dossier.credits_consumed,
             "generation_duration_ms": dossier.generation_duration_ms,
+            "replaced": existing is not None,
             "organization_credits_balance": org.credits_balance,
         }
     else:
@@ -209,53 +272,76 @@ def run_person_research_and_persist(
             errors=None,
             person_md=None,
         )
-        dossier_id = uuid.uuid4()
-        dossier = Dossier(
-            id=dossier_id,
-            organization_id=org.id,
-            requested_by_user_id=user.id,
-            contact_id=None,
-            subject_name=body.full_name.strip()[:255],
-            subject_email=(body.email or "")[:255] or None,
-            module_identity=True,
-            module_corporate=False,
-            module_media=False,
-            depth_level="basic",
-            credits_consumed=0,
-            status="failed",
-            status_message=status_message,
-            dossier_data={
-                "format": "markdown",
-                "body": "",
-                "pipeline": "person_research",
-                "success": False,
-                "billing": "none",
-                "person_dedup_key": fp,
-                "cache": {
-                    "hit": cache_hit,
-                    "redis": redis_person_cache_available(),
-                },
-                "person_filters": {
-                    "full_name": body.full_name,
-                    "job_area": body.job_area,
-                    "company": body.company,
-                    "country": body.country,
-                    "city": body.city,
-                    "extra_keywords": body.extra_keywords,
-                    "research_source": body.research_source.value,
-                },
+        fail_data: dict[str, Any] = {
+            "format": "markdown",
+            "body": "",
+            "pipeline": "person_research",
+            "success": False,
+            "billing": "none",
+            "person_dedup_key": fp,
+            "cache": {
+                "hit": cache_hit,
+                "redis": redis_person_cache_available(),
             },
-            agents_activated=[],
-            agents_failed=(["deepseek_person_analysis"]),
-            data_sources_used=[],
-            generation_started_at=now,
-            generation_completed_at=now,
-            generation_duration_ms=elapsed_ms,
-            trigger_source="manual",
-        )
-        db.add(dossier)
-        db.commit()
-        db.refresh(dossier)
+            "person_filters": {
+                "full_name": body.full_name,
+                "job_area": body.job_area,
+                "company": body.company,
+                "country": body.country,
+                "city": body.city,
+                "extra_keywords": body.extra_keywords,
+                "email": body.email,
+                "linkedin_url": body.linkedin_url,
+                "research_source": body.research_source.value,
+            },
+            "lusha_diagnostics": lusha_diag,
+            "output_language": out_lang,
+        }
+        if existing is not None:
+            prev = existing.dossier_data if isinstance(existing.dossier_data, dict) else {}
+            fail_data = _preserve_calendar_dossier_metadata(prev, fail_data)
+            existing.subject_name = body.full_name.strip()[:255]
+            existing.subject_email = (body.email or "")[:255] or None
+            existing.status = "failed"
+            existing.status_message = status_message
+            existing.dossier_data = fail_data
+            existing.agents_failed = (["deepseek_person_analysis"])
+            existing.generation_started_at = now
+            existing.generation_completed_at = now
+            existing.generation_duration_ms = elapsed_ms
+            existing.cache_key = cache_row_key
+            existing.cached_until = cache_expires
+            db.commit()
+            db.refresh(existing)
+            dossier = existing
+        else:
+            dossier_id = uuid.uuid4()
+            dossier = Dossier(
+                id=dossier_id,
+                organization_id=org.id,
+                requested_by_user_id=user.id,
+                contact_id=None,
+                subject_name=body.full_name.strip()[:255],
+                subject_email=(body.email or "")[:255] or None,
+                module_identity=True,
+                module_corporate=False,
+                module_media=False,
+                depth_level="standard",
+                credits_consumed=0,
+                status="failed",
+                status_message=status_message,
+                dossier_data=fail_data,
+                agents_activated=[],
+                agents_failed=(["deepseek_person_analysis"]),
+                data_sources_used=[person_research_source, "deepseek"],
+                generation_started_at=now,
+                generation_completed_at=now,
+                generation_duration_ms=elapsed_ms,
+                trigger_source="manual",
+            )
+            db.add(dossier)
+            db.commit()
+            db.refresh(dossier)
 
         saved = {
             "id": str(dossier.id),
@@ -264,6 +350,7 @@ def run_person_research_and_persist(
             "status_message": dossier.status_message,
             "credits_consumed": dossier.credits_consumed,
             "generation_duration_ms": dossier.generation_duration_ms,
+            "replaced": existing is not None,
         }
 
     result["saved_dossier"] = saved

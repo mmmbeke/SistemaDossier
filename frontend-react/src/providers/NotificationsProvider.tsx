@@ -88,10 +88,13 @@ function saveBaseline(iso: string) {
   }
 }
 
+function notificationOrigin(trigger_source: string | null | undefined): "manual" | "automated" {
+  return trigger_source && trigger_source !== "manual" ? "automated" : "manual";
+}
+
 function entryToNotification(entry: DossierListEntry): DossierNotification | null {
   if (isDossierFolderEntry(entry)) {
     if (!entry.created_at) return null;
-    // Las carpetas agrupan dossiers de un evento de calendario → siempre automatizadas.
     return {
       id: `folder:${entry.id}`,
       kind: "folder",
@@ -99,13 +102,11 @@ function entryToNotification(entry: DossierListEntry): DossierNotification | nul
       status: entry.status,
       createdAt: entry.created_at,
       href: `/dashboard/dossiers/folder/${entry.id}`,
-      origin: "automated",
+      origin: notificationOrigin(entry.trigger_source),
       read: false,
     };
   }
   if (!entry.created_at) return null;
-  const origin: "manual" | "automated" =
-    entry.trigger_source && entry.trigger_source !== "manual" ? "automated" : "manual";
   return {
     id: `dossier:${entry.id}`,
     kind: "dossier",
@@ -113,7 +114,7 @@ function entryToNotification(entry: DossierListEntry): DossierNotification | nul
     status: entry.status,
     createdAt: entry.created_at,
     href: `/dashboard/dossiers/${entry.id}`,
-    origin,
+    origin: notificationOrigin(entry.trigger_source),
     read: false,
   };
 }
@@ -193,8 +194,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearAll = useCallback(() => {
+    const now = new Date().toISOString();
     setNotifications([]);
     saveStored([]);
+    baselineRef.current = now;
+    saveBaseline(now);
   }, []);
 
   const unreadCount = useMemo(

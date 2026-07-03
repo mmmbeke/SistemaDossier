@@ -9,6 +9,26 @@ import {
 
 export type DossierTimeGroup = "upcoming" | "past" | "other";
 export type TypeFilterValue = "all" | "person" | "corporate";
+export type DossierViewMode = "meeting_folders" | "standalone";
+
+export function entryMatchesViewMode(
+  entry: DossierListEntry,
+  viewMode: DossierViewMode
+): boolean {
+  if (viewMode === "meeting_folders") return isDossierFolderEntry(entry);
+  return !isDossierFolderEntry(entry);
+}
+
+export function countEntriesByViewMode(items: DossierListEntry[]): Record<DossierViewMode, number> {
+  let meeting_folders = 0;
+  let standalone = 0;
+  for (const entry of items) {
+    if (!isNonEmptyListEntry(entry)) continue;
+    if (isDossierFolderEntry(entry)) meeting_folders += 1;
+    else standalone += 1;
+  }
+  return { meeting_folders, standalone };
+}
 
 /** Quita un dossier de la lista; si era el último de una carpeta, elimina la carpeta entera. */
 export function removeDossierFromListEntries(

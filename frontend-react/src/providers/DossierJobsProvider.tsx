@@ -31,6 +31,7 @@ import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 
 const STORAGE_KEY = "dossier_active_job_ids";
+const TOAST_JOB_IDS_KEY = "dossier_toast_job_ids";
 const POLL_MS = 3000;
 const TERMINAL: DossierGenerationJobStatus[] = ["completed", "failed", "cancelled"];
 
@@ -75,6 +76,49 @@ function saveStoredJobIds(ids: string[]) {
   }
 }
 
+function loadToastJobIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = sessionStorage.getItem(TOAST_JOB_IDS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveToastJobIds(ids: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(TOAST_JOB_IDS_KEY, JSON.stringify(ids.slice(0, 12)));
+  } catch {
+    /* ignore */
+  }
+}
+
+function calendarJobHasPartialFailure(job: TrackedJob): boolean {
+  if (job.job_type !== "calendar_manual" || job.status !== "completed" || !job.result) {
+    return false;
+  }
+  const cal = job.result as CalendarGenerarDossierItem;
+  const saved = cal.saved_dossiers;
+  if (!saved) return false;
+  const corpFailed = saved.corporate?.status === "failed";
+  const personFailed = saved.person?.status === "failed";
+  const corpOk = saved.corporate?.status === "complete";
+  const personOk = saved.person?.status === "complete";
+  return (corpFailed || personFailed) && (corpOk || personOk);
+}
+
+function calendarJobSavedNothing(job: TrackedJob): boolean {
+  if (job.job_type !== "calendar_manual" || job.status !== "completed" || !job.result) {
+    return false;
+  }
+  const saved = (job.result as CalendarGenerarDossierItem).saved_dossiers;
+  return !saved?.corporate && !saved?.person;
+}
+
 function dossierHref(job: TrackedJob): string | null {
   if (job.job_type === "person_manual" && job.result) {
     const personResult = job.result as PersonResearchApiResponse;
@@ -117,6 +161,10 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
       .filter((j) => !TERMINAL.includes(j.status))
       .map((j) => j.id);
     saveStoredJobIds(active);
+    const toastIds = list
+      .filter((j) => TERMINAL.includes(j.status) && !j.toastDismissed)
+      .map((j) => j.id);
+    saveToastJobIds(toastIds);
   }, []);
 
   useEffect(() => {
@@ -126,9 +174,10 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
         const { jobs: activeFromApi } = await fetchDossierGenerationJobs({ activeOnly: true });
         if (cancelled) return;
         const stored = loadStoredJobIds();
+        const toastStored = loadToastJobIds();
         const byId = new Map<string, DossierGenerationJobApi>();
         for (const j of activeFromApi) byId.set(j.id, j);
-        for (const id of stored) {
+        for (const id of [...stored, ...toastStored]) {
           if (!byId.has(id)) {
             try {
               byId.set(id, await fetchDossierGenerationJob(id));
@@ -277,10 +326,12 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
   );
 
   const dismissToast = useCallback((jobId: string) => {
-    setJobs((prev) =>
-      prev.map((j) => (j.id === jobId ? { ...j, toastDismissed: true } : j)),
-    );
-  }, []);
+    setJobs((prev) => {
+      const next = prev.map((j) => (j.id === jobId ? { ...j, toastDismissed: true } : j));
+      syncActiveIds(next);
+      return next;
+    });
+  }, [syncActiveIds]);
 
   const value = useMemo(
     () => ({
@@ -330,6 +381,7 @@ function DossierJobToasts({
   dossierHref: (job: TrackedJob) => string | null;
 }) {
   const { t } = useTranslation();
+  const [cancelErr, setCancelErr] = useState<string | null>(null);
   const visible = jobs.filter(
     (j) =>
       !j.toastDismissed &&
@@ -355,8 +407,11 @@ function DossierJobToasts({
             : t("dossier_jobs.default_label"));
         const href = dossierHref(job);
         const isActive = job.status === "queued" || job.status === "running";
-        const isOk = job.status === "completed";
-        const isFail = job.status === "failed";
+        const isFail =
+          job.status === "failed" ||
+          calendarJobSavedNothing(job);
+        const isPartial = !isFail && calendarJobHasPartialFailure(job);
+        const isOk = job.status === "completed" && !isFail && !isPartial;
         const isCancelled = job.status === "cancelled";
         const calendarWarning =
           isOk && job.job_type === "calendar_manual" && job.result
@@ -380,6 +435,7 @@ function DossierJobToasts({
                 <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
                   {isActive && t("dossier_jobs.generating")}
                   {isOk && t("dossier_jobs.ready")}
+                  {isPartial && t("dossier_jobs.partial")}
                   {isFail && (job.error_message || t("dossier_jobs.failed"))}
                   {isCancelled && t("dossier_jobs.cancelled")}
                 </p>
@@ -399,7 +455,7 @@ function DossierJobToasts({
               </button>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              {isOk && href && (
+              {(isOk || isPartial) && href && (
                 <Link
                   href={href}
                   className="inline-block text-xs font-medium underline"
@@ -415,12 +471,24 @@ function DossierJobToasts({
                   type="button"
                   className="text-xs font-medium transition hover:opacity-80"
                   style={{ color: "var(--alert-error-text)" }}
-                  onClick={() => void onCancel(job.id)}
+                  onClick={() => {
+                    setCancelErr(null);
+                    void onCancel(job.id).catch((e) => {
+                      setCancelErr(
+                        e instanceof DossierApiError ? e.message : t("dossier_jobs.failed"),
+                      );
+                    });
+                  }}
                 >
                   {t("dossier_jobs.cancel")}
                 </button>
               )}
             </div>
+            {cancelErr ? (
+              <p className="mt-1 text-xs text-red-400" role="alert">
+                {cancelErr}
+              </p>
+            ) : null}
             {isActive && (
               <div
                 className="mt-2 h-1 w-full overflow-hidden rounded-full"

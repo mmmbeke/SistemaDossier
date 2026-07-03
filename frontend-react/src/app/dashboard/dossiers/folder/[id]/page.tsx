@@ -8,6 +8,7 @@ import DossierFolderCard from "@/components/dossier/DossierFolderCard";
 import UiAlert from "@/components/ui/UiAlert";
 import {
   DossierApiError,
+  deleteDossierFolderFromApi,
   deleteDossierFromApi,
   fetchDossierFolderById,
   type DossierFolderDetailResponse,
@@ -16,6 +17,7 @@ import {
 import { getCalendarMeetingSubject } from "@/lib/calendar-dossier-meta";
 import { removeDossierFromFolder } from "@/lib/dossier-list-utils";
 import { stripHtmlToPlainLine } from "@/lib/strip-html";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 const UUID_RE =
@@ -26,9 +28,11 @@ export default function DossierFolderPage() {
   const router = useRouter();
   const folderId = typeof params?.id === "string" ? params.id : "";
   const { t } = useTranslation();
+  const { canMutate } = useAuthMe();
   const [folder, setFolder] = useState<DossierFolderDetailResponse | null>(null);
   const [load, setLoad] = useState<"loading" | "ok" | "err">("loading");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingFolder, setDeletingFolder] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -71,6 +75,21 @@ export default function DossierFolderPage() {
       setError(e instanceof DossierApiError ? e.message : String(e));
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleDeleteFolder() {
+    if (deletingFolder || deletingId) return;
+    if (!window.confirm(t("dossiers.delete_folder_confirm"))) return;
+    setDeletingFolder(true);
+    setError(null);
+    try {
+      await deleteDossierFolderFromApi(folderId);
+      router.replace("/dashboard/dossiers");
+    } catch (e) {
+      setError(e instanceof DossierApiError ? e.message : String(e));
+    } finally {
+      setDeletingFolder(false);
     }
   }
 
@@ -143,6 +162,22 @@ export default function DossierFolderPage() {
           calendar_meeting={folder.calendar_meeting}
           dossier_data={folder.dossiers[0]?.dossier_data}
         />
+        {canMutate ? (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => void handleDeleteFolder()}
+              disabled={deletingFolder || Boolean(deletingId)}
+              className="rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
+              style={{
+                borderColor: "var(--border-default)",
+                color: "var(--text-muted)",
+              }}
+            >
+              {deletingFolder ? t("dossiers.deleting") : t("dossiers.delete_folder")}
+            </button>
+          </div>
+        ) : null}
       </header>
 
       {error ? (
@@ -156,6 +191,7 @@ export default function DossierFolderPage() {
         typeFilter="all"
         deletingId={deletingId}
         onDeleteDossier={handleDeleteDossier}
+        showDelete={canMutate}
       />
     </div>
   );

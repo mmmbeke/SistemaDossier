@@ -348,7 +348,28 @@ const messages = {
   "dossiers.delete": "Delete",
   "dossiers.delete_confirm":
     "Delete this dossier? It will be removed from your organisation and cannot be undone.",
+  "dossiers.delete_folder": "Delete folder",
+  "dossiers.delete_folder_confirm":
+    "Delete this entire folder and all dossiers inside? This cannot be undone.",
   "dossiers.delete_aria": "Delete this dossier",
+  "dossiers.share_title": "Share dossier",
+  "dossiers.share_hint":
+    "Viewers can read the dossier but cannot edit, delete, or share it further.",
+  "dossiers.share_add_label": "Organization member",
+  "dossiers.share_select_member": "Select member…",
+  "dossiers.share_no_members": "No more members available",
+  "dossiers.share_add_button": "Share",
+  "dossiers.share_saving": "Saving…",
+  "dossiers.share_remove": "Remove access",
+  "dossiers.share_empty": "This dossier is not shared with anyone else.",
+  "dossiers.viewer_readonly_hint":
+    "You have read-only access. You cannot generate, edit, or delete dossiers.",
+  "dossiers.viewer_list_hint":
+    "You only see dossiers shared with you or owned by you. You cannot create or delete.",
+  "rbac.viewer_blocked_title": "Read-only access",
+  "rbac.viewer_blocked_hint":
+    "Your viewer role cannot use this section. You can browse dossiers shared with you.",
+  "rbac.viewer_go_dossiers": "Go to dossiers",
   "dossiers.deleting": "Deleting…",
   "dossiers.demo_section": "Demo dossiers",
   "role.cso_nexus": "CSO at Nexus Ventures",
@@ -387,6 +408,26 @@ const messages = {
     "This text is added automatically as context when generating dossiers. Leave both fields empty to clear stored context.",
   "settings.company.read_only": "Only an organisation admin can edit this section.",
   "settings.company.load_error": "Could not load company context.",
+  "settings.nav_members": "Members & roles",
+  "settings.members.title": "Organization members",
+  "settings.members.subtitle":
+    "Assign RBAC roles to each teammate. Viewers can only read shared dossiers.",
+  "settings.members.invite_hint":
+    "New members are added manually in the database for now; email invites will come in a later phase.",
+  "settings.members.col_member": "Member",
+  "settings.members.col_role": "Role",
+  "settings.members.col_joined": "Joined",
+  "settings.members.col_actions": "Actions",
+  "settings.members.role_admin": "Administrator",
+  "settings.members.role_user": "User",
+  "settings.members.role_viewer": "Viewer (read-only)",
+  "settings.members.you": "you",
+  "settings.members.remove": "Remove",
+  "settings.members.removing": "Removing…",
+  "settings.members.remove_confirm":
+    "Remove this member from the organization? They will lose access to org dossiers.",
+  "settings.members.empty": "There are no members in this organization.",
+  "settings.members.load_error": "Could not load the member list.",
   "settings.general_title": "General Settings",
   "settings.theme": "Theme",
   "theme.dark": "Dark",

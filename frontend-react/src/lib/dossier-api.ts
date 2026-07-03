@@ -42,6 +42,8 @@ export type AuthUser = {
   timezone?: string;
   /** match | es | en | pt | … — idioma de salida de dossiers. */
   dossier_output_language?: string;
+  /** 7, 14, 30, 90 o null (conservar indefinidamente). */
+  dossier_retention_days?: number | null;
 };
 
 /** Fila devuelta por `GET /dossiers` (tabla `dossiers` en PostgreSQL). */
@@ -91,10 +93,60 @@ export type DossiersListResponse = {
 
 export type DossierFolderDetailResponse = DossierFolderListItem;
 
+/** Permisos efectivos del dossier para el usuario actual. */
+export type DossierPermissions = {
+  is_owner: boolean;
+  can_share: boolean;
+  can_delete: boolean;
+  can_mutate: boolean;
+};
+
+export type DossierShareItem = {
+  user_id: string;
+  email: string;
+  full_name: string;
+  shared_at: string | null;
+};
+
+export type OrgMemberItem = {
+  user_id: string;
+  email: string;
+  full_name: string;
+  role: string;
+};
+
+export type OrgMemberManageItem = OrgMemberItem & {
+  joined_at: string | null;
+  is_self: boolean;
+};
+
+export type OrgInviteItem = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  invite_url: string | null;
+  created_at: string | null;
+  expires_at: string | null;
+  joined_immediately: boolean;
+};
+
+export type OrgInvitePreview = {
+  organization_id: string;
+  organization_name: string;
+  email: string;
+  role: string;
+  email_domain: string;
+  expires_at: string | null;
+  valid: boolean;
+  token?: string | null;
+};
+
 /** Respuesta de `GET /dossiers/{id}` (detalle). */
 export type DossierDetailResponse = {
   id: string;
   organization_id: string;
+  requested_by_user_id?: string;
   subject_name: string | null;
   subject_email: string | null;
   status: string;
@@ -111,6 +163,9 @@ export type DossierDetailResponse = {
   status_message?: string | null;
   trigger_source?: string | null;
   calendar_meeting?: string | null;
+  dossier_folder_id?: string | null;
+  permissions?: DossierPermissions;
+  shares?: DossierShareItem[];
 };
 
 export type AuthSuccessResponse = {
@@ -285,6 +340,7 @@ export async function authRegister(payload: {
   full_name: string;
   company_name?: string | null;
   workspace_kind?: "personal" | "work";
+  invite_token?: string | null;
 }): Promise<AuthSuccessResponse> {
   const data = await postJson<AuthSuccessResponse>("/auth/register", payload);
   assertAuthSuccessResponse(data);
@@ -342,10 +398,20 @@ export async function fetchAuthMe(): Promise<AuthUser> {
   return parsed as AuthUser;
 }
 
+/** Re-emite JWT con rol/org actuales (p. ej. tras cambio de rol en la org). */
+export async function refreshAuthSession(): Promise<AuthSuccessResponse> {
+  const data = await postJsonWithAuth<AuthSuccessResponse>("/auth/session/refresh", {});
+  assertAuthSuccessResponse(data);
+  const remember = getAuthTokenStorageMode() === "local";
+  persistAuthToken(data.access_token, remember);
+  return data;
+}
+
 export type AuthUserPreferencesPatch = {
   locale?: string;
   timezone?: string;
   dossier_output_language?: string;
+  dossier_retention_days?: number | null;
 };
 
 /** Sincroniza idioma de interfaz / zona horaria / idioma de dossiers con PostgreSQL. */
@@ -472,7 +538,11 @@ async function getJsonWithAuth<T>(path: string): Promise<T> {
   return parsed as T;
 }
 
-async function patchJsonWithAuth<T>(path: string, body: unknown): Promise<T> {
+async function patchJsonWithAuth<T>(
+  path: string,
+  body: unknown,
+  method: "PATCH" | "POST" = "PATCH"
+): Promise<T> {
   const token = getStoredAccessToken();
   if (!token) {
     throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
@@ -481,7 +551,7 @@ async function patchJsonWithAuth<T>(path: string, body: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(url, {
-      method: "PATCH",
+      method,
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
@@ -742,6 +812,8 @@ export type PersonResearchPayload = {
   async_mode?: boolean;
   /** Ejecuta investigación nueva sin reutilizar informe previo. */
   force_refresh?: boolean;
+  /** Actualiza un dossier existente (misma carpeta de reunión). */
+  replace_dossier_id?: string;
 };
 
 export type PdlHealthResponse = {
@@ -930,6 +1002,292 @@ export async function fetchDossierById(dossierId: string): Promise<DossierDetail
   return parsed as DossierDetailResponse;
 }
 
+/** Miembros de la organización activa (`GET /auth/organization/members`). */
+export async function fetchOrgMembers(): Promise<{ items: OrgMemberItem[] }> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/auth/organization/members`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as { items: OrgMemberItem[] };
+}
+
+/** Miembros para gestión RBAC (`GET /auth/organization/members/manage`, solo admin org). */
+export async function fetchOrgMembersForManagement(): Promise<{ items: OrgMemberManageItem[] }> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/auth/organization/members/manage`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as { items: OrgMemberManageItem[] };
+}
+
+export async function patchOrgMemberRole(
+  userId: string,
+  role: string
+): Promise<OrgMemberManageItem> {
+  return patchJsonWithAuth<OrgMemberManageItem>(
+    `/auth/organization/members/${encodeURIComponent(userId)}`,
+    { role }
+  );
+}
+
+export async function deleteOrgMember(userId: string): Promise<void> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/auth/organization/members/${encodeURIComponent(userId)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  if (res.status === 204) return;
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+  throw new DossierApiError(res.status, msg, parsed);
+}
+
+export async function fetchOrgInvites(): Promise<{
+  organization_domain: string;
+  items: OrgInviteItem[];
+}> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/auth/organization/invites`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as { organization_domain: string; items: OrgInviteItem[] };
+}
+
+export async function createOrgInvite(payload: {
+  email: string;
+  role: "admin" | "user" | "viewer";
+}): Promise<OrgInviteItem> {
+  return patchJsonWithAuth<OrgInviteItem>("/auth/organization/invites", payload, "POST");
+}
+
+export async function revokeOrgInvite(inviteId: string): Promise<void> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/auth/organization/invites/${encodeURIComponent(inviteId)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  if (res.status === 204) return;
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+  throw new DossierApiError(res.status, msg, parsed);
+}
+
+/** Vista previa pública de invitación (sin JWT). */
+export async function fetchOrgInvitePreview(token: string): Promise<OrgInvitePreview> {
+  const url = `${getApiBaseUrl()}/auth/organization/invites/preview?token=${encodeURIComponent(token)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { Accept: "application/json" } });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as OrgInvitePreview;
+}
+
+export async function fetchMyPendingInvites(): Promise<{ items: OrgInvitePreview[] }> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/auth/me/pending-invites`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as { items: OrgInvitePreview[] };
+}
+
+export async function acceptOrgInvite(token: string): Promise<AuthSuccessResponse> {
+  const data = await patchJsonWithAuth<AuthSuccessResponse>(
+    "/auth/organization/invites/accept",
+    { token },
+    "POST"
+  );
+  assertAuthSuccessResponse(data);
+  return data;
+}
+
+export async function createDossierShare(
+  dossierId: string,
+  userId: string
+): Promise<{ dossier_id: string; items: DossierShareItem[] }> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/dossiers/${encodeURIComponent(dossierId)}/shares`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ user_id: userId }),
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+  return parsed as { dossier_id: string; items: DossierShareItem[] };
+}
+
+export async function deleteDossierShare(dossierId: string, userId: string): Promise<void> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/dossiers/${encodeURIComponent(dossierId)}/shares/${encodeURIComponent(userId)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text();
+    let parsed: unknown = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      parsed = { detail: text.slice(0, 500) };
+    }
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+}
+
 /** Elimina un dossier (`DELETE /dossiers/{id}`). Respuesta 204 sin cuerpo. */
 export async function deleteDossierFromApi(dossierId: string): Promise<void> {
   const token = getStoredAccessToken();
@@ -937,6 +1295,37 @@ export async function deleteDossierFromApi(dossierId: string): Promise<void> {
     throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
   }
   const url = `${getApiBaseUrl()}/dossiers/${encodeURIComponent(dossierId)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  if (text) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = { detail: text.slice(0, 500) };
+    }
+  }
+  if (!res.ok) {
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+}
+
+/** Elimina todos los dossiers de una carpeta (`DELETE /dossiers/folders/{id}`). */
+export async function deleteDossierFolderFromApi(folderId: string): Promise<void> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/dossiers/folders/${encodeURIComponent(folderId)}`;
   let res: Response;
   try {
     res = await fetch(url, {
@@ -1199,10 +1588,21 @@ export type CalendarGenerarDossierItem = {
   dossier_generado: string;
   dossier_corporativo?: string | null;
   dossier_persona?: string | null;
+  dossier_personas?: Array<{
+    index?: number;
+    full_name?: string;
+    job_area?: string | null;
+    country?: string | null;
+    email?: string | null;
+    md?: string | null;
+    cache_hit?: boolean;
+    error?: string | null;
+  }>;
   corporate_skipped_plan_free?: boolean;
   saved_dossiers?: {
     corporate?: CalendarSavedDossierRef;
     person?: CalendarSavedDossierRef;
+    persons?: CalendarSavedDossierRef[];
     folder?: { id: string; title: string };
   };
   parse?: {
@@ -1211,6 +1611,13 @@ export type CalendarGenerarDossierItem = {
     company_corporate?: string;
     company_corporate_source?: "subject" | "description" | "";
     company_person?: string;
+    persons?: Array<{
+      index?: number;
+      full_name?: string;
+      job_area?: string | null;
+      country?: string | null;
+      email?: string | null;
+    }>;
     person_name?: string;
     person_job?: string | null;
     person_country?: string | null;

@@ -32,6 +32,7 @@ from dossier.services.calendar_event_dossiers import (
 from dossier.services.output_language import effective_output_language, normalize_output_language
 from dossier.services.person_dossier_dedup import person_research_fingerprint
 from dossier.services.person_research_pipeline import run_person_research_and_persist
+from dossier.services.google_calendar_api import obtener_reunion_google_por_id
 from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
 from dossier.services.graph_calendar import merge_reunion_payload, obtener_reunion_por_id
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
@@ -76,10 +77,13 @@ def estimate_reunion_credits(
     has_corporate = bool(parsed.get("company_corporate") or parsed.get("participantes"))
     if not plan_allows_calendar_corporate_dossier(plan):
         has_corporate = False
-    has_person = len((parsed.get("person_name") or "").strip()) >= 2
+    persons = parsed.get("persons") or []
+    person_count = len(persons)
+    if person_count == 0 and len((parsed.get("person_name") or "").strip()) >= 2:
+        person_count = 1
     return calendar_event_credit_estimate(
         has_corporate=has_corporate,
-        has_person=has_person,
+        person_count=person_count,
         depth=depth,
     )
 
@@ -268,10 +272,49 @@ def _credits_consumed_from_saved(
     corp = saved.get("corporate")
     if corp and corp.get("status") == "complete" and not r.get("corporate_cache_hit"):
         total += DEPTH_CREDITS[depth]
-    person = saved.get("person")
-    if person and person.get("status") == "complete" and not r.get("person_cache_hit"):
-        total += PERSON_IDENTITY_CREDITS
+    person_refs = saved.get("persons") or []
+    if not person_refs and saved.get("person"):
+        person_refs = [saved["person"]]
+    for pref in person_refs:
+        if pref and pref.get("status") == "complete" and not pref.get("cache_hit"):
+            total += PERSON_IDENTITY_CREDITS
     return total
+
+
+def _calendar_job_failure_message(item: dict[str, Any]) -> str | None:
+    """None si el job puede marcarse completed; mensaje si debe fallar."""
+    saved = item.get("saved_dossiers") or {}
+    corporate = saved.get("corporate")
+    person_refs = saved.get("persons") or []
+    person = saved.get("person")
+    if not person_refs and person:
+        person_refs = [person]
+    if not corporate and not person_refs:
+        errors = item.get("errors") or []
+        if errors:
+            return "; ".join(str(e) for e in errors)[:500]
+        return "No se guardó ningún dossier para esta reunión."
+
+    has_complete = any(
+        ref and ref.get("status") == "complete"
+        for ref in ([corporate] if corporate else []) + person_refs
+        if ref
+    )
+    if has_complete:
+        return None
+
+    parts: list[str] = []
+    if corporate and corporate.get("status") == "failed":
+        parts.append("corporativo")
+    failed_persons = [p for p in person_refs if p and p.get("status") == "failed"]
+    if failed_persons:
+        if len(person_refs) > 1:
+            parts.append(f"persona ({len(failed_persons)} de {len(person_refs)})")
+        else:
+            parts.append("persona")
+    if parts:
+        return f"No se pudo generar el dossier {' ni '.join(parts)}."
+    return "No se guardó ningún dossier válido para esta reunión."
 
 
 def process_dossier_generation_job(db: Session, job_id: UUID) -> None:
@@ -320,13 +363,22 @@ def _process_person_manual_job(db: Session, job: DossierGenerationJob) -> None:
         return
 
     job.result_payload = result
-    job.status = "completed"
+    saved = result.get("saved_dossier")
+    if not saved or not saved.get("id") or saved.get("status") == "failed":
+        job.status = "failed"
+        job.error_message = (
+            (saved or {}).get("status_message")
+            or "; ".join(str(w) for w in (result.get("warnings") or [])[:3])
+            or "No se pudo guardar el dossier de persona."
+        )[:2000]
+    else:
+        job.status = "completed"
+        job.error_message = None
     job.completed_at = datetime.now(timezone.utc)
-    job.error_message = None
     saved = result.get("saved_dossier") or {}
     job.credits_consumed = int(saved.get("credits_consumed") or 0)
     db.commit()
-    logger.info("Job persona %s completado (subject=%s)", job.id, body.full_name[:80])
+    logger.info("Job persona %s %s (subject=%s)", job.id, job.status, body.full_name[:80])
 
 
 def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None:
@@ -377,6 +429,7 @@ def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None
         generation_duration_ms=elapsed_ms,
         depth=depth,
         charge_credits=charge,
+        trigger_source="manual",
     )
 
     saved = item.get("saved_dossiers") or {}
@@ -384,13 +437,19 @@ def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None
         saved, depth=depth, charge=charge, result=item
     )
     job.result_payload = item
-    job.status = "completed"
+    failure = _calendar_job_failure_message(item)
+    if failure:
+        job.status = "failed"
+        job.error_message = failure
+    else:
+        job.status = "completed"
+        job.error_message = None
     job.completed_at = datetime.now(timezone.utc)
-    job.error_message = None
     db.commit()
     logger.info(
-        "Job dossier %s completado (event=%s, credits=%s)",
+        "Job dossier %s %s (event=%s, credits=%s)",
         job.id,
+        job.status,
         job.external_event_id,
         job.credits_consumed,
     )

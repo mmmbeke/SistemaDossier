@@ -16,6 +16,7 @@ type Props = {
   typeFilter: TypeFilterValue;
   deletingId: string | null;
   onDeleteDossier: (row: DossierListItem) => void;
+  showDelete?: boolean;
 };
 
 function MeetingFolderIcon() {
@@ -32,10 +33,17 @@ function MeetingFolderIcon() {
 
 function moduleLabel(
   row: DossierListItem,
-  t: ReturnType<typeof useTranslation>["t"]
+  t: ReturnType<typeof useTranslation>["t"],
+  personIndex?: number,
+  personTotal?: number,
 ): string {
   if (row.module_kind === "corporate") return t("overview.calendar_dossier_corporate");
-  if (row.module_kind === "person") return t("overview.calendar_dossier_person");
+  if (row.module_kind === "person") {
+    if (personTotal && personTotal > 1 && personIndex) {
+      return `${t("overview.calendar_dossier_person")} ${personIndex}`;
+    }
+    return t("overview.calendar_dossier_person");
+  }
   return t("dossiers.folder_other_dossier");
 }
 
@@ -43,10 +51,16 @@ function ChildDossierChip({
   row,
   deletingId,
   onDelete,
+  personIndex,
+  personTotal,
+  showDelete = true,
 }: {
   row: DossierListItem;
   deletingId: string | null;
   onDelete: () => void;
+  personIndex?: number;
+  personTotal?: number;
+  showDelete?: boolean;
 }) {
   const { t } = useTranslation();
   const isFailed = row.status === "failed";
@@ -60,18 +74,20 @@ function ChildDossierChip({
         backgroundColor: "var(--bg-input)",
       }}
     >
-      <DeleteDossierIconButton
-        isDeleting={deletingId === row.id}
-        onClick={onDelete}
-        className="absolute right-1 top-1"
-      />
+      {showDelete ? (
+        <DeleteDossierIconButton
+          isDeleting={deletingId === row.id}
+          onClick={onDelete}
+          className="absolute right-1 top-1"
+        />
+      ) : null}
 
       <div className="flex items-start justify-between gap-2">
         <span
           className="text-[11px] font-semibold uppercase tracking-wide"
           style={{ color: "var(--text-subtle)" }}
         >
-          {moduleLabel(row, t)}
+          {moduleLabel(row, t, personIndex, personTotal)}
         </span>
         <DossierStatusBadge status={row.status} />
       </div>
@@ -101,6 +117,7 @@ export default function DossierFolderCard({
   typeFilter,
   deletingId,
   onDeleteDossier,
+  showDelete = true,
 }: Props) {
   const { t, preferences } = useTranslation();
   const dateRaw = folder.updated_at || folder.created_at;
@@ -113,12 +130,14 @@ export default function DossierFolderCard({
   }
 
   const corporate = folder.dossiers.find((d) => d.module_kind === "corporate");
-  const person = folder.dossiers.find((d) => d.module_kind === "person");
-  const others = folder.dossiers.filter(
-    (d) => d.id !== corporate?.id && d.id !== person?.id
-  );
-  const ordered = [corporate, person, ...others]
-    .filter((d): d is DossierListItem => Boolean(d))
+  const persons = folder.dossiers.filter((d) => d.module_kind === "person");
+  const ordered = [
+    ...(corporate ? [corporate] : []),
+    ...persons,
+    ...folder.dossiers.filter(
+      (d) => d.id !== corporate?.id && !persons.some((p) => p.id === d.id)
+    ),
+  ]
     .filter((d) => dossierItemMatchesTypeFilter(d, typeFilter));
   const dossierCountLabel =
     typeFilter === "all"
@@ -191,14 +210,23 @@ export default function DossierFolderCard({
               : "grid grid-cols-1 gap-2 sm:grid-cols-2"
           }
         >
-          {ordered.map((row) => (
+          {ordered.map((row) => {
+            const personIdx =
+              row.module_kind === "person"
+                ? persons.findIndex((p) => p.id === row.id) + 1
+                : undefined;
+            return (
             <ChildDossierChip
               key={row.id}
               row={row}
               deletingId={deletingId}
               onDelete={() => onDeleteDossier(row)}
+              personIndex={personIdx || undefined}
+              personTotal={persons.length > 1 ? persons.length : undefined}
+              showDelete={showDelete}
             />
-          ))}
+            );
+          })}
         </div>
       </div>
     </article>
