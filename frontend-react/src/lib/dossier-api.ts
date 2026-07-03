@@ -1199,6 +1199,7 @@ export type CalendarGenerarDossierItem = {
   dossier_generado: string;
   dossier_corporativo?: string | null;
   dossier_persona?: string | null;
+  corporate_skipped_plan_free?: boolean;
   saved_dossiers?: {
     corporate?: CalendarSavedDossierRef;
     person?: CalendarSavedDossierRef;

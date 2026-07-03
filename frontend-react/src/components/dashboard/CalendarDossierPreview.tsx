@@ -14,6 +14,7 @@ type CalendarDossierPreviewProps = {
   savedCorporate?: CalendarSavedDossierRef;
   savedPerson?: CalendarSavedDossierRef;
   savedFolder?: { id: string; title: string };
+  corporateSkippedFreePlan?: boolean;
 };
 
 function DossierBlock({
@@ -83,6 +84,7 @@ export default function CalendarDossierPreview({
   savedCorporate,
   savedPerson,
   savedFolder,
+  corporateSkippedFreePlan,
 }: CalendarDossierPreviewProps) {
   const { t } = useTranslation();
   if (activeEventKey !== eventKey) return null;
@@ -138,7 +140,11 @@ export default function CalendarDossierPreview({
       <DossierBlock
         label={t("overview.calendar_dossier_corporate")}
         body={corporate}
-        emptyLabel={t("overview.calendar_dossier_corporate_empty")}
+        emptyLabel={
+          corporateSkippedFreePlan
+            ? t("overview.calendar_dossier_corporate_free_plan")
+            : t("overview.calendar_dossier_corporate_empty")
+        }
         saved={savedCorporate}
         viewLabel={t("overview.calendar_dossier_view_saved")}
       />

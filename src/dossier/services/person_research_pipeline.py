@@ -21,12 +21,17 @@ from dossier.db.models import Dossier, Organization, User
 from dossier.gemini.analyze import normalize_person_report_text
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.schemas.person_research import PersonResearchRequest
-from dossier.services.calendar_event_dossiers import _person_failure_message
+from dossier.billing.credit_policy import (
+    assert_sufficient_credits,
+    credit_charging_enabled,
+    person_research_credit_cost,
+)
 from dossier.services.output_language import effective_output_language, normalize_output_language
 from dossier.services.person_dossier_dedup import (
     person_research_fingerprint,
     person_research_response_from_redis_cache,
 )
+from dossier.services.calendar_event_dossiers import _person_failure_message
 from dossier.services.person_research_service import run_person_research
 
 logger = logging.getLogger(__name__)
@@ -46,6 +51,9 @@ def run_person_research_and_persist(
     out_lang = effective_output_language(user, body.output_language)
     fp = person_research_fingerprint(body, org.id, output_language=out_lang)
     skip_cache = bool(body.force_refresh)
+    charge = credit_charging_enabled()
+    person_cost = person_research_credit_cost()
+    db.refresh(org)
 
     cache_hit = False
     cached_payload: dict[str, Any] | None = None
@@ -60,6 +68,7 @@ def run_person_research_and_persist(
     research_error: str | None = None
 
     if not cache_hit:
+        assert_sufficient_credits(org, person_cost, charge=charge)
 
         def _compute() -> None:
             nonlocal cache_hit, cached_payload, result, elapsed_ms, research_error
@@ -129,6 +138,7 @@ def run_person_research_and_persist(
     if md:
         is_err = md.lstrip().startswith("# Error")
         status = "failed" if is_err else "complete"
+        will_charge = charge and person_cost > 0 and not is_err and not cache_hit
         dossier_id = uuid.uuid4()
 
         dossier_data_body: dict[str, Any] = {
@@ -136,7 +146,7 @@ def run_person_research_and_persist(
             "body": md,
             "pipeline": "person_research",
             "success": not is_err,
-            "billing": "none",
+            "billing": "charged" if will_charge else "none",
             "person_dedup_key": fp,
             "gemini_google_search_used": result.get("gemini_google_search_used"),
             "cache": {
@@ -165,8 +175,8 @@ def run_person_research_and_persist(
             module_identity=True,
             module_corporate=False,
             module_media=False,
-            depth_level="standard",
-            credits_consumed=0,
+            depth_level="basic",
+            credits_consumed=person_cost if will_charge else 0,
             status=status,
             status_message="Error en el informe generado." if is_err else None,
             dossier_data=dossier_data_body,
@@ -183,6 +193,7 @@ def run_person_research_and_persist(
         db.add(dossier)
         db.commit()
         db.refresh(dossier)
+        db.refresh(org)
 
         saved = {
             "id": str(dossier.id),
@@ -190,6 +201,7 @@ def run_person_research_and_persist(
             "status": dossier.status,
             "credits_consumed": dossier.credits_consumed,
             "generation_duration_ms": dossier.generation_duration_ms,
+            "organization_credits_balance": org.credits_balance,
         }
     else:
         status_message = _person_failure_message(
@@ -208,7 +220,7 @@ def run_person_research_and_persist(
             module_identity=True,
             module_corporate=False,
             module_media=False,
-            depth_level="standard",
+            depth_level="basic",
             credits_consumed=0,
             status="failed",
             status_message=status_message,

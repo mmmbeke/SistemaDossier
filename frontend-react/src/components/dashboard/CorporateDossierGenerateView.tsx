@@ -12,11 +12,20 @@ import PrimaryButton from "@/components/PrimaryButton";
 import {
   createCorporateDossier,
   DossierApiError,
+  fetchAuthMe,
   fetchCorporateCompanySearch,
   getStoredAccessToken,
+  type AuthUser,
   type CorporateCompanyResolutionPayload,
   type CorporateCompanySearchResponse,
 } from "@/lib/dossier-api";
+import {
+  allowedDepthsForPlan,
+  defaultDepthForPlan,
+  normalizePlanTier,
+  planSummaryLabel,
+  type PlanTier,
+} from "@/lib/mock-billing";
 import { DEPTH_OPTIONS, type DossierDepth, stepsForDepth } from "@/lib/mock-generation";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
@@ -94,7 +103,10 @@ export default function CorporateDossierGenerateView({
   const stepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [query, setQuery] = useState(initialQuery);
   const [email, setEmail] = useState("");
-  const [depth, setDepth] = useState<DossierDepth>("standard");
+  const [me, setMe] = useState<AuthUser | null>(null);
+  const plan: PlanTier = normalizePlanTier(me?.organization_plan);
+  const allowedDepths = useMemo(() => allowedDepthsForPlan(plan), [plan]);
+  const [depth, setDepth] = useState<DossierDepth>(defaultDepthForPlan("free"));
   const [phase, setPhase] = useState<Phase>("form");
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [error, setError] = useState("");
@@ -111,6 +123,27 @@ export default function CorporateDossierGenerateView({
     setSelectedResolution(null);
     setCompanyConfirmed(false);
   }, []);
+
+  useEffect(() => {
+    if (!getStoredAccessToken()) return;
+    void fetchAuthMe()
+      .then((u) => {
+        setMe(u);
+        const p = normalizePlanTier(u.organization_plan);
+        setDepth((current) =>
+          allowedDepthsForPlan(p).includes(current)
+            ? current
+            : defaultDepthForPlan(p),
+        );
+      })
+      .catch(() => setMe(null));
+  }, []);
+
+  useEffect(() => {
+    if (!allowedDepths.includes(depth)) {
+      setDepth(defaultDepthForPlan(plan));
+    }
+  }, [allowedDepths, depth, plan]);
 
   async function runManualCompanySearch() {
     const trimmed = query.trim();
@@ -566,7 +599,11 @@ export default function CorporateDossierGenerateView({
                       {t("generate.depth_hint")}
                     </p>
                   </div>
-                  <DepthSelector value={depth} onChange={setDepth} />
+                  <DepthSelector
+                    value={depth}
+                    onChange={setDepth}
+                    allowedDepths={allowedDepths}
+                  />
                 </div>
 
                 {error && <p className="text-sm text-red-400">{error}</p>}
@@ -592,7 +629,13 @@ export default function CorporateDossierGenerateView({
             <dl className="flex flex-col gap-3 text-sm">
               <div className="flex justify-between gap-4">
                 <dt style={{ color: "var(--text-muted)" }}>{t("generate.plan")}</dt>
-                <dd style={{ color: "var(--text-primary)" }}>Pro · 500 cr/mes</dd>
+                <dd style={{ color: "var(--text-primary)" }}>
+                  {planSummaryLabel(
+                    plan,
+                    me?.credits_balance,
+                    me?.credits_monthly_limit,
+                  )}
+                </dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt style={{ color: "var(--text-muted)" }}>{t("generate.credits_cost")}</dt>

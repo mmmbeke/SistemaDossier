@@ -71,7 +71,20 @@ from dossier.services.graph_calendar import (
     diagnostico_microsoft_calendar,
 )
 from dossier.services.calendar_automation_worker import start_calendar_automation_thread
-from dossier.services.dossier_generation_job_service import enqueue_calendar_dossier_job
+from dossier.billing.credit_policy import (
+    assert_sufficient_credits,
+    credit_charging_enabled,
+)
+from dossier.billing.entitlements import (
+    assert_automation_allowed,
+    assert_depth_allowed,
+    default_depth_for_plan,
+    normalize_depth_for_plan,
+)
+from dossier.services.dossier_generation_job_service import (
+    enqueue_calendar_dossier_job,
+    estimate_reunion_credits,
+)
 from dossier.services.dossier_generation_worker import start_dossier_generation_worker
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
 from dossier.schemas.dossier_generation import DEPTH_CREDITS, DossierDepth
@@ -372,6 +385,7 @@ def _filter_reuniones_for_app_user(
     reuniones: list,
     *,
     work_meetings_only: bool = False,
+    skip_internal_meetings: bool | None = None,
 ) -> list:
     """Aplica filtros de reunión de trabajo / externos cuando la ruta usa JWT de la app."""
     if access_token:
@@ -392,6 +406,7 @@ def _filter_reuniones_for_app_user(
         integration=integration,
         user=user,
         work_meetings_only=work_meetings_only,
+        skip_internal_meetings=skip_internal_meetings,
     )
 
 
@@ -774,7 +789,12 @@ def api_listar_eventos_calendario(
             incluir_pasadas=incluir_pasadas,
         )
         reuniones = _filter_reuniones_for_app_user(
-            db, authorization, access_token, "microsoft", reuniones
+            db,
+            authorization,
+            access_token,
+            "microsoft",
+            reuniones,
+            skip_internal_meetings=False,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -816,7 +836,12 @@ def api_listar_eventos_google_calendar(
             incluir_pasadas=incluir_pasadas,
         )
         reuniones = _filter_reuniones_for_app_user(
-            db, authorization, access_token, "google", reuniones
+            db,
+            authorization,
+            access_token,
+            "google",
+            reuniones,
+            skip_internal_meetings=False,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -902,15 +927,20 @@ def _run_calendar_dossier_batch(
     calendar_provider: str,
     org_ctx: str,
     output_language: str | None = None,
+    depth: DossierDepth | None = None,
 ) -> list:
     dossiers = []
     out_lang = _calendar_output_language(user, output_language)
+    depth_key = depth or default_depth_for_plan(org.plan)
+    assert_depth_allowed(org, depth_key)
     for reunion in reuniones:
         t0 = time.perf_counter()
         item = generate_dossiers_from_calendar_event(
             reunion,
             organization_context_block=org_ctx,
             organization_id=org.id,
+            organization_plan=org.plan,
+            depth=depth_key,
             output_language=out_lang,
         )
         elapsed_ms = int((time.perf_counter() - t0) * 1000)
@@ -921,16 +951,24 @@ def _run_calendar_dossier_batch(
             result=item,
             calendar_provider=calendar_provider,
             generation_duration_ms=elapsed_ms,
+            depth=depth_key,
         )
         dossiers.append(item)
     return dossiers
 
 
-def _normalize_calendar_depth(raw: str | None) -> DossierDepth:
-    depth = (raw or "standard").strip().lower()
-    if depth in DEPTH_CREDITS:
-        return depth  # type: ignore[return-value]
-    return "standard"
+def _normalize_calendar_depth(org: Organization, raw: str | None) -> DossierDepth:
+    return normalize_depth_for_plan(org.plan, raw)
+
+
+def _assert_calendar_batch_credits(
+    org: Organization,
+    reuniones: list,
+    depth: DossierDepth,
+) -> None:
+    charge = credit_charging_enabled()
+    total = sum(estimate_reunion_credits(r, depth=depth, plan=org.plan) for r in reuniones)
+    assert_sufficient_credits(org, total, charge=charge)
 
 
 def _enqueue_calendar_dossier_jobs(
@@ -1068,6 +1106,9 @@ def api_generar_dossiers_desde_calendario(
             "dossiers": [],
         }
 
+    depth = default_depth_for_plan(org.plan)
+    _assert_calendar_batch_credits(org, reuniones, depth)
+
     dossiers = _run_calendar_dossier_batch(
         db,
         user=user,
@@ -1075,6 +1116,7 @@ def api_generar_dossiers_desde_calendario(
         reuniones=reuniones,
         calendar_provider="microsoft",
         org_ctx=org_ctx,
+        depth=depth,
     )
 
     return {
@@ -1121,8 +1163,9 @@ def api_generar_dossiers_desde_calendario_post(
             "dossiers": [],
         }
 
-    depth = _normalize_calendar_depth(body.depth)
+    depth = _normalize_calendar_depth(org, body.depth)
     if body.async_mode:
+        _assert_calendar_batch_credits(org, reuniones, depth)
         return _enqueue_calendar_dossier_jobs(
             db,
             user=user,
@@ -1133,6 +1176,8 @@ def api_generar_dossiers_desde_calendario_post(
             output_language=body.output_language,
         )
 
+    _assert_calendar_batch_credits(org, reuniones, depth)
+
     dossiers = _run_calendar_dossier_batch(
         db,
         user=user,
@@ -1141,6 +1186,7 @@ def api_generar_dossiers_desde_calendario_post(
         calendar_provider="microsoft",
         org_ctx=org_ctx,
         output_language=body.output_language,
+        depth=depth,
     )
 
     return {
@@ -1181,6 +1227,9 @@ def api_generar_dossiers_desde_google_calendar(
             "dossiers": [],
         }
 
+    depth = default_depth_for_plan(org.plan)
+    _assert_calendar_batch_credits(org, reuniones, depth)
+
     dossiers = _run_calendar_dossier_batch(
         db,
         user=user,
@@ -1188,6 +1237,7 @@ def api_generar_dossiers_desde_google_calendar(
         reuniones=reuniones,
         calendar_provider="google",
         org_ctx=org_ctx,
+        depth=depth,
     )
 
     return {
@@ -1225,8 +1275,9 @@ def api_generar_dossiers_desde_google_calendar_post(
             "dossiers": [],
         }
 
-    depth = _normalize_calendar_depth(body.depth)
+    depth = _normalize_calendar_depth(org, body.depth)
     if body.async_mode:
+        _assert_calendar_batch_credits(org, reuniones, depth)
         return _enqueue_calendar_dossier_jobs(
             db,
             user=user,
@@ -1237,6 +1288,8 @@ def api_generar_dossiers_desde_google_calendar_post(
             output_language=body.output_language,
         )
 
+    _assert_calendar_batch_credits(org, reuniones, depth)
+
     dossiers = _run_calendar_dossier_batch(
         db,
         user=user,
@@ -1245,6 +1298,7 @@ def api_generar_dossiers_desde_google_calendar_post(
         calendar_provider="google",
         org_ctx=org_ctx,
         output_language=body.output_language,
+        depth=depth,
     )
 
     return {
@@ -1396,7 +1450,8 @@ def update_calendar_automation_settings(
             detail="skip_internal_meetings debe ser true o false.",
         )
 
-    user, _org = user_org
+    user, org = user_org
+    assert_automation_allowed(org)
     from dossier.db.models import CalendarIntegration
     from dossier.services.calendar_automation import reschedule_user_calendar_events
 
