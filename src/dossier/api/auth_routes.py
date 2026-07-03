@@ -59,6 +59,9 @@ from dossier.schemas.org_invite import (
     OrgInvitePreview,
     OrgInvitesResponse,
     OrgPendingInvitesResponse,
+    SessionSwitchRequest,
+    UserOrganizationItem,
+    UserOrganizationsResponse,
 )
 from dossier.security import create_access_token, hash_password, verify_password
 from dossier.security.jwt_tokens import decode_access_token
@@ -621,6 +624,78 @@ def refresh_auth_session(
         access_token=token,
         user=build_user_public(db, user, org.id),
     )
+
+
+@router.get("/me/organizations", response_model=UserOrganizationsResponse)
+def list_my_organizations(
+    authorization: Annotated[str | None, Header()] = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_if_configured),
+) -> UserOrganizationsResponse:
+    """Organizaciones a las que pertenece el usuario (para el selector)."""
+    active_org_id = _org_id_from_authorization(authorization)
+    rows = db.execute(
+        select(Organization, OrgMembership)
+        .join(OrgMembership, OrgMembership.organization_id == Organization.id)
+        .where(OrgMembership.user_id == user.id, Organization.is_active.is_(True))
+        .order_by(OrgMembership.joined_at.asc())
+    ).all()
+    items: list[UserOrganizationItem] = []
+    for org, membership in rows:
+        wk = read_workspace_kind(org)
+        items.append(
+            UserOrganizationItem(
+                organization_id=org.id,
+                organization_name="" if wk == "personal" else org.name,
+                role=normalize_org_role(membership.role),
+                workspace_kind=wk,
+                is_primary=bool(membership.is_primary_org),
+                is_active=(active_org_id is not None and org.id == active_org_id),
+            )
+        )
+    return UserOrganizationsResponse(items=items)
+
+
+@router.post("/session/switch", response_model=TokenResponse)
+def switch_active_organization(
+    body: SessionSwitchRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_if_configured),
+) -> TokenResponse:
+    """Cambia la organización activa de la sesión y emite un JWT nuevo con ese `org_id`/rol."""
+    _require_jwt_secret()
+    pair = load_membership_for_org(db, user.id, body.organization_id)
+    if pair is None:
+        raise HTTPException(status_code=403, detail="No perteneces a esa organización.")
+    org, membership = pair
+    if not org.is_active:
+        raise HTTPException(status_code=404, detail="Organización no disponible.")
+
+    _clear_and_set_primary_org(db, user.id, org.id)
+    db.commit()
+    db.refresh(user)
+
+    token = create_access_token(
+        user_id=str(user.id),
+        email=user.email,
+        organization_id=str(org.id),
+        role=membership.role,
+    )
+    return TokenResponse(
+        access_token=token,
+        user=build_user_public(db, user, org.id),
+    )
+
+
+def _clear_and_set_primary_org(db: Session, user_id: UUID, organization_id: UUID) -> None:
+    rows = db.execute(
+        select(OrgMembership).where(OrgMembership.user_id == user_id)
+    ).scalars().all()
+    for row in rows:
+        should_be_primary = row.organization_id == organization_id
+        if row.is_primary_org != should_be_primary:
+            row.is_primary_org = should_be_primary
+            db.add(row)
 
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)

@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 from dossier.db.models import CalendarIntegration, User
+from dossier.services.calendar_meeting_labels import business_signal_patterns
 from dossier.services.lusha_company import PERSONAL_EMAIL_DOMAINS
 
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w.-]+\.\w+")
@@ -24,10 +25,7 @@ _ONLINE_MEETING_MARKERS = (
     "bluejeans.com",
 )
 
-_BUSINESS_SIGNAL_PATTERNS = (
-    re.compile(r"(?i)(?:empresa|company|cliente|client|organización|organization|organizacion)\s*:"),
-    re.compile(r"(?i)(?:contacto|contact|nombre|name)\s*:"),
-)
+_BUSINESS_SIGNAL_PATTERNS = business_signal_patterns()
 
 
 def has_business_meeting_signals(reunion: dict[str, Any]) -> bool:

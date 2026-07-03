@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import BrandLogo from "@/components/BrandLogo";
+import OrgSwitcher from "@/components/dashboard/OrgSwitcher";
 import {
   clearAuthSession,
   fetchAuthMe,
@@ -244,6 +245,8 @@ export default function Sidebar() {
           <BrandLogo size="md" />
         </Link>
       </div>
+
+      <OrgSwitcher />
 
       <nav className="flex-1 px-3 py-4">
         <ul className="flex flex-col gap-1">

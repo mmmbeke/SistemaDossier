@@ -279,6 +279,8 @@ const messages = {
   "admin.platform_yes": "Yes",
   "admin.platform_no": "No",
   "workspace.personal": "Persönliches Konto",
+  "org_switcher.label": "Organisation",
+  "org_switcher.error": "Organisation konnte nicht gewechselt werden.",
   "user.plan": "Pro-Tarif",
   "overview.title": "Willkommen zurück, {name}!",
   "overview.anonymous": "Nutzer",

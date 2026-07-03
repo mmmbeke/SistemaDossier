@@ -411,6 +411,8 @@ const messages = {
   "admin.platform_yes": "Sí",
   "admin.platform_no": "No",
   "workspace.personal": "Cuenta personal",
+  "org_switcher.label": "Organización",
+  "org_switcher.error": "No se pudo cambiar de organización.",
   "user.plan": "Plan Pro",
   "overview.title": "¡Bienvenido de nuevo, {name}!",
   "overview.anonymous": "Usuario",
@@ -458,19 +460,21 @@ const messages = {
   "calendar.guide.intro":
     "Pegá este formato en el cuerpo del evento (Outlook o Google Calendar) para generar dossiers de empresa y persona automáticamente. Una línea por campo.",
   "calendar.guide.template_title": "Ejemplo para copiar",
+  "calendar.guide.template_example":
+    "Empresa: OXCCU\nContacto 1: James Girling\nCargo 1: CEO\nEmail 1: james@oxccu.com\nContacto 2: María López\nCargo 2: CTO\nEmail 2: maria@oxccu.com\nPaís 2: Chile",
   "calendar.guide.copy": "Copiar ejemplo",
   "calendar.guide.copied": "Copiado",
-  "calendar.guide.fields_title": "Etiquetas aceptadas (español o inglés)",
+  "calendar.guide.fields_title": "Etiquetas aceptadas (es, en, pt, it, fr, de)",
   "calendar.guide.field_company":
-    "Empresa: Empresa, Company, Cliente, Organization…",
+    "Empresa: Empresa, Company, Entreprise, Azienda, Unternehmen, Cliente…",
   "calendar.guide.field_contact":
-    "Persona: Contacto, Nombre, Name, Contact, Reunión con…",
+    "Persona: Contacto, Contact, Nombre, Name, Nome, Nom, Contatto, Kontakt, Reunión con…",
   "calendar.guide.field_contact_multi":
-    "Varios contactos: Contacto 1 / Contacto 2… con Cargo 1, Email 1, País 1, etc.",
+    "Varios contactos: Contacto 1 / Contact 1… con Cargo 1, Email 1, País 1, etc.",
   "calendar.guide.field_job":
-    "Cargo: Cargo, Puesto, Rol, Título, Área…",
-  "calendar.guide.field_email": "Email: nombre@empresa.com (opcional, mejora el match)",
-  "calendar.guide.field_country": "País: País, Country… (opcional)",
+    "Cargo: Cargo, Title, Poste, Ruolo, Position, Rolle, Função…",
+  "calendar.guide.field_email": "Email / Correo / Courriel: nombre@empresa.com (opcional)",
+  "calendar.guide.field_country": "País: País, Country, Pays, Paese, Land… (opcional)",
   "calendar.guide.subject_title": "Asunto (solo empresa)",
   "calendar.guide.subject_hint":
     "Si solo ponés la empresa en el asunto, la detectamos con patrones como:",

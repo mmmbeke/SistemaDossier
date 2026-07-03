@@ -45,3 +45,22 @@ class OrgPendingInvitesResponse(BaseModel):
 
 class OrgInviteAcceptRequest(BaseModel):
     token: str = Field(min_length=8, max_length=128)
+
+
+class UserOrganizationItem(BaseModel):
+    """Membresía del usuario para el selector de organización."""
+
+    organization_id: UUID
+    organization_name: str
+    role: str
+    workspace_kind: Literal["personal", "work"]
+    is_primary: bool = False
+    is_active: bool = False
+
+
+class UserOrganizationsResponse(BaseModel):
+    items: list[UserOrganizationItem]
+
+
+class SessionSwitchRequest(BaseModel):
+    organization_id: UUID
