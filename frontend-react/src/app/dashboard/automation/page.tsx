@@ -8,10 +8,12 @@ import UiAlert from "@/components/ui/UiAlert";
 import TopBar from "@/components/dashboard/TopBar";
 import {
   DossierApiError,
+  fetchAuthMe,
   fetchCalendarAutomationStatus,
   getStoredAccessToken,
   patchCalendarAutomationSettings,
 } from "@/lib/dossier-api";
+import { normalizePlanTier } from "@/lib/mock-billing";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 
@@ -40,6 +42,7 @@ export default function AutomationPage() {
   const [scheduledEvents, setScheduledEvents] = useState(0);
   const [nextDue, setNextDue] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(true);
+  const [planAllowsAutomation, setPlanAllowsAutomation] = useState(true);
   const [load, setLoad] = useState<"idle" | "loading" | "ready">("idle");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
@@ -53,7 +56,12 @@ export default function AutomationPage() {
     setLoad("loading");
     setErr(null);
     try {
-      const st = await fetchCalendarAutomationStatus();
+      const [st, me] = await Promise.all([
+        fetchCalendarAutomationStatus(),
+        fetchAuthMe().catch(() => null),
+      ]);
+      const plan = normalizePlanTier(me?.organization_plan);
+      setPlanAllowsAutomation(plan !== "free");
       setEnabled(st.enabled);
       setHasCalendars(Boolean(st.has_calendars ?? (st.integrations?.length ?? 0) > 0));
       const stored = st.advance_minutes_stored ?? st.advance_minutes;
@@ -107,11 +115,18 @@ export default function AutomationPage() {
     }
   }
 
-  const selectDisabled = saving || load === "loading" || !hasCalendars;
+  const selectDisabled =
+    saving || load === "loading" || !hasCalendars || !planAllowsAutomation;
 
   return (
     <>
       <TopBar title={t("automation.title")} subtitle={t("automation.subtitle")} />
+
+      {!planAllowsAutomation && load === "ready" ? (
+        <UiAlert variant="warning" className="mb-4" role="status">
+          {t("billing.automation_requires_pro")}
+        </UiAlert>
+      ) : null}
 
       {err ? (
         <UiAlert variant="warning" className="mb-4" role="alert">

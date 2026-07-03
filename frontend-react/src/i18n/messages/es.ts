@@ -253,6 +253,8 @@ const messages = {
   "billing.load_error": "No se pudieron cargar los datos de facturación.",
   "billing.plan_note":
     "Al cambiar de plan se actualizan créditos y capacidades del espacio (Enterprise activa white-label en base de datos).",
+  "billing.automation_requires_pro":
+    "La automatización de calendario requiere plan Pro o Enterprise. Puedes generar dossiers manualmente desde el calendario.",
   "billing.loading": "Cargando…",
   "addressbook.group_placeholder": "Nombre del grupo...",
   "addressbook.add_group": "+ Grupo",
@@ -344,6 +346,7 @@ const messages = {
   "depth.approx_time": "~{seconds} s",
   "depth.credits_one": "1 crédito",
   "depth.credits_many": "{n} créditos",
+  "depth.requires_pro": "Requiere plan Pro o Enterprise",
   "depth.option_basic_meta": "Ideal para una primera criba.",
   "depth.option_standard_label": "Estándar",
   "depth.option_standard_desc": "Retrato corporativo sólido para la mayoría de conversaciones.",
@@ -502,6 +505,7 @@ const messages = {
   "overview.calendar_dossier_corporate": "Empresa",
   "overview.calendar_dossier_person": "Persona",
   "overview.calendar_dossier_corporate_empty": "No se generó dossier de empresa (indica «Empresa: …» en la descripción o el nombre en el asunto).",
+  "overview.calendar_dossier_corporate_free_plan": "En el plan Free solo se genera el dossier de persona desde el calendario (el formato del evento es el mismo).",
   "overview.calendar_dossier_person_empty": "No se generó dossier de persona (añade «Contacto: …», «Cargo: …» y opcionalmente «País: …» en la descripción).",
   "overview.calendar_dossiers_saved": "Guardados en Mis Dossiers.",
   "overview.calendar_dossiers_open_list": "Ver todos",
