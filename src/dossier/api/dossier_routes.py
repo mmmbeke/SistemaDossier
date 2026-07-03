@@ -40,7 +40,9 @@ from dossier.schemas.dossier_generation import (
     CreateCorporateDossierRequest,
     build_corporate_generation_strings,
 )
+from dossier.billing.credit_policy import assert_sufficient_credits, person_research_credit_cost
 from dossier.schemas.person_research import PersonResearchRequest
+from dossier.billing.entitlements import assert_depth_allowed, corporate_dossier_module_flags
 from dossier.services.corporate_company_search import search_corporate_company_candidates
 from dossier.services.person_research_pipeline import run_person_research_and_persist
 from dossier.services.dossier_generation_job_service import enqueue_person_research_job
@@ -140,6 +142,7 @@ def person_professional_research(
     y mismos filtros. ``dossier_source``: ``redis_cache`` (hit) o ``generated`` (miss).
     """
     user, org = ctx.user, ctx.org
+    db.refresh(org)
 
     if body.async_mode:
         job = enqueue_person_research_job(db, user=user, org=org, body=body)
@@ -153,6 +156,8 @@ def person_professional_research(
                 "Generación encolada. Podés seguir navegando; te avisaremos cuando termine."
             ),
         }
+
+    assert_sufficient_credits(org, person_research_credit_cost())
 
     try:
         return run_person_research_and_persist(db, user=user, org=org, body=body)
@@ -179,6 +184,7 @@ def generate_corporate_dossier(
     """
     user, org = ctx.user, ctx.org
     charge = _corporate_credit_charging_enabled()
+    assert_depth_allowed(org, body.depth)
     cost = DEPTH_CREDITS[body.depth] if charge else 0
     out_lang = effective_output_language(user, body.output_language)
 
@@ -211,19 +217,7 @@ def generate_corporate_dossier(
             cache_hit = True
 
     if not cache_hit:
-        if (
-            charge
-            and cost > 0
-            and not _enterprise_effectively_unlimited(org)
-            and org.credits_balance < cost
-        ):
-            raise HTTPException(
-                status_code=402,
-                detail=(
-                    f"Créditos insuficientes: se requieren {cost} y la organización tiene "
-                    f"{org.credits_balance}."
-                ),
-            )
+        assert_sufficient_credits(org, cost, charge=charge)
 
     descripcion_neutral_parts: list[str] = []
     if body.subject_email:
@@ -282,6 +276,7 @@ def generate_corporate_dossier(
     if body.resolution is not None:
         dossier_data_body["resolution"] = body.resolution.model_dump(mode="json")
 
+    module_flags = corporate_dossier_module_flags(body.depth)
     dossier = Dossier(
         id=dossier_id,
         organization_id=org.id,
@@ -289,9 +284,9 @@ def generate_corporate_dossier(
         contact_id=None,
         subject_name=subject_display,
         subject_email=body.subject_email,
-        module_identity=False,
-        module_corporate=True,
-        module_media=False,
+        module_identity=module_flags["module_identity"],
+        module_corporate=module_flags["module_corporate"],
+        module_media=module_flags["module_media"],
         depth_level=body.depth,
         credits_consumed=cost if will_charge else 0,
         status=status,

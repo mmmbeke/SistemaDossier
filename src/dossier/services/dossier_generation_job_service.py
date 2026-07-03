@@ -13,10 +13,12 @@ from sqlalchemy.orm import Session
 
 from dossier.billing.credit_policy import (
     PERSON_IDENTITY_CREDITS,
+    assert_sufficient_credits,
     calendar_event_credit_estimate,
     credit_charging_enabled,
-    enterprise_unlimited,
+    person_research_credit_cost,
 )
+from dossier.billing.entitlements import assert_depth_allowed, plan_allows_calendar_corporate_dossier
 from dossier.db.models import DossierGenerationJob, Organization, User
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.schemas.dossier_generation import DEPTH_CREDITS, DossierDepth
@@ -65,9 +67,16 @@ def serialize_job(job: DossierGenerationJob) -> dict[str, Any]:
     }
 
 
-def estimate_reunion_credits(reunion: dict[str, Any], *, depth: DossierDepth = "standard") -> int:
+def estimate_reunion_credits(
+    reunion: dict[str, Any],
+    *,
+    depth: DossierDepth = "standard",
+    plan: str | None = None,
+) -> int:
     parsed = parse_calendar_event_for_dossiers(reunion)
     has_corporate = bool(parsed.get("company_corporate") or parsed.get("participantes"))
+    if not plan_allows_calendar_corporate_dossier(plan):
+        has_corporate = False
     persons = parsed.get("persons") or []
     person_count = len(persons)
     if person_count == 0 and len((parsed.get("person_name") or "").strip()) >= 2:
@@ -133,6 +142,11 @@ def enqueue_person_research_job(
         return existing
 
     label = body.full_name.strip()[:512] or "Persona"
+    charge = credit_charging_enabled()
+    credits = person_research_credit_cost()
+    db.refresh(org)
+    assert_sufficient_credits(org, credits, charge=charge)
+
     job = DossierGenerationJob(
         id=uuid.uuid4(),
         organization_id=org.id,
@@ -142,9 +156,9 @@ def enqueue_person_research_job(
         calendar_provider=None,
         external_event_id=dedup_key,
         reunion_snapshot={"person_request": body.model_dump(mode="json")},
-        depth_level="standard",
+        depth_level="basic",
         meeting_label=label,
-        credits_estimated=0,
+        credits_estimated=credits,
     )
     db.add(job)
     db.commit()
@@ -188,18 +202,10 @@ def enqueue_calendar_dossier_job(
             return existing
 
     charge = credit_charging_enabled()
-    credits = estimate_reunion_credits(reunion, depth=depth)
+    credits = estimate_reunion_credits(reunion, depth=depth, plan=org.plan)
     db.refresh(org)
-    if charge and credits > 0 and not enterprise_unlimited(org) and org.credits_balance < credits:
-        from fastapi import HTTPException
-
-        raise HTTPException(
-            status_code=402,
-            detail=(
-                f"Créditos insuficientes: se requieren hasta {credits} y la organización tiene "
-                f"{org.credits_balance}."
-            ),
-        )
+    assert_depth_allowed(org, depth)
+    assert_sufficient_credits(org, credits, charge=charge)
 
     meeting_label = build_calendar_meeting_label(reunion)
     job = DossierGenerationJob(
@@ -369,7 +375,8 @@ def _process_person_manual_job(db: Session, job: DossierGenerationJob) -> None:
         job.status = "completed"
         job.error_message = None
     job.completed_at = datetime.now(timezone.utc)
-    job.credits_consumed = 0
+    saved = result.get("saved_dossier") or {}
+    job.credits_consumed = int(saved.get("credits_consumed") or 0)
     db.commit()
     logger.info("Job persona %s %s (subject=%s)", job.id, job.status, body.full_name[:80])
 
@@ -390,6 +397,7 @@ def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None
     org_ctx = format_dossier_context_for_prompt(org)
     depth: DossierDepth = job.depth_level if job.depth_level in DEPTH_CREDITS else "standard"  # type: ignore[assignment]
     charge = credit_charging_enabled()
+    assert_depth_allowed(org, depth)
 
     t0 = time.perf_counter()
     snap = job.reunion_snapshot if isinstance(job.reunion_snapshot, dict) else {}
@@ -401,6 +409,7 @@ def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None
         reunion,
         organization_context_block=org_ctx,
         organization_id=org.id,
+        organization_plan=org.plan,
         depth=depth,
         output_language=out_lang,
     )

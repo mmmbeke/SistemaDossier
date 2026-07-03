@@ -1598,6 +1598,7 @@ export type CalendarGenerarDossierItem = {
     cache_hit?: boolean;
     error?: string | null;
   }>;
+  corporate_skipped_plan_free?: boolean;
   saved_dossiers?: {
     corporate?: CalendarSavedDossierRef;
     person?: CalendarSavedDossierRef;

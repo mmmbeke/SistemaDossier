@@ -256,6 +256,8 @@ const messages = {
     "Changing the plan updates credits and features for the whole organization (all members share the same plan).",
   "billing.org_plan_member_note":
     "Your company admin sets the plan and credits. All members share the same plan.",
+  "billing.automation_requires_pro":
+    "Calendar automation requires a Pro or Enterprise plan. You can still generate dossiers manually from the calendar.",
   "billing.loading": "Loading…",
   "addressbook.group_placeholder": "Group name...",
   "addressbook.add_group": "+ Group",
@@ -349,6 +351,7 @@ const messages = {
   "depth.approx_time": "~{seconds} sec",
   "depth.credits_one": "1 credit",
   "depth.credits_many": "{n} credits",
+  "depth.requires_pro": "Requires Pro or Enterprise plan",
   "depth.option_basic_meta": "Best for a quick first look.",
   "depth.option_standard_label": "Standard",
   "depth.option_standard_desc": "Solid corporate snapshot for most conversations.",
@@ -509,6 +512,7 @@ const messages = {
   "overview.calendar_dossier_corporate": "Company",
   "overview.calendar_dossier_person": "Person",
   "overview.calendar_dossier_corporate_empty": "No company dossier was generated (add «Company: …» in the description or the name in the subject).",
+  "overview.calendar_dossier_corporate_free_plan": "On the Free plan, only the person dossier is generated from the calendar (the event format is the same).",
   "overview.calendar_dossier_person_empty": "No person dossier was generated (add «Contact: …», «Title: …» and optionally «Country: …» in the description).",
   "overview.calendar_dossiers_saved": "Saved to My Dossiers.",
   "overview.calendar_dossiers_open_list": "View all",

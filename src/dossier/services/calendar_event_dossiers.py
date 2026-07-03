@@ -18,6 +18,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from dossier.db.models import Dossier
+from dossier.billing.entitlements import corporate_dossier_module_flags, plan_allows_calendar_corporate_dossier
 from dossier.graphs.corporate_dossier_graph import JurisdictionScope, run_corporate_dossier_langgraph
 from dossier.cache.corporate_dossier_redis import (
     build_corporate_langgraph_cache_key_hash,
@@ -731,11 +732,14 @@ def generate_dossiers_from_calendar_event(
     *,
     organization_context_block: str | None = None,
     organization_id: UUID | None = None,
+    organization_plan: str | None = None,
     depth: str = "standard",
     output_language: str | None = None,
 ) -> dict[str, Any]:
     """
     Devuelve dossiers corporativo (CH/SEC) y de persona (PDL) por separado.
+
+    En plan Free se omite el corporativo; el formato del evento es el mismo.
     """
     reunion = _sanitize_reunion_text_fields(reunion)
     out_lang = normalize_output_language(output_language)
@@ -756,8 +760,10 @@ def generate_dossiers_from_calendar_event(
     corporate_cache_key: str | None = None
     person_cache_key: str | None = None
     depth_key = depth if depth in DEPTH_CREDITS else "standard"
+    include_corporate = plan_allows_calendar_corporate_dossier(organization_plan)
+    corporate_skipped_plan_free = False
 
-    if company_corporate:
+    if company_corporate and include_corporate:
         try:
             participantes_brief, scope = resolve_corporate_brief(company_corporate)
             if participantes:
@@ -774,6 +780,9 @@ def generate_dossiers_from_calendar_event(
             logger.exception("Fallo dossier corporativo desde calendario")
             errors.append(f"Corporativo: {e}")
             corporate_md = f"# Error en dossier corporativo\n\n{e}"
+
+    elif company_corporate and not include_corporate:
+        corporate_skipped_plan_free = True
 
     for person in persons:
         one = _generate_one_person_dossier(
@@ -826,6 +835,7 @@ def generate_dossiers_from_calendar_event(
         "corporate_cache_key": corporate_cache_key,
         "person_cache_key": person_cache_key,
         "output_language": out_lang,
+        "corporate_skipped_plan_free": corporate_skipped_plan_free,
     }
 
 
@@ -981,6 +991,7 @@ def persist_calendar_dossiers(
             or "Empresa"
         )
         subject = strip_html_to_plain_line(subject, max_len=255) or "Empresa"
+        corp_flags = corporate_dossier_module_flags(depth_key)  # type: ignore[arg-type]
         dossier = Dossier(
             id=dossier_id,
             organization_id=org_id,
@@ -988,9 +999,9 @@ def persist_calendar_dossiers(
             contact_id=None,
             subject_name=subject,
             subject_email=None,
-            module_identity=False,
-            module_corporate=True,
-            module_media=False,
+            module_identity=corp_flags["module_identity"],
+            module_corporate=corp_flags["module_corporate"],
+            module_media=corp_flags["module_media"],
             depth_level=depth_key,
             credits_consumed=corp_cost if will_charge_corp else 0,
             status=status,

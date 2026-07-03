@@ -154,9 +154,10 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
     persons?: Array<{ name: string; body: string | null; saved?: CalendarSavedDossierRef }>;
     savedCorporate?: CalendarSavedDossierRef;
     savedPerson?: CalendarSavedDossierRef;
-    savedFolder?: { id: string; title: string };
-    lushaWarnings?: string[];
-  } | null>(null);
+  savedFolder?: { id: string; title: string };
+  lushaWarnings?: string[];
+  corporateSkippedFreePlan?: boolean;
+} | null>(null);
 
   const loadMeetings = useCallback(async () => {
     if (!getStoredAccessToken()) {
@@ -271,6 +272,7 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
         savedCorporate: first.saved_dossiers?.corporate,
         savedPerson: first.saved_dossiers?.person,
         savedFolder: first.saved_dossiers?.folder,
+        corporateSkippedFreePlan: first.corporate_skipped_plan_free === true,
       });
     }
   }, [rows, getJobForEvent]);
@@ -494,6 +496,7 @@ export default function CalendarIntegrationPanel({ provider }: Props) {
                   savedCorporate={preview.savedCorporate}
                   savedPerson={preview.savedPerson}
                   savedFolder={preview.savedFolder}
+                  corporateSkippedFreePlan={preview.corporateSkippedFreePlan}
                 />
               ) : null}
             </li>

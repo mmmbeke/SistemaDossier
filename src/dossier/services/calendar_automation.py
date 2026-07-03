@@ -22,6 +22,7 @@ from dossier.services.calendar_event_dossiers import (
     persist_calendar_dossiers,
 )
 from dossier.services.calendar_event_filters import calendar_event_passes_filters
+from dossier.billing.entitlements import plan_allows_automation
 from dossier.services.output_language import resolve_dossier_output_language_for_user
 from dossier.services.google_calendar_api import (
     listar_reuniones_google,
@@ -218,6 +219,8 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
     now = datetime.now(timezone.utc)
     touched = 0
     user = db.get(User, integration.user_id)
+    org = db.get(Organization, integration.organization_id)
+    automation_ok = org is not None and plan_allows_automation(org.plan)
 
     for reunion in reuniones:
         ext_id = (reunion.get("id") or "").strip()
@@ -249,6 +252,28 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
                 row.processing_status = "skipped"
                 row.skip_reason = filter_reason
                 touched += 1
+            continue
+
+        if not automation_ok:
+            if row is None:
+                row = CalendarEvent(
+                    calendar_integration_id=integration.id,
+                    organization_id=integration.organization_id,
+                    user_id=integration.user_id,
+                    external_event_id=ext_id,
+                    processing_status="skipped",
+                )
+                db.add(row)
+            row.title = (reunion.get("tema") or "")[:500]
+            row.starts_at = starts
+            row.ends_at = ends
+            row.meeting_url = (reunion.get("ubicacion") or None)
+            row.external_attendees = _attendees_from_participantes(reunion.get("participantes") or "")
+            row.event_snapshot = _event_snapshot_with_output_language(reunion, user)
+            row.dossier_scheduled_at = None
+            row.processing_status = "skipped"
+            row.skip_reason = "Plan Free: la automatización requiere Pro o Enterprise."
+            touched += 1
             continue
 
         if row is not None and row.processing_status == "skipped" and _skipped_by_calendar_filter(
@@ -434,6 +459,14 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
             continue
 
         user = db.get(User, event.user_id)
+        org = db.get(Organization, event.organization_id)
+        if org is None or not plan_allows_automation(org.plan):
+            event.processing_status = "skipped"
+            event.skip_reason = "Plan Free: la automatización requiere Pro o Enterprise."
+            stats["skipped"] += 1
+            db.commit()
+            continue
+
         passes, filter_reason = calendar_event_passes_filters(reunion, integration, user)
         if not passes:
             event.processing_status = "skipped"
@@ -454,6 +487,7 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
                 reunion,
                 organization_context_block=org_ctx or None,
                 organization_id=event.organization_id,
+                organization_plan=org.plan if org else None,
                 output_language=out_lang,
             )
             elapsed_ms = int((time.perf_counter() - t0) * 1000)
