@@ -10,7 +10,8 @@ export type SettingsSection =
   | "language"
   | "billing"
   | "addressbook"
-  | "notifications";
+  | "notifications"
+  | "members";
 
 type NavItem = {
   id: SettingsSection;
@@ -20,6 +21,7 @@ type NavItem = {
 const items: NavItem[] = [
   { id: "general", labelKey: "settings.nav_general" },
   { id: "company", labelKey: "settings.nav_company" },
+  { id: "members", labelKey: "settings.nav_members" },
   { id: "language", labelKey: "settings.nav_language" },
   { id: "billing", labelKey: "settings.nav_billing" },
   { id: "addressbook", labelKey: "settings.nav_addressbook" },
@@ -31,21 +33,28 @@ type SettingsNavProps = {
   onChange: (section: SettingsSection) => void;
   /** Si es `personal`, no se muestra el apartado de contexto de empresa. */
   workspaceKind?: "personal" | "work" | null;
+  /** Solo admins de org ven la sección de miembros. */
+  showMembers?: boolean;
 };
 
 export default function SettingsNav({
   active,
   onChange,
   workspaceKind,
+  showMembers = false,
 }: SettingsNavProps) {
   const { t } = useTranslation();
 
   const visibleItems = useMemo(() => {
+    let list = items;
     if (workspaceKind === "personal") {
-      return items.filter((i) => i.id !== "company");
+      list = list.filter((i) => i.id !== "company");
     }
-    return items;
-  }, [workspaceKind]);
+    if (!showMembers) {
+      list = list.filter((i) => i.id !== "members");
+    }
+    return list;
+  }, [workspaceKind, showMembers]);
 
   return (
     <nav

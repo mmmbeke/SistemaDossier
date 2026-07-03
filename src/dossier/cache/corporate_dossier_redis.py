@@ -224,3 +224,21 @@ def run_with_corporate_cache_lock(key_hash: str, fn) -> Any:
     except Exception as e:
         logger.warning("Redis lock dossier corporativo: %s. Ejecutando sin lock.", e)
         return fn()
+
+
+def delete_dossier_redis_cache(redis_key: str) -> bool:
+    """Elimina una clave Redis de caché (corporativa o persona) por clave completa."""
+    key = (redis_key or "").strip()
+    if not key:
+        return False
+    r = _client()
+    if r is None:
+        return False
+    try:
+        deleted = int(r.delete(key))
+        if deleted:
+            logger.debug("Redis DELETE dossier cache: %s", key)
+        return deleted > 0
+    except Exception as e:
+        logger.warning("Redis DELETE dossier cache (%s): %s", key, e)
+        return False

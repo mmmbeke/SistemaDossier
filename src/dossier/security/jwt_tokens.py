@@ -24,11 +24,18 @@ def _secret() -> str:
     return secret
 
 
-def create_access_token(*, user_id: str, email: str, organization_id: str | None = None) -> str:
+def create_access_token(
+    *,
+    user_id: str,
+    email: str,
+    organization_id: str | None = None,
+    role: str | None = None,
+) -> str:
     """
     Genera un JWT firmado con tiempo de expiración configurable.
 
     `organization_id`: tenant activo (organización primaria del usuario en registro/login).
+    `role`: rol RBAC en la organización (`admin`, `user`, `viewer`).
     """
     minutes = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))  # 7 días por defecto
     expire = datetime.now(timezone.utc) + timedelta(minutes=minutes)
@@ -40,6 +47,8 @@ def create_access_token(*, user_id: str, email: str, organization_id: str | None
     }
     if organization_id:
         payload["org_id"] = organization_id
+    if role:
+        payload["role"] = role.strip().lower()
     return jwt.encode(payload, _secret(), algorithm="HS256")
 
 

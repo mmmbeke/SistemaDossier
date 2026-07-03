@@ -6,8 +6,10 @@ import DashboardCard from "@/components/dashboard/DashboardCard";
 import TopBar from "@/components/dashboard/TopBar";
 import FilterTabs, { type FilterValue } from "@/components/dossier/FilterTabs";
 import DossierGroupedList from "@/components/dossier/DossierGroupedList";
+import DossierViewTabs from "@/components/dossier/DossierViewTabs";
 import NewDossierButton from "@/components/dossier/NewDossierButton";
 import UiAlert from "@/components/ui/UiAlert";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import {
   DossierApiError,
   deleteDossierFromApi,
@@ -18,13 +20,16 @@ import {
 } from "@/lib/dossier-api";
 import {
   countListEntries,
+  countEntriesByViewMode,
   entryMatchesFilter,
   entryMatchesQuery,
   entryMatchesTypeFilter,
+  entryMatchesViewMode,
   groupListEntriesByMeetingTime,
   isNonEmptyListEntry,
   removeDossierFromListEntries,
   sortListEntriesByDate,
+  type DossierViewMode,
   type TypeFilterValue,
 } from "@/lib/dossier-list-utils";
 import { useTranslation } from "@/providers/PreferencesProvider";
@@ -33,7 +38,9 @@ type DbLoadState = "idle" | "loading" | "ready" | "error";
 
 export default function DossiersPage() {
   const { t } = useTranslation();
+  const { canMutate, isViewer } = useAuthMe();
   const [query, setQuery] = useState("");
+  const [viewMode, setViewMode] = useState<DossierViewMode>("meeting_folders");
   const [filter, setFilter] = useState<FilterValue>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilterValue>("all");
   const [dbLoad, setDbLoad] = useState<DbLoadState>("idle");
@@ -71,20 +78,28 @@ export default function DossiersPage() {
     };
   }, []);
 
-  const counts = useMemo(
-    () => countListEntries(dbItems.filter(isNonEmptyListEntry)),
+  const nonEmptyItems = useMemo(
+    () => dbItems.filter(isNonEmptyListEntry),
     [dbItems]
   );
+
+  const viewCounts = useMemo(() => countEntriesByViewMode(nonEmptyItems), [nonEmptyItems]);
+
+  const counts = useMemo(() => {
+    const scoped = nonEmptyItems.filter((entry) => entryMatchesViewMode(entry, viewMode));
+    return countListEntries(scoped);
+  }, [nonEmptyItems, viewMode]);
 
   const filteredDb = useMemo(() => {
     return dbItems.filter(
       (entry) =>
         isNonEmptyListEntry(entry) &&
+        entryMatchesViewMode(entry, viewMode) &&
         entryMatchesQuery(entry, query) &&
         entryMatchesFilter(entry, filter) &&
         entryMatchesTypeFilter(entry, typeFilter)
     );
-  }, [dbItems, query, filter, typeFilter]);
+  }, [dbItems, viewMode, query, filter, typeFilter]);
 
   const groupedDb = useMemo(() => groupListEntriesByMeetingTime(filteredDb), [filteredDb]);
   const sortedFlatDb = useMemo(() => sortListEntriesByDate(filteredDb), [filteredDb]);
@@ -113,8 +128,14 @@ export default function DossiersPage() {
       <TopBar
         title={t("dossiers.title")}
         subtitle={t("dossiers.subtitle")}
-        action={<NewDossierButton />}
+        action={canMutate ? <NewDossierButton /> : undefined}
       />
+
+      {isViewer && hasSession && (
+        <UiAlert variant="info" className="mb-4">
+          {t("dossiers.viewer_list_hint")}
+        </UiAlert>
+      )}
 
       {dbLoad === "error" && dbError && (
         <UiAlert variant="warning" className="mb-4" role="alert">
@@ -183,6 +204,23 @@ export default function DossiersPage() {
               </button>
             )}
           </div>
+
+          <DossierViewTabs
+            active={viewMode}
+            onChange={setViewMode}
+            tabs={[
+              {
+                value: "meeting_folders",
+                label: t("dossiers.view_meeting_folders"),
+                count: viewCounts.meeting_folders,
+              },
+              {
+                value: "standalone",
+                label: t("dossiers.view_standalone"),
+                count: viewCounts.standalone,
+              },
+            ]}
+          />
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-2">
@@ -255,9 +293,11 @@ export default function DossiersPage() {
               groups={groupedDb}
               flatEntries={sortedFlatDb}
               filter={filter}
+              viewMode={viewMode}
               typeFilter={typeFilter}
               deletingId={deletingId}
               onDeleteDossier={handleDeleteDossier}
+              showDelete={canMutate}
             />
           )}
         </section>

@@ -15,17 +15,21 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(min_length=1, max_length=255)
     company_name: str | None = Field(default=None, max_length=255)
     workspace_kind: Literal["personal", "work"] = "work"
+    invite_token: str | None = Field(default=None, max_length=128)
 
     @model_validator(mode="before")
     @classmethod
     def infer_workspace_kind_if_omitted(cls, data: Any) -> Any:
         """
         Clientes antiguos u omiten `workspace_kind`: si no hay nombre de empresa,
-        asumir cuenta personal (evita 422). Si hay `company_name`, asumir work.
+        asumir cuenta personal (evita 422). Si hay `company_name` o `invite_token`, work.
         """
         if not isinstance(data, dict):
             return data
         out = dict(data)
+        raw_invite = out.get("invite_token")
+        has_invite = isinstance(raw_invite, str) and bool(raw_invite.strip())
+
         raw_wk = out.get("workspace_kind")
         if isinstance(raw_wk, str):
             wk = raw_wk.strip().lower()
@@ -37,8 +41,18 @@ class RegisterRequest(BaseModel):
         if wk not in ("personal", "work"):
             cn = out.get("company_name")
             cn_str = cn.strip() if isinstance(cn, str) else ""
-            out["workspace_kind"] = "work" if cn_str else "personal"
+            out["workspace_kind"] = "work" if cn_str or has_invite else "personal"
         return out
+
+    @field_validator("invite_token", mode="before")
+    @classmethod
+    def strip_invite_token(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            t = v.strip()
+            return t or None
+        return None
 
     @field_validator("full_name")
     @classmethod
@@ -60,6 +74,11 @@ class RegisterRequest(BaseModel):
 
     @model_validator(mode="after")
     def company_required_for_work(self) -> RegisterRequest:
+        invite = (self.invite_token or "").strip()
+        if invite:
+            # Registro vía invitación: se une a la org existente, sin company_name.
+            self.company_name = None
+            return self
         if self.workspace_kind == "work":
             cn = (self.company_name or "").strip()
             if not cn:
@@ -97,6 +116,10 @@ class UserPreferencesPatch(BaseModel):
         max_length=10,
         description="match | es | en | pt | it | fr | de | auto",
     )
+    dossier_retention_days: int | None = Field(
+        default=None,
+        description="7, 14, 30, 90 o null (conservar indefinidamente)",
+    )
 
     @field_validator("locale", "timezone", "dossier_output_language", mode="before")
     @classmethod
@@ -127,6 +150,7 @@ class UserPublic(BaseModel):
     locale: str = "es"
     timezone: str = "UTC"
     dossier_output_language: str = "match"
+    dossier_retention_days: int | None = 30
 
 
 class OrganizationPlanPatch(BaseModel):

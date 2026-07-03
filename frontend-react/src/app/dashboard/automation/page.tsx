@@ -15,6 +15,7 @@ import {
 } from "@/lib/dossier-api";
 import { normalizePlanTier } from "@/lib/mock-billing";
 import { useTranslation } from "@/providers/PreferencesProvider";
+import MutatorGuard from "@/components/auth/MutatorGuard";
 import type { TranslationKey } from "@/i18n/types";
 
 const BEFORE_OPTIONS: { value: string; key: TranslationKey }[] = [
@@ -119,7 +120,8 @@ export default function AutomationPage() {
     saving || load === "loading" || !hasCalendars || !planAllowsAutomation;
 
   return (
-    <>
+    <MutatorGuard>
+      <>
       <TopBar title={t("automation.title")} subtitle={t("automation.subtitle")} />
 
       {!planAllowsAutomation && load === "ready" ? (
@@ -246,5 +248,6 @@ export default function AutomationPage() {
         </DashboardCard>
       </div>
     </>
+    </MutatorGuard>
   );
 }

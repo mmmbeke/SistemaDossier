@@ -19,6 +19,7 @@ import {
 } from "@/lib/dossier-api";
 import { getCalendarMeetingLabel, getCalendarMeetingSubject } from "@/lib/calendar-dossier-meta";
 import { countListEntries, formatDossierStatusLabel } from "@/lib/dossier-list-utils";
+import { canMutateDossiers } from "@/lib/org-role";
 import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
@@ -253,6 +254,18 @@ export default function OverviewPage() {
   const titleName = welcomeName || t("overview.anonymous");
   const creditsBalance = me?.credits_balance;
   const monthlyLimit = me?.credits_monthly_limit;
+  const visibleQuickActions = useMemo(
+    () =>
+      canMutateDossiers(me?.role)
+        ? quickActions
+        : quickActions.filter(
+            (a) =>
+              a.href !== "/dashboard/person-research" &&
+              a.href !== "/dashboard/corporate" &&
+              a.href !== "/dashboard/automation"
+          ),
+    [me?.role]
+  );
   const creditsTrend =
     dashLoad === "ready" && me && typeof monthlyLimit === "number" && monthlyLimit > 0
       ? t("stat.credits_monthly_hint", { limit: monthlyLimit })
@@ -329,7 +342,7 @@ export default function OverviewPage() {
         />
       </section>
 
-      <OverviewCalendarsSection />
+      {canMutateDossiers(me?.role) ? <OverviewCalendarsSection /> : null}
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <DashboardCard title={t("activity.title")}>
@@ -411,7 +424,7 @@ export default function OverviewPage() {
 
         <DashboardCard title={t("quick.title")}>
           <ul className="flex flex-col gap-2">
-            {quickActions.map((action) => (
+            {visibleQuickActions.map((action) => (
               <li key={action.labelKey}>
                 <Link
                   href={action.href}

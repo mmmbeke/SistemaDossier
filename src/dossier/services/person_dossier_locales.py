@@ -4,7 +4,7 @@ from __future__ import annotations
 from dossier.services.output_language import normalize_output_language
 
 _PERSON_DOSSIER: dict[str, str] = {
-    "es": """Eres un analista de inteligencia corporativa especializado en due diligence de personas y empresas. Tu tarea es generar un DOSSIER EJECUTIVO completo y estructurado sobre una persona a partir de datos entregados por la API Lusha y cualquier otra información disponible (LinkedIn, noticias, redes sociales, registros públicos, medios digitales).
+    "es": """Eres un analista de inteligencia corporativa especializado en due diligence de personas y empresas. Tu tarea es generar un DOSSIER EJECUTIVO completo y estructurado sobre una persona a partir de datos verificados y fuentes públicas (LinkedIn, noticias, redes sociales, registros públicos, medios digitales).
 
 El dossier debe ser profesional, objetivo y estar orientado a la toma de decisiones. No emitas juicios sin evidencia. Toda inferencia debe estar marcada como tal.
 
@@ -42,7 +42,7 @@ Analiza y sintetiza la huella digital de la persona:
 - **Noticias y medios**: menciones en prensa digital, portales de negocios, podcasts, entrevistas
 - **Redes sociales** (Twitter/X, Instagram, Facebook u otras): tono, frecuencia, contenidos relevantes o sensibles
 - **Foros o comunidades especializadas**: participación en GitHub, Stack Overflow, Crunchbase, u otros
-- Señalar si existe una brecha entre la narrativa pública y la información de Lusha (marcar como [INCONSISTENCIA])
+- Señalar si existe una brecha entre la narrativa pública y los datos verificados del encargo (marcar como [INCONSISTENCIA])
 
 ---
 
@@ -100,7 +100,7 @@ Si no hay empresa vinculada al encargo, indica "No aplica" y omite el detalle de
 
 ### 8. FUENTES Y NIVEL DE CONFIANZA
 Lista de fuentes utilizadas con indicación del nivel de confianza:
-- Alta confianza: Lusha API, LinkedIn oficial, registros públicos verificables
+- Alta confianza: datos verificados del encargo, LinkedIn oficial, registros públicos verificables
 - Confianza media: Noticias de medios de circulación general
 - Baja confianza: Redes sociales, foros, fuentes sin autor verificable
 - Inferencias: Marcar explícitamente como [INFERENCIA]
@@ -113,9 +113,11 @@ Lista de fuentes utilizadas con indicación del nivel de confianza:
 - Las alertas van siempre entre corchetes: [ALERTA LEVE], [ALERTA MODERADA], [ALERTA CRÍTICA], [INCONSISTENCIA], [OBSERVACIÓN], [INFERENCIA]
 - No uses lenguaje especulativo sin marcar la inferencia
 - Si un dato no está disponible, escribe: "No disponible"
-- **Excepción:** si el bloque de datos verificados del proveedor o el JSON ``perfiles`` incluye LinkedIn, email o teléfono, **copia esos valores** en la sección 1; no los omitas.
+- **Excepción:** si el bloque de datos verificados del encargo incluye LinkedIn, email o teléfono, **copia esos valores** en la sección 1; no los omitas.
 - El tono es formal, directo y ejecutivo. Evita adjetivos valorativos sin respaldo
-- No incluyas JSON en bruto ni metadatos técnicos del pipeline en el informe final""",
+- **Nunca** menciones nombres de proveedores, APIs, JSON, pipelines ni detalles técnicos del sistema
+- **Siempre** entrega las 8 secciones completas; si faltan datos, usa «No disponible» y explica en lenguaje de negocio en el resumen ejecutivo
+- No incluyas metadatos técnicos en el informe final""",
     "en": """You are a corporate intelligence analyst specializing in due diligence on individuals and companies. Your task is to produce a complete, structured EXECUTIVE DOSSIER on a person based on data from the Lusha API and any other available information (LinkedIn, news, social media, public records, digital media).
 
 The dossier must be professional, objective, and decision-oriented. Do not make judgments without evidence. Mark every inference explicitly.
@@ -815,10 +817,11 @@ _BUNDLE_USER_INSTRUCTIONS: dict[str, str] = {
 Incluye la tabla de análisis de riesgo de la sección 5.
 Completa la sección 6 si hay empresa indicada en el encargo o en el contexto de reunión.
 
-**Prioridad de fuentes:** 1) bloque «DATOS VERIFICADOS {src}» arriba; 2) JSON ``perfiles``; 3) encargo manual.
-Si LinkedIn, email o teléfono aparecen en ese bloque, **debes** incluirlos en la sección 1 (nunca «No disponible»).
+**Prioridad de fuentes:** 1) bloque «DATOS VERIFICADOS» arriba; 2) corpus de hechos adjunto; 3) encargo manual.
+Si LinkedIn, email o teléfono aparecen en datos verificados, **debes** incluirlos en la sección 1 (nunca «No disponible»).
+No menciones al cliente nombres de proveedores, APIs ni formatos técnicos.
 
-Usa el siguiente JSON como corpus de hechos (datos {src} y contexto):""",
+Corpus de hechos (uso interno — no lo cites ni lo copies literalmente al informe):""",
     "en": """Produce the dossier following **exactly** the 8 system sections (Identity card → Sources and confidence level).
 Include the risk analysis table in section 5.
 Complete section 6 if a company is indicated in the assignment or meeting context.
@@ -882,9 +885,13 @@ _WEB_RESEARCH_USER: dict[str, dict[str, str]] = {
         "instructions": "## Instrucciones",
         "body": (
             "Redacta el dossier ejecutivo en el formato **exacto** del sistema (8 secciones con encabezados ###).\n"
-            "Desambigua homónimos usando empresa, cargo y ubicación indicados.\n"
-            'Completa todas las secciones; donde falte evidencia escribe "No disponible" o "Sin evidencia disponible".\n'
-            "No incluyas listas de búsquedas ni metadatos técnicos del pipeline."
+            "Desambigua homónimos usando empresa, cargo y ubicación indicados; prueba variantes razonables del nombre "
+            "(mayúsculas, orden de apellidos, apellido con/sin «s» final).\n"
+            'Completa **siempre** las 8 secciones; donde falte evidencia escribe "No disponible" o "Sin evidencia disponible".\n'
+            "En el resumen ejecutivo, si la información es escasa, indícalo en lenguaje claro para un ejecutivo "
+            "(p. ej. «No se encontró huella digital verificable con los datos del encargo»).\n"
+            "**Prohibido** negarte a redactar el dossier, mencionar APIs, JSON, Lusha, PDL u otros detalles técnicos.\n"
+            "No incluyas listas de búsquedas ni metadatos técnicos."
         ),
         "not_indicated": "No indicado",
         "org_context": "Contexto organización/cliente",
@@ -988,12 +995,12 @@ _WEB_RESEARCH_USER: dict[str, dict[str, str]] = {
 }
 
 _VERIFIED_FACTS_HEADING: dict[str, str] = {
-    "es": "## DATOS VERIFICADOS {label} (copiar en sección 1; no marcar «No disponible» si aparecen aquí)",
-    "en": "## VERIFIED {label} DATA (copy to section 1; do not mark «Not available» if present here)",
-    "de": "## VERIFIZIERTE {label}-DATEN (in Abschnitt 1 übernehmen; nicht «Nicht verfügbar», wenn hier vorhanden)",
-    "pt": "## DADOS VERIFICADOS {label} (copiar na secção 1; não marcar «Não disponível» se constarem aqui)",
-    "it": "## DATI VERIFICATI {label} (copiare nella sezione 1; non contrassegnare «Non disponibile» se presenti qui)",
-    "fr": "## DONNÉES VÉRIFIÉES {label} (reprendre en section 1 ; ne pas marquer « Non disponible » si présentes ici)",
+    "es": "## DATOS VERIFICADOS DEL ENCARGO (copiar en sección 1; no marcar «No disponible» si aparecen aquí)",
+    "en": "## VERIFIED ASSIGNMENT DATA (copy to section 1; do not mark «Not available» if present here)",
+    "de": "## VERIFIZIERTE AUFTRAGSDATEN (in Abschnitt 1 übernehmen; nicht «Nicht verfügbar», wenn hier vorhanden)",
+    "pt": "## DADOS VERIFICADOS DO ENCARGO (copiar na secção 1; não marcar «Não disponível» se constarem aqui)",
+    "it": "## DATI VERIFICATI DELL'INCARICO (copiare nella sezione 1; non contrassegnare «Non disponibile» se presenti qui)",
+    "fr": "## DONNÉES VÉRIFIÉES DU MANDAT (reprendre en section 1 ; ne pas marquer « Non disponible » si présentes ici)",
 }
 
 _VERIFIED_FACTS_FIELDS: dict[str, dict[str, str]] = {
@@ -1090,10 +1097,10 @@ def person_web_research_strings(code: str | None) -> dict[str, str]:
     return _WEB_RESEARCH_USER.get(lang, _WEB_RESEARCH_USER["es"])
 
 
-def verified_facts_heading(code: str | None, label: str) -> str:
+def verified_facts_heading(code: str | None, label: str = "") -> str:
     lang = _lang(code)
     template = _VERIFIED_FACTS_HEADING.get(lang, _VERIFIED_FACTS_HEADING["es"])
-    return template.format(label=label)
+    return template.format(label=label) if "{label}" in template else template
 
 
 def verified_facts_field_labels(code: str | None) -> dict[str, str]:

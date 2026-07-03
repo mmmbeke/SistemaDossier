@@ -13,8 +13,14 @@ import {
   writeDossierUserPreview,
 } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
-
+import { useAuthMe, AUTH_ME_CHANGED_EVENT } from "@/hooks/useAuthMe";
 import type { TranslationKey } from "@/i18n/types";
+
+const mutatorOnlyHrefs = new Set([
+  "/dashboard/automation",
+  "/dashboard/person-research",
+  "/dashboard/corporate",
+]);
 
 type NavItem = {
   href: string;
@@ -124,6 +130,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useTranslation();
+  const { canMutate } = useAuthMe();
   const [footer, setFooter] = useState<FooterProfile | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
@@ -182,8 +189,10 @@ export default function Sidebar() {
     }
 
     void load();
+    window.addEventListener(AUTH_ME_CHANGED_EVENT, load);
     return () => {
       cancelled = true;
+      window.removeEventListener(AUTH_ME_CHANGED_EVENT, load);
     };
   }, [t]);
 
@@ -238,7 +247,7 @@ export default function Sidebar() {
 
       <nav className="flex-1 px-3 py-4">
         <ul className="flex flex-col gap-1">
-          {[...navItems, ...(isPlatformAdmin ? [adminNavItem] : [])].map((item) => {
+          {[...navItems.filter((item) => canMutate || !mutatorOnlyHrefs.has(item.href)), ...(isPlatformAdmin ? [adminNavItem] : [])].map((item) => {
             const active = isActive(item.href);
             return (
               <li key={item.href}>

@@ -208,6 +208,8 @@ const messages = {
   "person_research.already_generating": "Ya hay un dossier en curso.",
   "person_research.regenerate": "Nueva búsqueda",
   "person_research.regenerate_hint": "Ignora caché y vuelve a buscar",
+  "person_research.replace_hint":
+    "Estás refinando un dossier existente: al generar de nuevo se actualizará en la misma carpeta de reunión.",
   "person_research.error_auth": "Debes iniciar sesión.",
   "person_research.error_name": "Indica al menos el nombre completo de la persona.",
   "person_research.warn_title": "Avisos",
@@ -252,7 +254,9 @@ const messages = {
   "billing.saving": "Guardando…",
   "billing.load_error": "No se pudieron cargar los datos de facturación.",
   "billing.plan_note":
-    "Al cambiar de plan se actualizan créditos y capacidades del espacio (Enterprise activa white-label en base de datos).",
+    "Al cambiar de plan se actualizan créditos y capacidades para toda la organización (todos los miembros comparten el mismo plan).",
+  "billing.org_plan_member_note":
+    "El plan y los créditos los define el administrador de tu empresa. Todos los miembros comparten el mismo plan.",
   "billing.automation_requires_pro":
     "La automatización de calendario requiere plan Pro o Enterprise. Puedes generar dossiers manualmente desde el calendario.",
   "billing.loading": "Cargando…",
@@ -334,6 +338,8 @@ const messages = {
   "dossiers.section_past_hint": "Dossiers de reuniones que ya se realizaron.",
   "dossiers.section_other": "Otros dossiers",
   "dossiers.section_other_hint": "Investigaciones manuales e informes sin fecha de reunión asociada.",
+  "dossiers.view_meeting_folders": "Carpetas Reuniones",
+  "dossiers.view_standalone": "Dossier",
   "dossiers.search_short": "Busca por nombre, empresa o cargo...",
   "dossiers.filter_updated": "Actualizados",
   "automation.email_title": "Entrega por email",
@@ -447,9 +453,9 @@ const messages = {
   "overview.microsoft_participants": "Participantes",
   "overview.calendar_description": "Descripción",
   "overview.calendar_description_empty":
-    "Sin descripción en el evento. Añade «Empresa: …» y «Contacto: …» en el cuerpo.",
+    "Sin descripción en el calendario. Añade en Outlook «Empresa: …» y «Contacto:» / «Contacto 1:» en el cuerpo del evento.",
   "overview.calendar_description_no_contact":
-    "Falta «Contacto:» o «Nombre:» en la descripción; solo se generará el dossier de empresa.",
+    "No se detecta contacto en la descripción (usa «Contacto:» o «Contacto 1:», «Contacto 2:»…); solo se generará el dossier de empresa.",
   "calendar.guide.summary": "Guía de formatos",
   "calendar.guide.open_inline": "Ver guía de formato",
   "calendar.guide.close": "Cerrar",
@@ -464,6 +470,8 @@ const messages = {
     "Empresa: Empresa, Company, Cliente, Organization…",
   "calendar.guide.field_contact":
     "Persona: Contacto, Nombre, Name, Contact, Reunión con…",
+  "calendar.guide.field_contact_multi":
+    "Varios contactos: Contacto 1 / Contacto 2… con Cargo 1, Email 1, País 1, etc.",
   "calendar.guide.field_job":
     "Cargo: Cargo, Puesto, Rol, Título, Área…",
   "calendar.guide.field_email": "Email: nombre@empresa.com (opcional, mejora el match)",
@@ -549,6 +557,7 @@ const messages = {
   "dossier_jobs.person_label": "Dossier de persona",
   "dossier_jobs.generating": "Generando dossier…",
   "dossier_jobs.ready": "Dossier listo",
+  "dossier_jobs.partial": "Dossier listo con avisos (revisa la carpeta)",
   "dossier_jobs.failed": "No se pudo generar el dossier",
   "dossier_jobs.cancelled": "Generación cancelada",
   "dossier_jobs.cancel": "Cancelar",
@@ -635,7 +644,28 @@ const messages = {
   "dossiers.delete": "Eliminar",
   "dossiers.delete_confirm":
     "¿Eliminar este dossier? Se borrará de tu organización y no se puede deshacer.",
+  "dossiers.delete_folder": "Eliminar carpeta",
+  "dossiers.delete_folder_confirm":
+    "¿Eliminar toda la carpeta y todos los dossiers que contiene? No se puede deshacer.",
   "dossiers.delete_aria": "Eliminar este dossier",
+  "dossiers.share_title": "Compartir dossier",
+  "dossiers.share_hint":
+    "Los viewers pueden ver el dossier pero no editarlo, eliminarlo ni volver a compartirlo.",
+  "dossiers.share_add_label": "Miembro de la organización",
+  "dossiers.share_select_member": "Seleccionar miembro…",
+  "dossiers.share_no_members": "No hay más miembros disponibles",
+  "dossiers.share_add_button": "Compartir",
+  "dossiers.share_saving": "Guardando…",
+  "dossiers.share_remove": "Quitar acceso",
+  "dossiers.share_empty": "Este dossier no está compartido con nadie más.",
+  "dossiers.viewer_readonly_hint":
+    "Tienes acceso de solo lectura. No puedes generar, editar ni eliminar dossiers.",
+  "dossiers.viewer_list_hint":
+    "Solo ves dossiers compartidos contigo o creados por ti. No puedes crear ni eliminar.",
+  "rbac.viewer_blocked_title": "Acceso de solo lectura",
+  "rbac.viewer_blocked_hint":
+    "Tu rol viewer no permite usar esta sección. Puedes consultar dossiers compartidos contigo.",
+  "rbac.viewer_go_dossiers": "Ir a dossiers",
   "dossiers.deleting": "Eliminando…",
   "dossiers.calendar_meeting": "Reunión",
   "dossiers.calendar_meeting_from": "Origen:",
@@ -684,6 +714,51 @@ const messages = {
     "Este texto se añade automáticamente como contexto al generar dossiers. Deja ambos campos vacíos para borrar el contexto guardado.",
   "settings.company.read_only": "Solo un administrador de la organización puede editar esta sección.",
   "settings.company.load_error": "No se pudo cargar la información de empresa.",
+  "settings.nav_members": "Miembros y roles",
+  "settings.members.title": "Miembros de la organización",
+  "settings.members.subtitle":
+    "Asigna roles RBAC a cada persona de tu equipo. Los viewers solo ven dossiers compartidos.",
+  "settings.members.load_error": "No se pudo cargar la lista de miembros.",
+  "settings.members.invite_title": "Invitar a tu equipo",
+  "settings.members.invite_subtitle":
+    "Solo puedes invitar correos del dominio @{domain}. Si la persona ya tiene cuenta, se unirá al instante.",
+  "settings.members.invite_email_label": "Correo corporativo",
+  "settings.members.invite_button": "Invitar",
+  "settings.members.invite_sending": "Enviando…",
+  "settings.members.invite_created": "Invitación creada. Copia el enlace y compártelo.",
+  "settings.members.invite_joined_immediately": "Usuario añadido a la organización.",
+  "settings.members.invite_revoke": "Revocar",
+  "settings.members.invite_status_pending": "Pendiente",
+  "settings.members.invite_status_accepted": "Aceptada",
+  "settings.members.invite_status_revoked": "Revocada",
+  "settings.members.invite_status_expired": "Expirada",
+  "settings.members.joined_direct": "unión directa",
+  "settings.members.copy_link": "Copiar enlace",
+  "settings.members.copied": "Copiado",
+  "settings.members.copy_failed": "No se pudo copiar el enlace.",
+  "settings.members.pending_title": "Invitaciones a empresas",
+  "settings.members.pending_subtitle": "Te han invitado a unirte a estas organizaciones.",
+  "settings.members.pending_accept": "Unirme",
+  "settings.members.pending_accepting": "Uniendo…",
+  "settings.members.pending_role": "Rol: {role}",
+  "settings.members.invite_invalid": "La invitación no es válida o ha expirado.",
+  "settings.members.invite_loading": "Comprobando invitación…",
+  "settings.members.register_invite_title": "Te invitaron a {org}",
+  "settings.members.register_invite_hint":
+    "Regístrate con tu correo @{domain}. Rol asignado: {role}.",
+  "settings.members.col_member": "Miembro",
+  "settings.members.col_role": "Rol",
+  "settings.members.col_joined": "Alta",
+  "settings.members.col_actions": "Acciones",
+  "settings.members.role_admin": "Administrador",
+  "settings.members.role_user": "Usuario",
+  "settings.members.role_viewer": "Viewer (solo lectura)",
+  "settings.members.you": "tú",
+  "settings.members.remove": "Quitar",
+  "settings.members.removing": "Quitando…",
+  "settings.members.remove_confirm":
+    "¿Quitar a este miembro de la organización? Perderá acceso a los dossiers de la org.",
+  "settings.members.empty": "No hay miembros en esta organización.",
   "settings.general_title": "Configuración General",
   "settings.theme": "Tema",
   "theme.dark": "Oscuro",
