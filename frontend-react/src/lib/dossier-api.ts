@@ -697,7 +697,7 @@ export function clearAuthSession(): void {
   sessionStorage.removeItem(DOSSIER_USER_PREVIEW_KEY);
 }
 
-async function postJsonWithAuth<T>(path: string, body: unknown): Promise<T> {
+async function postJsonWithAuth<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const token = getStoredAccessToken();
   if (!token) {
     throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
@@ -713,8 +713,12 @@ async function postJsonWithAuth<T>(path: string, body: unknown): Promise<T> {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
+      signal,
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw err;
+    }
     throwFetchFailed();
   }
 
@@ -930,11 +934,13 @@ export async function getPdlIntegrationHealth(): Promise<PdlHealthResponse> {
 
 /** Genera dossier con pipeline LangGraph (UK + US + Gemini) y lo persiste en la API. */
 export async function createCorporateDossier(
-  payload: CreateCorporateDossierPayload
+  payload: CreateCorporateDossierPayload,
+  signal?: AbortSignal,
 ): Promise<CreateCorporateDossierResponse> {
   return postJsonWithAuth<CreateCorporateDossierResponse>(
     "/dossiers/corporate/generate",
-    payload
+    payload,
+    signal,
   );
 }
 
@@ -1791,7 +1797,7 @@ export type DossierGenerationJobApi = {
   credits_estimated?: number;
   credits_consumed?: number;
   error_message?: string | null;
-  result?: CalendarGenerarDossierItem | PersonResearchApiResponse | null;
+  result?: CalendarGenerarDossierItem | PersonResearchApiResponse | CreateCorporateDossierResponse | null;
   created_at?: string | null;
   started_at?: string | null;
   completed_at?: string | null;

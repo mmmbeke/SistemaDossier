@@ -24,13 +24,11 @@ export default function FilterTabs({ tabs, active, onChange }: FilterTabsProps) 
             key={tab.value}
             type="button"
             onClick={() => onChange(tab.value)}
-            className="rounded-md px-3 py-1.5 text-sm font-medium transition"
-            style={{
-              backgroundColor: isActive
-                ? "var(--bg-surface-strong)"
-                : "transparent",
-              color: isActive ? "var(--text-primary)" : "var(--text-muted)",
-            }}
+            className={
+              isActive
+                ? "ui-filter-tab-btn ui-filter-tab-btn--active"
+                : "ui-filter-tab-btn ui-filter-tab-btn--inactive"
+            }
           >
             {tab.label}
             <span

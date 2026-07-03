@@ -11,9 +11,11 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   DossierApiError,
   cancelDossierGenerationJob,
+  createCorporateDossier,
   enqueuePersonResearch,
   fetchDossierGenerationJob,
   fetchDossierGenerationJobs,
@@ -21,6 +23,8 @@ import {
   fetchEnqueueOutlookCalendarDossier,
   type CalendarProvider,
   type CalendarGenerarDossierItem,
+  type CreateCorporateDossierPayload,
+  type CreateCorporateDossierResponse,
   type DossierGenerationJobApi,
   type DossierGenerationJobStatus,
   type OutlookReunionApi,
@@ -46,10 +50,16 @@ type DossierJobsContextValue = {
     options: { eventId: string; reunion?: OutlookReunionApi },
   ) => Promise<string>;
   enqueuePersonResearchJob: (payload: PersonResearchPayload) => Promise<string>;
+  enqueueCorporateDossierJob: (
+    payload: CreateCorporateDossierPayload,
+    label: string,
+    creditsEstimated?: number,
+  ) => Promise<string>;
   cancelJob: (jobId: string) => Promise<void>;
   isEventGenerating: (eventId: string | undefined | null) => boolean;
   getJobForEvent: (eventId: string | undefined | null) => TrackedJob | undefined;
   getActivePersonJob: () => TrackedJob | undefined;
+  getActiveCorporateJob: () => TrackedJob | undefined;
   dismissToast: (jobId: string) => void;
 };
 
@@ -119,12 +129,54 @@ function calendarJobSavedNothing(job: TrackedJob): boolean {
   return !saved?.corporate && !saved?.person;
 }
 
+function personJobSavedNothing(job: TrackedJob): boolean {
+  if (job.job_type !== "person_manual" || job.status !== "completed" || !job.result) {
+    return false;
+  }
+  const personResult = job.result as PersonResearchApiResponse;
+  return !personResult.saved_dossier?.id;
+}
+
+function corporateJobSavedNothing(job: TrackedJob): boolean {
+  if (job.job_type !== "corporate_manual" || job.status !== "completed" || !job.result) {
+    return false;
+  }
+  const corporateResult = job.result as CreateCorporateDossierResponse;
+  return !corporateResult.id;
+}
+
+function personJobHasPartialFailure(job: TrackedJob): boolean {
+  if (job.job_type !== "person_manual" || job.status !== "completed" || !job.result) {
+    return false;
+  }
+  const personResult = job.result as PersonResearchApiResponse;
+  if (!personResult.saved_dossier?.id) return false;
+  const hasAnalysis = !!personResult.gemini_analysis_markdown?.trim();
+  const criticalWarnings = (personResult.warnings ?? []).filter(
+    (w) => !w.includes("PDL encontró perfil"),
+  );
+  return !hasAnalysis || criticalWarnings.length > 0;
+}
+
+function personJobWarning(job: TrackedJob): string | undefined {
+  if (job.job_type !== "person_manual" || job.status !== "completed" || !job.result) {
+    return undefined;
+  }
+  const warnings = (job.result as PersonResearchApiResponse).warnings ?? [];
+  return warnings.find((w) => !w.includes("PDL encontró perfil"));
+}
+
 function dossierHref(job: TrackedJob): string | null {
   if (job.job_type === "person_manual" && job.result) {
     const personResult = job.result as PersonResearchApiResponse;
     const personManualId = personResult.saved_dossier?.id;
     if (personManualId) return `/dashboard/dossiers/${personManualId}`;
-    return "/dashboard/dossiers";
+    return null;
+  }
+  if (job.job_type === "corporate_manual" && job.result) {
+    const corporateResult = job.result as CreateCorporateDossierResponse;
+    if (corporateResult.id) return `/dashboard/dossiers/${corporateResult.id}`;
+    return null;
   }
   if (job.job_type === "calendar_manual" && job.result) {
     const cal = job.result as CalendarGenerarDossierItem;
@@ -143,6 +195,7 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
   const [jobs, setJobs] = useState<TrackedJob[]>([]);
   const jobsRef = useRef(jobs);
   jobsRef.current = jobs;
+  const corporateAbortRef = useRef<Map<string, AbortController>>(new Map());
 
   const mergeJob = useCallback((incoming: DossierGenerationJobApi) => {
     setJobs((prev) => {
@@ -209,6 +262,7 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
           const active = jobsRef.current.filter((j) => !TERMINAL.includes(j.status));
           if (active.length === 0) return;
           for (const j of active) {
+            if (j.job_type === "corporate_manual") continue;
             const fresh = await fetchDossierGenerationJob(j.id);
             mergeJob(fresh);
           }
@@ -285,8 +339,97 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
     [syncActiveIds],
   );
 
+  const enqueueCorporateDossierJob = useCallback(
+    async (
+      payload: CreateCorporateDossierPayload,
+      label: string,
+      creditsEstimated = 0,
+    ): Promise<string> => {
+      const jobId = crypto.randomUUID();
+      const controller = new AbortController();
+      corporateAbortRef.current.set(jobId, controller);
+
+      const job: TrackedJob = {
+        id: jobId,
+        status: "running",
+        job_type: "corporate_manual",
+        calendar_provider: null,
+        external_event_id: null,
+        meeting_label: label,
+        credits_estimated: creditsEstimated,
+        credits_consumed: 0,
+      };
+
+      setJobs((prev) => {
+        const next = [...prev.filter((j) => j.id !== job.id), job];
+        syncActiveIds(next);
+        return next;
+      });
+
+      void (async () => {
+        try {
+          const res = await createCorporateDossier(payload, controller.signal);
+          corporateAbortRef.current.delete(jobId);
+          setJobs((prev) => {
+            const next = prev.map((j) =>
+              j.id === jobId
+                ? {
+                    ...j,
+                    status: "completed" as const,
+                    result: res,
+                    credits_consumed: res.credits_consumed,
+                  }
+                : j,
+            );
+            syncActiveIds(next);
+            return next;
+          });
+        } catch (err) {
+          corporateAbortRef.current.delete(jobId);
+          const cancelled = err instanceof Error && err.name === "AbortError";
+          setJobs((prev) => {
+            const next = prev.map((j) =>
+              j.id === jobId
+                ? {
+                    ...j,
+                    status: cancelled ? ("cancelled" as const) : ("failed" as const),
+                    error_message:
+                      cancelled || !(err instanceof DossierApiError)
+                        ? null
+                        : err.message || null,
+                  }
+                : j,
+            );
+            syncActiveIds(next);
+            return next;
+          });
+        }
+      })();
+
+      return jobId;
+    },
+    [syncActiveIds],
+  );
+
   const cancelJob = useCallback(
     async (jobId: string) => {
+      const existing = jobsRef.current.find((j) => j.id === jobId);
+      if (
+        existing?.job_type === "corporate_manual" &&
+        (existing.status === "queued" || existing.status === "running")
+      ) {
+        corporateAbortRef.current.get(jobId)?.abort();
+        corporateAbortRef.current.delete(jobId);
+        setJobs((prev) => {
+          const next = prev.map((j) =>
+            j.id === jobId ? { ...j, status: "cancelled" as const } : j,
+          );
+          syncActiveIds(next);
+          return next;
+        });
+        return;
+      }
+
       const updated = await cancelDossierGenerationJob(jobId);
       setJobs((prev) => {
         const next = prev.map((j) => (j.id === jobId ? { ...j, ...updated } : j));
@@ -301,6 +444,14 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
     return jobs.find(
       (j) =>
         j.job_type === "person_manual" &&
+        (j.status === "queued" || j.status === "running"),
+    );
+  }, [jobs]);
+
+  const getActiveCorporateJob = useCallback(() => {
+    return jobs.find(
+      (j) =>
+        j.job_type === "corporate_manual" &&
         (j.status === "queued" || j.status === "running"),
     );
   }, [jobs]);
@@ -338,20 +489,24 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
       jobs,
       enqueueCalendarJob,
       enqueuePersonResearchJob,
+      enqueueCorporateDossierJob,
       cancelJob,
       isEventGenerating,
       getJobForEvent,
       getActivePersonJob,
+      getActiveCorporateJob,
       dismissToast,
     }),
     [
       jobs,
       enqueueCalendarJob,
       enqueuePersonResearchJob,
+      enqueueCorporateDossierJob,
       cancelJob,
       isEventGenerating,
       getJobForEvent,
       getActivePersonJob,
+      getActiveCorporateJob,
       dismissToast,
     ],
   );
@@ -369,6 +524,21 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
   );
 }
 
+const PERSON_RESEARCH_PATH = "/dashboard/person-research";
+const CORPORATE_PATH = "/dashboard/corporate";
+
+const HIDE_ACTIVE_TOAST_ON_PATH: Record<string, string> = {
+  person_manual: PERSON_RESEARCH_PATH,
+  corporate_manual: CORPORATE_PATH,
+};
+
+function jobToastLabel(job: TrackedJob, t: (key: string) => string): string {
+  if (job.meeting_label) return job.meeting_label;
+  if (job.job_type === "person_manual") return t("dossier_jobs.person_label");
+  if (job.job_type === "corporate_manual") return t("dossier_jobs.corporate_label");
+  return t("dossier_jobs.default_label");
+}
+
 function DossierJobToasts({
   jobs,
   onDismiss,
@@ -381,47 +551,55 @@ function DossierJobToasts({
   dossierHref: (job: TrackedJob) => string | null;
 }) {
   const { t } = useTranslation();
+  const pathname = usePathname();
   const [cancelErr, setCancelErr] = useState<string | null>(null);
-  const visible = jobs.filter(
-    (j) =>
-      !j.toastDismissed &&
-      (j.status === "queued" ||
-        j.status === "running" ||
-        j.status === "completed" ||
-        j.status === "failed" ||
-        j.status === "cancelled"),
-  );
+  const visible = jobs.filter((j) => {
+    if (j.toastDismissed) return false;
+    const isTerminal =
+      j.status === "completed" || j.status === "failed" || j.status === "cancelled";
+    const isActive = j.status === "queued" || j.status === "running";
+    if (!isActive && !isTerminal) return false;
+    const hideOnPath = HIDE_ACTIVE_TOAST_ON_PATH[j.job_type];
+    if (hideOnPath && pathname === hideOnPath && isActive) {
+      return false;
+    }
+    return true;
+  });
 
   if (visible.length === 0) return null;
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-50 flex max-w-sm flex-col gap-2"
+      className="fixed bottom-4 right-4 z-50 flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-3 sm:w-[24rem]"
       aria-live="polite"
     >
       {visible.map((job) => {
-        const label =
-          job.meeting_label ||
-          (job.job_type === "person_manual"
-            ? t("dossier_jobs.person_label")
-            : t("dossier_jobs.default_label"));
+        const label = jobToastLabel(job, t);
         const href = dossierHref(job);
         const isActive = job.status === "queued" || job.status === "running";
         const isFail =
           job.status === "failed" ||
-          calendarJobSavedNothing(job);
-        const isPartial = !isFail && calendarJobHasPartialFailure(job);
+          calendarJobSavedNothing(job) ||
+          personJobSavedNothing(job) ||
+          corporateJobSavedNothing(job);
+        const isPartial =
+          !isFail &&
+          (calendarJobHasPartialFailure(job) || personJobHasPartialFailure(job));
         const isOk = job.status === "completed" && !isFail && !isPartial;
         const isCancelled = job.status === "cancelled";
         const calendarWarning =
           isOk && job.job_type === "calendar_manual" && job.result
             ? (job.result as CalendarGenerarDossierItem).dossier_persona_research?.warnings?.[0]
             : undefined;
+        const personWarning =
+          (isPartial || isFail) && job.job_type === "person_manual"
+            ? personJobWarning(job)
+            : undefined;
 
         return (
           <div
             key={job.id}
-            className="rounded-lg border px-4 py-3 shadow-xl"
+            className="rounded-xl border px-5 py-4 shadow-xl"
             style={{
               borderColor: "var(--border-strong)",
               backgroundColor: "var(--bg-panel)",
@@ -429,10 +607,10 @@ function DossierJobToasts({
               boxShadow: "0 12px 32px rgba(10, 20, 40, 0.2)",
             }}
           >
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate">{label}</p>
-                <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                <p className="text-base font-semibold leading-snug">{label}</p>
+                <p className="mt-1.5 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
                   {isActive && t("dossier_jobs.generating")}
                   {isOk && t("dossier_jobs.ready")}
                   {isPartial && t("dossier_jobs.partial")}
@@ -440,28 +618,33 @@ function DossierJobToasts({
                   {isCancelled && t("dossier_jobs.cancelled")}
                 </p>
                 {calendarWarning ? (
-                  <p className="mt-1 text-xs ui-text-warning line-clamp-3">
+                  <p className="mt-1.5 text-sm ui-text-warning line-clamp-3 leading-relaxed">
                     {calendarWarning}
+                  </p>
+                ) : null}
+                {personWarning ? (
+                  <p className="mt-1.5 text-sm ui-text-warning line-clamp-3 leading-relaxed">
+                    {personWarning}
                   </p>
                 ) : null}
               </div>
               <button
                 type="button"
-                className="shrink-0 text-xs opacity-60 hover:opacity-100"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-base opacity-60 transition hover:bg-[var(--hover-overlay)] hover:opacity-100"
                 onClick={() => onDismiss(job.id)}
                 aria-label={t("dossier_jobs.dismiss")}
               >
                 ×
               </button>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-3">
+            <div className="mt-3 flex flex-wrap items-center gap-4">
               {(isOk || isPartial) && href && (
                 <Link
                   href={href}
-                  className="inline-block text-xs font-medium underline"
+                  className="inline-block text-sm font-medium underline"
                   onClick={() => onDismiss(job.id)}
                 >
-                  {job.job_type === "person_manual"
+                  {job.job_type === "person_manual" || job.job_type === "corporate_manual"
                     ? t("dossier_jobs.view_dossier")
                     : t("dossier_jobs.view_folder")}
                 </Link>
@@ -469,7 +652,7 @@ function DossierJobToasts({
               {isActive && (
                 <button
                   type="button"
-                  className="text-xs font-medium transition hover:opacity-80"
+                  className="text-sm font-medium transition hover:opacity-80"
                   style={{ color: "var(--alert-error-text)" }}
                   onClick={() => {
                     setCancelErr(null);
@@ -485,13 +668,13 @@ function DossierJobToasts({
               )}
             </div>
             {cancelErr ? (
-              <p className="mt-1 text-xs text-red-400" role="alert">
+              <p className="mt-2 text-sm text-red-400" role="alert">
                 {cancelErr}
               </p>
             ) : null}
             {isActive && (
               <div
-                className="mt-2 h-1 w-full overflow-hidden rounded-full"
+                className="mt-3 h-1.5 w-full overflow-hidden rounded-full"
                 style={{ backgroundColor: "var(--border-default)" }}
               >
                 <div

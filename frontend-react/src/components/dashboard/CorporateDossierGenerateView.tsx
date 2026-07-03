@@ -1,16 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import TopBar from "@/components/dashboard/TopBar";
 import DepthSelector from "@/components/dossier/DepthSelector";
 import FormField from "@/components/FormField";
-import GenerationProgress from "@/components/dossier/GenerationProgress";
 import PrimaryButton from "@/components/PrimaryButton";
 import {
-  createCorporateDossier,
   DossierApiError,
   fetchAuthMe,
   fetchCorporateCompanySearch,
@@ -18,6 +15,7 @@ import {
   type AuthUser,
   type CorporateCompanyResolutionPayload,
   type CorporateCompanySearchResponse,
+  type CreateCorporateDossierPayload,
 } from "@/lib/dossier-api";
 import {
   allowedDepthsForPlan,
@@ -26,8 +24,9 @@ import {
   planSummaryLabel,
   type PlanTier,
 } from "@/lib/mock-billing";
-import { DEPTH_OPTIONS, type DossierDepth, stepsForDepth } from "@/lib/mock-generation";
+import { DEPTH_OPTIONS, type DossierDepth } from "@/lib/mock-generation";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 
@@ -39,8 +38,6 @@ export type CorporateDossierGenerateViewProps = {
   titleKey: TranslationKey;
   subtitleKey: TranslationKey;
 };
-
-type Phase = "form" | "generating" | "done";
 
 const SCOPE_KEY_BY_DEPTH: Record<DossierDepth, TranslationKey> = {
   basic: "generate.scope_basic",
@@ -97,20 +94,23 @@ export default function CorporateDossierGenerateView({
   titleKey,
   subtitleKey,
 }: CorporateDossierGenerateViewProps) {
-  const router = useRouter();
   const { t } = useTranslation();
   const { preferences } = usePreferences();
-  const stepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const {
+    enqueueCorporateDossierJob,
+    cancelJob,
+    getActiveCorporateJob,
+    jobs,
+  } = useDossierJobs();
   const [query, setQuery] = useState(initialQuery);
   const [email, setEmail] = useState("");
   const [me, setMe] = useState<AuthUser | null>(null);
   const plan: PlanTier = normalizePlanTier(me?.organization_plan);
   const allowedDepths = useMemo(() => allowedDepthsForPlan(plan), [plan]);
   const [depth, setDepth] = useState<DossierDepth>(defaultDepthForPlan("free"));
-  const [phase, setPhase] = useState<Phase>("form");
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [error, setError] = useState("");
-  const [resultId, setResultId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   const [searchResults, setSearchResults] = useState<CorporateCompanySearchResponse | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -173,14 +173,35 @@ export default function CorporateDossierGenerateView({
     }
   }
 
-  const steps = useMemo(() => stepsForDepth(depth), [depth]);
   const selectedDepth = DEPTH_OPTIONS.find((d) => d.id === depth)!;
+  const activeJob =
+    jobs.find((j) => j.id === activeJobId) ?? getActiveCorporateJob() ?? null;
+  const isGenerating =
+    activeJob?.status === "queued" || activeJob?.status === "running";
 
-  function clearStepInterval() {
-    if (stepIntervalRef.current) {
-      clearInterval(stepIntervalRef.current);
-      stepIntervalRef.current = null;
+  useEffect(() => {
+    if (!activeJobId) return;
+    const job = jobs.find((j) => j.id === activeJobId);
+    if (!job) return;
+    if (job.status === "completed") {
+      setActiveJobId(null);
     }
+    if (job.status === "failed" || job.status === "cancelled") {
+      setActiveJobId(null);
+      if (job.status === "failed" && job.error_message) {
+        setError(job.error_message);
+      }
+    }
+  }, [jobs, activeJobId]);
+
+  function buildPayload(trimmed: string): CreateCorporateDossierPayload {
+    return {
+      subject_query: trimmed,
+      subject_email: email.trim() || undefined,
+      depth,
+      resolution: selectedResolution ?? undefined,
+      output_language: resolveDossierOutputLanguage(preferences),
+    };
   }
 
   async function handleGenerate() {
@@ -195,6 +216,10 @@ export default function CorporateDossierGenerateView({
     }
     if (!getStoredAccessToken()) {
       setError(t("generate.error.auth"));
+      return;
+    }
+    if (isGenerating) {
+      setError(t("corporate_page.already_generating"));
       return;
     }
 
@@ -212,32 +237,15 @@ export default function CorporateDossierGenerateView({
     }
 
     setError("");
-    setPhase("generating");
-    setCurrentStepIndex(0);
-
-    stepIntervalRef.current = setInterval(() => {
-      setCurrentStepIndex((i) => Math.min(i + 1, Math.max(0, steps.length - 2)));
-    }, 700);
-
+    setSubmitting(true);
     try {
-      const res = await createCorporateDossier({
-        subject_query: trimmed,
-        subject_email: email.trim() || undefined,
-        depth,
-        resolution: selectedResolution ?? undefined,
-        output_language: resolveDossierOutputLanguage(preferences),
-      });
-      clearStepInterval();
-      setCurrentStepIndex(Math.max(0, steps.length - 1));
-      setPhase("done");
-      setResultId(res.id);
-      window.setTimeout(() => {
-        router.push(`/dashboard/dossiers/${res.id}`);
-      }, 900);
+      const jobId = await enqueueCorporateDossierJob(
+        buildPayload(trimmed),
+        selectedResolution?.title?.trim() || trimmed,
+        selectedDepth.credits,
+      );
+      setActiveJobId(jobId);
     } catch (e) {
-      clearStepInterval();
-      setPhase("form");
-      setCurrentStepIndex(0);
       if (e instanceof DossierApiError) {
         if (e.status === 401) {
           setError(t("generate.error.auth"));
@@ -247,6 +255,23 @@ export default function CorporateDossierGenerateView({
       } else {
         setError(t("generate.error.api"));
       }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleCancelGeneration() {
+    if (!activeJob?.id) return;
+    setError("");
+    try {
+      await cancelJob(activeJob.id);
+      setActiveJobId(null);
+    } catch (err) {
+      if (err instanceof DossierApiError) {
+        setError(err.message || t("corporate_page.cancel_error"));
+      } else {
+        setError(t("corporate_page.cancel_error"));
+      }
     }
   }
 
@@ -255,7 +280,7 @@ export default function CorporateDossierGenerateView({
       <nav className="mb-6">
         <Link
           href={backHref}
-          className="inline-flex items-center gap-1.5 text-sm transition hover:opacity-80"
+          className="ui-person-back-link inline-flex items-center gap-1.5 text-sm"
           style={{ color: "var(--text-muted)" }}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
@@ -269,98 +294,81 @@ export default function CorporateDossierGenerateView({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-5">
         <div className="lg:col-span-3">
-          <DashboardCard title={t("generate.contact_data")}>
-            {phase === "form" ? (
-              <form
-                className="flex flex-col gap-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void handleGenerate();
-                }}
-              >
-                <FormField
-                  label={t("generate.name_or_company")}
-                  name="query"
-                  placeholder={t("generate.name_placeholder")}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  hint={t("generate.name_hint")}
-                />
+          <DashboardCard title={t("generate.company_search_title")}>
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleGenerate();
+              }}
+            >
+              <FormField
+                label={t("generate.name_or_company")}
+                name="query"
+                placeholder={t("generate.name_placeholder")}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                hint={t("generate.name_hint")}
+                disabled={isGenerating}
+              />
+
+                <div className="flex justify-start">
+                  <button
+                    type="button"
+                    aria-label={t("generate.company_search_btn_aria")}
+                    className="ui-corporate-search-btn inline-flex max-w-full shrink-0 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{
+                      borderColor: "var(--accent-from)",
+                      color: "var(--accent-from)",
+                      backgroundColor: "rgba(59, 130, 246, 0.08)",
+                    }}
+                    disabled={searchLoading || isGenerating || query.trim().length < 2}
+                    onClick={() => void runManualCompanySearch()}
+                  >
+                    <svg
+                      className="h-4 w-4 shrink-0 opacity-90"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <circle cx="11" cy="11" r="7" />
+                      <path d="m21 21-4.3-4.3" />
+                    </svg>
+                    {searchLoading ? t("generate.company_search_loading") : t("generate.company_search_btn")}
+                  </button>
+                </div>
 
                 {autoDisambiguate && query.trim().length >= 2 && searchResults === null && (
                   <AutoFetchCompanySearch query={query.trim()} onDone={handleAutoSearchDone} />
                 )}
 
+                {(searchLoading || searchResults) && (
                 <div
-                  className="flex flex-col gap-3 rounded-lg border p-4"
+                  className="flex flex-col gap-4 rounded-lg border p-5"
                   style={{ borderColor: "var(--border-default)" }}
                 >
-                  <span className="text-sm font-semibold sm:text-base" style={{ color: "var(--text-secondary)" }}>
-                    {t("generate.company_search_title")}
-                  </span>
-
-                  <div
-                    className="rounded-lg border px-3 py-2.5 text-xs leading-relaxed sm:text-[13px]"
-                    style={{
-                      borderColor: "var(--border-default)",
-                      backgroundColor: "rgba(59, 130, 246, 0.07)",
-                      color: "var(--text-muted)",
-                    }}
-                  >
-                    {query.trim()
-                      ? t("generate.company_search_uses_query", {
-                          q:
-                            query.trim().length > 100
-                              ? `${query.trim().slice(0, 100)}…`
-                              : query.trim(),
-                        })
-                      : t("generate.company_search_need_query")}
-                  </div>
-
-                  <div className="flex justify-start">
-                    <button
-                      type="button"
-                      aria-label={t("generate.company_search_btn_aria")}
-                      className="inline-flex max-w-full shrink-0 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition hover:opacity-90 disabled:opacity-50"
-                      style={{
-                        borderColor: "var(--accent-from)",
-                        color: "var(--accent-from)",
-                        backgroundColor: "rgba(59, 130, 246, 0.08)",
-                      }}
-                      disabled={searchLoading || phase !== "form" || query.trim().length < 2}
-                      onClick={() => void runManualCompanySearch()}
-                    >
-                      <svg
-                        className="h-4 w-4 shrink-0 opacity-90"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden
-                      >
-                        <circle cx="11" cy="11" r="7" />
-                        <path d="m21 21-4.3-4.3" />
-                      </svg>
-                      {searchLoading ? t("generate.company_search_loading") : t("generate.company_search_btn")}
-                    </button>
-                  </div>
-
-                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                    {t("generate.company_pick_hint")}
-                  </p>
-                  {searchResults?.warnings?.length ? (
-                    <ul className="ui-text-warning list-inside list-disc text-xs">
-                      {searchResults.warnings.map((w) => {
-                        const key = WARN_I18N[w];
-                        return <li key={w}>{key ? t(key) : w}</li>;
-                      })}
-                    </ul>
-                  ) : null}
-                  {searchResults && (
+                  {!companyConfirmed ? (
                     <>
-                      <div className="flex max-h-72 flex-col gap-4 overflow-y-auto pr-1">
+                      <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                        {t("generate.company_pick_hint")}
+                      </p>
+                      {searchResults?.warnings?.length ? (
+                        <ul className="ui-text-warning list-inside list-disc text-xs">
+                          {searchResults.warnings.map((w) => {
+                            const key = WARN_I18N[w];
+                            return <li key={w}>{key ? t(key) : w}</li>;
+                          })}
+                        </ul>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {searchResults && !companyConfirmed && (
+                    <>
+                      <div className="flex max-h-96 flex-col gap-4 overflow-y-auto pr-1 sm:max-h-[28rem]">
                         {searchResults.uk.length > 0 && (
                           <div>
                             <div
@@ -394,7 +402,7 @@ export default function CorporateDossierGenerateView({
                                           company_number: row.company_number,
                                         });
                                       }}
-                                      className="w-full rounded-lg border p-3 text-left text-sm transition hover:opacity-95"
+                                      className={`ui-corporate-pick-btn w-full rounded-lg border p-3 text-left text-sm${picked ? " ui-corporate-pick-btn--picked" : ""}`}
                                       style={{
                                         borderColor: picked ? "var(--accent-from)" : "var(--border-default)",
                                         backgroundColor: picked ? "rgba(99,102,241,0.08)" : "transparent",
@@ -463,7 +471,7 @@ export default function CorporateDossierGenerateView({
                                           cik: row.cik,
                                         });
                                       }}
-                                      className="w-full rounded-lg border p-3 text-left text-sm transition hover:opacity-95"
+                                      className={`ui-corporate-pick-btn w-full rounded-lg border p-3 text-left text-sm${picked ? " ui-corporate-pick-btn--picked" : ""}`}
                                       style={{
                                         borderColor: picked ? "var(--accent-from)" : "var(--border-default)",
                                         backgroundColor: picked ? "rgba(99,102,241,0.08)" : "transparent",
@@ -513,10 +521,11 @@ export default function CorporateDossierGenerateView({
                           </p>
                           <button
                             type="button"
-                            className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
+                            className="ui-new-dossier-btn inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
                             style={{
                               backgroundImage:
                                 "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
+                              boxShadow: "0 10px 25px rgba(0, 183, 235, 0.22)",
                             }}
                             onClick={() => setCompanyConfirmed(true)}
                           >
@@ -524,56 +533,56 @@ export default function CorporateDossierGenerateView({
                           </button>
                         </div>
                       )}
-                      {selectedResolution && companyConfirmed && (
-                        <div
-                          className="mt-3 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
-                          style={{ borderColor: "rgba(52,211,153,0.45)", backgroundColor: "rgba(52,211,153,0.06)" }}
-                        >
-                          <div className="min-w-0">
-                            <p className="ui-text-success text-xs font-semibold uppercase tracking-wide">
-                              {t("generate.company_confirmed_title")}
-                            </p>
-                            <p className="truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                              {selectedResolution.source === "companies_house" ? (
-                                <span
-                                  className="mr-2 inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white"
-                                  style={{ backgroundColor: "#2563eb" }}
-                                >
-                                  {t("generate.country_tag_uk")}
-                                </span>
-                              ) : (
-                                <span
-                                  className="mr-2 inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white"
-                                  style={{ backgroundColor: "#059669" }}
-                                >
-                                  {t("generate.country_tag_usa")}
-                                </span>
-                              )}
-                              {selectedResolution.title}
-                              {selectedResolution.source === "companies_house" && selectedResolution.company_number
-                                ? ` · ${selectedResolution.company_number}`
-                                : null}
-                              {selectedResolution.source === "sec_edgar" && selectedResolution.ticker
-                                ? ` · ${selectedResolution.ticker} · CIK ${selectedResolution.cik}`
-                                : null}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            className="shrink-0 rounded-lg border px-3 py-2 text-xs font-medium transition hover:opacity-90"
-                            style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}
-                            onClick={() => {
-                              setCompanyConfirmed(false);
-                              setSelectedResolution(null);
-                            }}
-                          >
-                            {t("generate.company_change")}
-                          </button>
-                        </div>
-                      )}
                     </>
                   )}
+                  {selectedResolution && companyConfirmed && (
+                    <div
+                      className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
+                      style={{ borderColor: "rgba(52,211,153,0.45)", backgroundColor: "rgba(52,211,153,0.06)" }}
+                    >
+                      <div className="min-w-0">
+                        <p className="ui-text-success text-xs font-semibold uppercase tracking-wide">
+                          {t("generate.company_confirmed_title")}
+                        </p>
+                        <p className="truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                          {selectedResolution.source === "companies_house" ? (
+                            <span
+                              className="mr-2 inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white"
+                              style={{ backgroundColor: "#2563eb" }}
+                            >
+                              {t("generate.country_tag_uk")}
+                            </span>
+                          ) : (
+                            <span
+                              className="mr-2 inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white"
+                              style={{ backgroundColor: "#059669" }}
+                            >
+                              {t("generate.country_tag_usa")}
+                            </span>
+                          )}
+                          {selectedResolution.title}
+                          {selectedResolution.source === "companies_house" && selectedResolution.company_number
+                            ? ` · ${selectedResolution.company_number}`
+                            : null}
+                          {selectedResolution.source === "sec_edgar" && selectedResolution.ticker
+                            ? ` · ${selectedResolution.ticker} · CIK ${selectedResolution.cik}`
+                            : null}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="ui-person-outline-btn shrink-0 px-3 py-2 text-xs font-medium"
+                        onClick={() => {
+                          setCompanyConfirmed(false);
+                          setSelectedResolution(null);
+                        }}
+                      >
+                        {t("generate.company_change")}
+                      </button>
+                    </div>
+                  )}
                 </div>
+                )}
 
                 <FormField
                   label={t("generate.email_optional")}
@@ -582,6 +591,7 @@ export default function CorporateDossierGenerateView({
                   placeholder="participante@empresa.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  disabled={isGenerating}
                 />
 
                 <div
@@ -603,24 +613,51 @@ export default function CorporateDossierGenerateView({
                     value={depth}
                     onChange={setDepth}
                     allowedDepths={allowedDepths}
+                    disabled={isGenerating}
                   />
                 </div>
 
                 {error && <p className="text-sm text-red-400">{error}</p>}
 
-                <PrimaryButton type="submit">
-                  {selectedDepth.credits === 1
-                    ? t("generate.submit_one")
-                    : t("generate.submit", { credits: selectedDepth.credits })}
-                </PrimaryButton>
+                {isGenerating ? (
+                  <div
+                    className="rounded-lg border px-4 py-3 text-sm"
+                    style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}
+                  >
+                    <p className="font-medium" style={{ color: "var(--text-primary)" }}>
+                      {t("corporate_page.generating_title", {
+                        name: activeJob?.meeting_label || query.trim(),
+                      })}
+                    </p>
+                    <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                      {t("corporate_page.generating_background")}
+                    </p>
+                    <div
+                      className="mt-3 h-1 w-full overflow-hidden rounded-full"
+                      style={{ backgroundColor: "var(--border-default)" }}
+                    >
+                      <div
+                        className="h-full w-1/3 animate-pulse rounded-full"
+                        style={{ backgroundColor: "var(--accent-primary)" }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="ui-hover-danger mt-3 rounded-md px-2 py-1 text-xs font-medium transition"
+                      style={{ color: "var(--status-error)" }}
+                      onClick={() => void handleCancelGeneration()}
+                    >
+                      {t("person_research.cancel")}
+                    </button>
+                  </div>
+                ) : (
+                  <PrimaryButton type="submit" loading={submitting} className="ui-new-dossier-btn w-full sm:w-auto">
+                    {selectedDepth.credits === 1
+                      ? t("generate.submit_one")
+                      : t("generate.submit", { credits: selectedDepth.credits })}
+                  </PrimaryButton>
+                )}
               </form>
-            ) : (
-              <GenerationProgress
-                steps={steps}
-                currentIndex={currentStepIndex}
-                isRunning={phase === "generating"}
-              />
-            )}
           </DashboardCard>
         </div>
 
@@ -653,19 +690,6 @@ export default function CorporateDossierGenerateView({
               </div>
             </dl>
           </DashboardCard>
-
-          {phase === "done" && resultId && (
-            <div
-              className="rounded-xl border p-4 text-sm"
-              style={{
-                borderColor: "rgba(52, 211, 153, 0.25)",
-                backgroundColor: "rgba(52, 211, 153, 0.08)",
-                color: "#34d399",
-              }}
-            >
-              {t("generate.done_redirect")}
-            </div>
-          )}
         </div>
       </div>
     </>

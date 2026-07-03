@@ -51,7 +51,7 @@ export default function DossierListCard({ dossier, deletingId, onDelete, showDel
 
   return (
     <article
-      className="group relative h-full rounded-xl border transition hover:border-strong"
+      className="ui-dossier-card group relative h-full rounded-xl border"
       style={{
         borderColor: "var(--border-default)",
         backgroundImage:
@@ -63,7 +63,7 @@ export default function DossierListCard({ dossier, deletingId, onDelete, showDel
         className="flex h-full gap-3 p-4 pr-12 sm:items-start"
       >
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+          className="ui-dossier-card__icon flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
           style={{
             backgroundColor: "var(--bg-surface-strong)",
             color: "var(--accent-from)",
@@ -74,7 +74,10 @@ export default function DossierListCard({ dossier, deletingId, onDelete, showDel
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start gap-2 gap-y-1">
-            <h3 className="text-sm font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>
+            <h3
+              className="ui-dossier-card__title text-sm font-semibold leading-snug"
+              style={{ color: "var(--text-primary)" }}
+            >
               {title}
             </h3>
             <DossierStatusBadge status={dossier.status} />

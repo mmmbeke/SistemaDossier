@@ -138,12 +138,17 @@ const messages = {
   "corporate_page.title": "Dossiers de empresa",
   "corporate_page.subtitle":
     "Prepara una reunión o una revisión rápida: localiza la empresa en registros públicos, confírmala y guarda el dossier en Mis dossiers.",
+  "corporate_page.generating_title": "Generando dossier de {name}…",
+  "corporate_page.generating_background":
+    "Podés quedarte aquí o navegar por la app. Si cambiás de página, el progreso aparece abajo a la derecha.",
+  "corporate_page.already_generating": "Ya hay un dossier en curso.",
+  "corporate_page.cancel_error": "No se pudo cancelar la generación.",
   "generate.error.query_min": "Tiene que ingresar un nombre de empresa válido.",
   "generate.error.auth": "Debes iniciar sesión. Abre el login e inténtalo de nuevo.",
   "generate.error.api": "No se pudo contactar al servidor o la petición falló. Revisa la conexión e inténtalo de nuevo.",
   "generate.company_search_title": "Búsqueda de empresa — registros públicos UK y EE. UU.",
   "generate.company_search_need_query":
-    "Escribe el nombre de empresa en el campo de arriba; después pulsa el botón para consultar los listados oficiales del Reino Unido y de EE. UU.",
+    "Escribe el nombre de la empresa arriba y pulsa buscar.",
   "generate.company_search_uses_query": "La búsqueda usará lo que escribiste arriba: «{q}»",
   "generate.company_search_btn": "Buscar coincidencias",
   "generate.company_search_btn_aria":
@@ -202,7 +207,7 @@ const messages = {
   "person_research.submitting": "Generando informe…",
   "person_research.generating_title": "Generando dossier de {name}…",
   "person_research.generating_background":
-    "Podés navegar por la app; te avisaremos cuando termine (toast abajo a la derecha).",
+    "Podés quedarte aquí o navegar por la app. Si cambiás de página, el progreso aparece abajo a la derecha.",
   "person_research.cancel": "Cancelar",
   "person_research.cancel_error": "No se pudo cancelar la generación.",
   "person_research.already_generating": "Ya hay un dossier en curso.",
@@ -225,6 +230,21 @@ const messages = {
   "person_research.saved_open": "Abrir dossier",
   "person_research.saved_list": "Ir a Mis Dossiers",
   "person_research.toggle_raw": "Mostrar / ocultar JSON",
+  "person_research.result_title": "Resultado",
+  "person_research.result_success":
+    "Informe listo. Podés abrirlo en Mis Dossiers o seguir en esta página.",
+  "person_research.result_partial":
+    "La búsqueda terminó con datos limitados. Revisá los avisos y probá con LinkedIn o email corporativo.",
+  "person_research.result_empty":
+    "No encontramos un perfil verificable con los datos ingresados. Ajustá los filtros e intentá de nuevo.",
+  "person_research.warn_no_profile":
+    "No se encontró perfil verificable. Probá con email corporativo, URL de LinkedIn o el nombre exacto de la empresa.",
+  "person_research.warn_no_linkedin":
+    "PDL devolvió un perfil sin enlace de LinkedIn; el informe puede quedar incompleto.",
+  "person_research.warn_profile_found": "PDL encontró un perfil coincidente.",
+  "person_research.warn_rate_limit": "PDL alcanzó el límite de solicitudes. Esperá un momento y reintentá.",
+  "person_research.show_technical": "Ver detalles técnicos",
+  "person_research.hide_technical": "Ocultar detalles técnicos",
   "person_research.disclaimer": "Contrasta con fuentes independientes antes de decidir.",
   "generate.country_tag_uk": "UK",
   "generate.country_tag_usa": "USA",
@@ -557,6 +577,7 @@ const messages = {
   "automation.no_upcoming_events": "No hay reuniones próximas en los calendarios conectados.",
   "dossier_jobs.default_label": "Dossier de reunión",
   "dossier_jobs.person_label": "Dossier de persona",
+  "dossier_jobs.corporate_label": "Dossier de empresa",
   "dossier_jobs.generating": "Generando dossier…",
   "dossier_jobs.ready": "Dossier listo",
   "dossier_jobs.partial": "Dossier listo con avisos (revisa la carpeta)",
@@ -637,6 +658,9 @@ const messages = {
   "dossiers.status_failed": "Fallido",
   "dossiers.status_pending": "En proceso",
   "dossiers.filter_needs_update": "Necesitan Actualización",
+  "dossiers.filters_button": "Filtros",
+  "dossiers.filters_status_label": "Estado",
+  "dossiers.filters_reset": "Restablecer",
   "dossiers.database_loading": "Cargando dossiers desde la base de datos…",
   "dossiers.database_badge": "PostgreSQL",
   "dossiers.database_empty": "Aún no hay dossiers guardados para tu organización.",

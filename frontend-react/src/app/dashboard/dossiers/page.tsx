@@ -4,9 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import TopBar from "@/components/dashboard/TopBar";
-import FilterTabs, { type FilterValue } from "@/components/dossier/FilterTabs";
+import {
+  DossierFiltersPanel,
+  DossierFiltersToggle,
+} from "@/components/dossier/DossierFiltersMenu";
 import DossierGroupedList from "@/components/dossier/DossierGroupedList";
-import DossierViewTabs from "@/components/dossier/DossierViewTabs";
+import type { FilterValue } from "@/components/dossier/FilterTabs";
 import NewDossierButton from "@/components/dossier/NewDossierButton";
 import UiAlert from "@/components/ui/UiAlert";
 import { useAuthMe } from "@/hooks/useAuthMe";
@@ -20,17 +23,14 @@ import {
 } from "@/lib/dossier-api";
 import {
   countListEntries,
-  countEntriesByViewMode,
   entryMatchesFilter,
   entryMatchesQuery,
-  entryMatchesTypeFilter,
   entryMatchesViewMode,
   groupListEntriesByMeetingTime,
   isNonEmptyListEntry,
   removeDossierFromListEntries,
   sortListEntriesByDate,
   type DossierViewMode,
-  type TypeFilterValue,
 } from "@/lib/dossier-list-utils";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
@@ -40,13 +40,13 @@ export default function DossiersPage() {
   const { t } = useTranslation();
   const { canMutate, isViewer } = useAuthMe();
   const [query, setQuery] = useState("");
-  const [viewMode, setViewMode] = useState<DossierViewMode>("meeting_folders");
+  const [viewMode, setViewMode] = useState<DossierViewMode>("all");
   const [filter, setFilter] = useState<FilterValue>("all");
-  const [typeFilter, setTypeFilter] = useState<TypeFilterValue>("all");
   const [dbLoad, setDbLoad] = useState<DbLoadState>("idle");
   const [dbItems, setDbItems] = useState<DossierListEntry[]>([]);
   const [dbError, setDbError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,8 +83,6 @@ export default function DossiersPage() {
     [dbItems]
   );
 
-  const viewCounts = useMemo(() => countEntriesByViewMode(nonEmptyItems), [nonEmptyItems]);
-
   const counts = useMemo(() => {
     const scoped = nonEmptyItems.filter((entry) => entryMatchesViewMode(entry, viewMode));
     return countListEntries(scoped);
@@ -96,10 +94,9 @@ export default function DossiersPage() {
         isNonEmptyListEntry(entry) &&
         entryMatchesViewMode(entry, viewMode) &&
         entryMatchesQuery(entry, query) &&
-        entryMatchesFilter(entry, filter) &&
-        entryMatchesTypeFilter(entry, typeFilter)
+        entryMatchesFilter(entry, filter)
     );
-  }, [dbItems, viewMode, query, filter, typeFilter]);
+  }, [dbItems, viewMode, query, filter]);
 
   const groupedDb = useMemo(() => groupListEntriesByMeetingTime(filteredDb), [filteredDb]);
   const sortedFlatDb = useMemo(() => sortListEntriesByDate(filteredDb), [filteredDb]);
@@ -107,6 +104,18 @@ export default function DossiersPage() {
   const useLiveDb = dbLoad === "ready";
   const hasSession = Boolean(getStoredAccessToken());
   const filterAllLabel = t("dossiers.filter_all").replace(/\s*\(\d+\)/, "");
+  const hasActiveFilters = filter !== "all" || viewMode !== "all";
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") setFiltersOpen(false);
+    }
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [filtersOpen]);
 
   async function handleDeleteDossier(row: DossierListItem) {
     if (deletingId) return;
@@ -167,99 +176,69 @@ export default function DossiersPage() {
 
       <DashboardCard className="mb-6 !p-4 sm:!p-5">
         <div className="flex flex-col gap-4">
-          <div
-            className="flex h-11 items-center gap-2 rounded-lg border px-3.5"
-            style={{
-              borderColor: "var(--border-default)",
-              backgroundColor: "var(--bg-input)",
-            }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="h-4 w-4 shrink-0"
-              style={{ color: "var(--text-subtle)" }}
+          <div className="flex gap-2">
+            <div
+              className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border px-3.5"
+              style={{
+                borderColor: "var(--border-default)",
+                backgroundColor: "var(--bg-input)",
+              }}
             >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input
-              type="text"
-              placeholder={t("dossiers.search_short")}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="flex-1 bg-transparent text-sm outline-none"
-              style={{ color: "var(--text-primary)" }}
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                className="shrink-0 text-xs"
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="h-4 w-4 shrink-0"
                 style={{ color: "var(--text-subtle)" }}
               >
-                {t("common.clear")}
-              </button>
-            )}
-          </div>
-
-          <DossierViewTabs
-            active={viewMode}
-            onChange={setViewMode}
-            tabs={[
-              {
-                value: "meeting_folders",
-                label: t("dossiers.view_meeting_folders"),
-                count: viewCounts.meeting_folders,
-              },
-              {
-                value: "standalone",
-                label: t("dossiers.view_standalone"),
-                count: viewCounts.standalone,
-              },
-            ]}
-          />
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <FilterTabs
-                active={filter}
-                onChange={setFilter}
-                tabs={[
-                  { value: "all", label: filterAllLabel, count: counts.all },
-                  { value: "active", label: t("dossiers.filter_active"), count: counts.active },
-                  { value: "past", label: t("dossiers.filter_past"), count: counts.past },
-                  {
-                    value: "needs_update",
-                    label: t("dossiers.filter_needs_update"),
-                    count: counts.needs_update,
-                  },
-                ]}
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                placeholder={t("dossiers.search_short")}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="flex-1 bg-transparent text-sm outline-none"
+                style={{ color: "var(--text-primary)" }}
               />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="shrink-0 text-xs"
+                  style={{ color: "var(--text-subtle)" }}
+                >
+                  {t("common.clear")}
+                </button>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium shrink-0" style={{ color: "var(--text-muted)" }}>
-                {t("dossiers.filter_type_label")}
-              </span>
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as TypeFilterValue)}
-                className="h-9 rounded-lg border px-2.5 text-sm outline-none"
-                style={{
-                  borderColor: "var(--border-default)",
-                  backgroundColor: "var(--bg-input)",
-                  color: "var(--text-primary)",
-                }}
-                aria-label={t("dossiers.filter_type_label")}
-              >
-                <option value="all">{t("dossiers.filter_type_all")}</option>
-                <option value="person">{t("dossiers.filter_type_person")}</option>
-                <option value="corporate">{t("dossiers.filter_type_corporate")}</option>
-              </select>
-            </div>
+            <DossierFiltersToggle
+              open={filtersOpen}
+              onToggle={() => setFiltersOpen((v) => !v)}
+              hasActiveFilters={hasActiveFilters}
+            />
           </div>
+
+          {filtersOpen ? (
+            <DossierFiltersPanel
+              filter={filter}
+              onFilterChange={setFilter}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              filterTabs={[
+                { value: "all", label: filterAllLabel, count: counts.all },
+                { value: "active", label: t("dossiers.filter_active"), count: counts.active },
+                { value: "past", label: t("dossiers.filter_past"), count: counts.past },
+                {
+                  value: "needs_update",
+                  label: t("dossiers.filter_needs_update"),
+                  count: counts.needs_update,
+                },
+              ]}
+            />
+          ) : null}
         </div>
       </DashboardCard>
 
@@ -294,7 +273,7 @@ export default function DossiersPage() {
               flatEntries={sortedFlatDb}
               filter={filter}
               viewMode={viewMode}
-              typeFilter={typeFilter}
+              typeFilter="all"
               deletingId={deletingId}
               onDeleteDossier={handleDeleteDossier}
               showDelete={canMutate}

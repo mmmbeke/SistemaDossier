@@ -36,7 +36,7 @@ export default function DepthSelector({
             type="button"
             disabled={disabled || locked}
             onClick={() => onChange(opt.id)}
-            className="flex flex-col gap-2 rounded-xl border px-3.5 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-[7.25rem] sm:px-4 sm:py-3.5"
+            className={`ui-corporate-depth-btn flex flex-col gap-2 rounded-xl border px-3.5 py-3 text-left disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-[7.25rem] sm:px-4 sm:py-3.5${selected ? " ui-corporate-depth-btn--selected" : ""}`}
             style={{
               borderColor: selected ? "var(--accent-from)" : "var(--border-default)",
               backgroundColor: selected

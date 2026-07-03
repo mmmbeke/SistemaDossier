@@ -137,12 +137,17 @@ const messages = {
   "corporate_page.title": "Company dossiers",
   "corporate_page.subtitle":
     "Prepare for a call or diligence: find the company in public registries, confirm it, and get a dossier saved to My Dossiers.",
+  "corporate_page.generating_title": "Generating dossier for {name}…",
+  "corporate_page.generating_background":
+    "You can stay here or browse the app. If you leave this page, progress appears bottom-right.",
+  "corporate_page.already_generating": "A dossier is already being generated.",
+  "corporate_page.cancel_error": "Could not cancel generation.",
   "generate.error.query_min": "Enter at least a name or company to search.",
   "generate.error.auth": "You need to be signed in. Open login and try again.",
   "generate.error.api": "Could not reach the server or the request failed. Check your connection and try again.",
   "generate.company_search_title": "Company lookup — UK & US public records",
   "generate.company_search_need_query":
-    "Enter the company name in the field above, then click the button to search official UK and US lists.",
+    "Enter the company name above and click search.",
   "generate.company_search_uses_query": "Search will use what you typed above: {q}",
   "generate.company_search_btn": "Find matching companies",
   "generate.company_search_btn_aria":
@@ -201,7 +206,7 @@ const messages = {
   "person_research.submitting": "Generating report…",
   "person_research.generating_title": "Generating dossier for {name}…",
   "person_research.generating_background":
-    "You can keep browsing the app; we will notify you when it is ready (toast bottom-right).",
+    "You can stay here or browse the app. If you leave this page, progress appears bottom-right.",
   "person_research.cancel": "Cancel",
   "person_research.cancel_error": "Could not cancel generation.",
   "person_research.already_generating": "A dossier is already running.",
@@ -224,6 +229,21 @@ const messages = {
   "person_research.saved_open": "Open dossier",
   "person_research.saved_list": "Go to My Dossiers",
   "person_research.toggle_raw": "Show / hide raw JSON",
+  "person_research.result_title": "Result",
+  "person_research.result_success":
+    "Report ready. Open it in My Dossiers or stay on this page.",
+  "person_research.result_partial":
+    "Search finished with limited data. Check the warnings and try LinkedIn or a work email.",
+  "person_research.result_empty":
+    "We could not find a verifiable profile with the details provided. Adjust filters and try again.",
+  "person_research.warn_no_profile":
+    "No verifiable profile found. Try a work email, LinkedIn URL, or the exact company name.",
+  "person_research.warn_no_linkedin":
+    "PDL returned a profile without a LinkedIn link; the report may be incomplete.",
+  "person_research.warn_profile_found": "PDL found a matching profile.",
+  "person_research.warn_rate_limit": "PDL rate limit reached. Wait a moment and try again.",
+  "person_research.show_technical": "Show technical details",
+  "person_research.hide_technical": "Hide technical details",
   "person_research.disclaimer": "Cross-check with independent sources before deciding.",
   "generate.country_tag_uk": "UK",
   "generate.country_tag_usa": "USA",
@@ -556,6 +576,7 @@ const messages = {
   "automation.no_upcoming_events": "No upcoming meetings on connected calendars.",
   "dossier_jobs.default_label": "Meeting dossier",
   "dossier_jobs.person_label": "Person dossier",
+  "dossier_jobs.corporate_label": "Company dossier",
   "dossier_jobs.generating": "Generating dossier…",
   "dossier_jobs.ready": "Dossier ready",
   "dossier_jobs.partial": "Dossier ready with warnings (check the folder)",
@@ -636,6 +657,9 @@ const messages = {
   "dossiers.status_failed": "Failed",
   "dossiers.status_pending": "In progress",
   "dossiers.filter_needs_update": "Needs Update",
+  "dossiers.filters_button": "Filters",
+  "dossiers.filters_status_label": "Status",
+  "dossiers.filters_reset": "Reset",
   "dossiers.database_loading": "Loading dossiers from the database…",
   "dossiers.database_badge": "PostgreSQL",
   "dossiers.database_empty": "No dossiers stored yet for your organization.",
