@@ -18,10 +18,12 @@ function GuideContent({
   copied,
   onCopy,
   compact,
+  templateExample,
 }: {
   copied: boolean;
   onCopy: () => void;
   compact?: boolean;
+  templateExample: string;
 }) {
   const { t } = useTranslation();
 
@@ -48,7 +50,7 @@ function GuideContent({
             color: "var(--text-primary)",
           }}
         >
-          {CALENDAR_MEETING_FORMAT_EXAMPLE}
+          {templateExample}
         </pre>
         <button
           type="button"
@@ -96,16 +98,18 @@ function GuideContent({
 function GuideModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const templateExample =
+    t("calendar.guide.template_example") || CALENDAR_MEETING_FORMAT_EXAMPLE;
 
   const onCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(CALENDAR_MEETING_FORMAT_EXAMPLE);
+      await navigator.clipboard.writeText(templateExample);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
     }
-  }, []);
+  }, [templateExample]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -163,7 +167,11 @@ function GuideModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <div className="overflow-y-auto px-5 py-4">
-          <GuideContent copied={copied} onCopy={() => void onCopy()} />
+          <GuideContent
+            copied={copied}
+            onCopy={() => void onCopy()}
+            templateExample={templateExample}
+          />
         </div>
         <div
           className="shrink-0 border-t px-5 py-3 text-right"

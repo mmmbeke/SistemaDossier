@@ -410,6 +410,8 @@ const messages = {
   "admin.platform_yes": "Yes",
   "admin.platform_no": "No",
   "workspace.personal": "Personal account",
+  "org_switcher.label": "Organization",
+  "org_switcher.error": "Could not switch organization.",
   "user.plan": "Pro Plan",
   "overview.title": "Welcome back, {name}!",
   "overview.anonymous": "User",
@@ -481,19 +483,21 @@ const messages = {
   "calendar.guide.intro":
     "Paste this format in the event body (Outlook or Google Calendar) so we can generate company and person dossiers automatically. One field per line.",
   "calendar.guide.template_title": "Example to copy",
+  "calendar.guide.template_example":
+    "Company: OXCCU\nContact 1: James Girling\nTitle 1: CEO\nEmail 1: james@oxccu.com\nContact 2: Maria Lopez\nTitle 2: CTO\nEmail 2: maria@oxccu.com\nCountry 2: Chile",
   "calendar.guide.copy": "Copy example",
   "calendar.guide.copied": "Copied",
-  "calendar.guide.fields_title": "Accepted labels (Spanish or English)",
+  "calendar.guide.fields_title": "Accepted labels (es, en, pt, it, fr, de)",
   "calendar.guide.field_company":
-    "Company: Empresa, Company, Client, Organization…",
+    "Company: Empresa, Company, Entreprise, Azienda, Unternehmen, Cliente…",
   "calendar.guide.field_contact":
-    "Person: Contacto, Nombre, Name, Contact, Meeting with…",
+    "Person: Contacto, Contact, Nombre, Name, Nome, Nom, Contatto, Kontakt, Meeting with…",
   "calendar.guide.field_contact_multi":
-    "Multiple contacts: Contacto 1 / Contacto 2… with Cargo 1, Email 1, Country 1, etc.",
+    "Multiple contacts: Contact 1 / Contact 2… with Title 1, Email 1, Country 1, etc.",
   "calendar.guide.field_job":
-    "Role: Cargo, Puesto, Rol, Title, Area…",
-  "calendar.guide.field_email": "Email: nombre@empresa.com (optional, improves matching)",
-  "calendar.guide.field_country": "Country: País, Country… (optional)",
+    "Role: Cargo, Title, Poste, Ruolo, Position, Rolle, Função…",
+  "calendar.guide.field_email": "Email / Correo / Courriel: name@company.com (optional)",
+  "calendar.guide.field_country": "Country: País, Country, Pays, Paese, Land… (optional)",
   "calendar.guide.subject_title": "Subject line (company only)",
   "calendar.guide.subject_hint":
     "If you only add the company in the subject, we detect it from patterns like:",
