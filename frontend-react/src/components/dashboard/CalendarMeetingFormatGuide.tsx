@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  CALENDAR_MEETING_FORMAT_EXAMPLE,
   CALENDAR_MEETING_SUBJECT_EXAMPLES,
 } from "@/lib/calendar-meeting-format";
 import { useTranslation } from "@/providers/PreferencesProvider";
@@ -17,10 +16,12 @@ type Props = {
 function GuideContent({
   copied,
   onCopy,
+  templateExample,
   compact,
 }: {
   copied: boolean;
   onCopy: () => void;
+  templateExample: string;
   compact?: boolean;
 }) {
   const { t } = useTranslation();
@@ -48,19 +49,39 @@ function GuideContent({
             color: "var(--text-primary)",
           }}
         >
-          {CALENDAR_MEETING_FORMAT_EXAMPLE}
+          {templateExample}
         </pre>
         <button
           type="button"
           onClick={onCopy}
-          className="mt-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition ui-hover-surface"
+          className={`ui-hover-scale-btn mt-2 inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+            copied ? "" : "ui-hover-surface"
+          }`}
           style={{
-            borderColor: "var(--border-default)",
-            color: "var(--text-secondary)",
-            backgroundColor: "var(--bg-panel-muted)",
+            borderColor: copied ? "rgba(52,211,153,0.45)" : "var(--border-default)",
+            color: copied ? "var(--status-success)" : "var(--text-secondary)",
+            backgroundColor: copied ? "var(--alert-success-bg)" : "var(--bg-panel-muted)",
           }}
         >
-          {copied ? t("calendar.guide.copied") : t("calendar.guide.copy")}
+          {copied ? (
+            <>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-3.5 w-3.5"
+                aria-hidden
+              >
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              {t("calendar.guide.copied")}
+            </>
+          ) : (
+            t("calendar.guide.copy")
+          )}
         </button>
       </div>
 
@@ -95,16 +116,17 @@ function GuideContent({
 function GuideModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const templateExample = t("calendar.guide.template_example");
 
   const onCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(CALENDAR_MEETING_FORMAT_EXAMPLE);
+      await navigator.clipboard.writeText(templateExample);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
     }
-  }, []);
+  }, [templateExample]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -139,9 +161,10 @@ function GuideModal({ onClose }: { onClose: () => void }) {
           backgroundColor: "var(--bg-panel)",
           boxShadow: "0 20px 48px rgba(10, 20, 40, 0.28)",
         }}
+        onClick={(e) => e.stopPropagation()}
       >
         <div
-          className="flex shrink-0 items-center justify-between gap-3 border-b px-5 py-4"
+          className="shrink-0 border-b px-5 py-4"
           style={{ borderColor: "var(--border-default)" }}
         >
           <h2
@@ -151,18 +174,13 @@ function GuideModal({ onClose }: { onClose: () => void }) {
           >
             {t("calendar.guide.summary")}
           </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none transition ui-hover-surface"
-            style={{ color: "var(--text-muted)" }}
-            aria-label={t("calendar.guide.close")}
-          >
-            ×
-          </button>
         </div>
         <div className="overflow-y-auto px-5 py-4">
-          <GuideContent copied={copied} onCopy={() => void onCopy()} />
+          <GuideContent
+            copied={copied}
+            onCopy={() => void onCopy()}
+            templateExample={templateExample}
+          />
         </div>
         <div
           className="shrink-0 border-t px-5 py-3 text-right"
@@ -171,7 +189,7 @@ function GuideModal({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border px-4 py-2 text-sm font-medium transition ui-hover-surface"
+            className="ui-hover-scale-btn ui-hover-surface rounded-lg border px-4 py-2 text-sm font-medium"
             style={{
               borderColor: "var(--border-default)",
               color: "var(--text-primary)",
@@ -213,7 +231,7 @@ export default function CalendarMeetingFormatGuide({
           type="button"
           onClick={() => setOpen(true)}
           aria-label={t("calendar.guide.summary")}
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border-default)] bg-[var(--bg-panel-muted)] text-sm font-semibold leading-none text-[var(--text-muted)] transition ui-hover-surface group-hover:border-[var(--accent-from)] group-hover:text-[var(--accent-from)]"
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border-default)] bg-[var(--bg-panel-muted)] text-base font-semibold leading-none text-[var(--text-muted)] transition ui-hover-surface group-hover:border-[var(--accent-from)] group-hover:text-[var(--accent-from)]"
         >
           ?
         </button>

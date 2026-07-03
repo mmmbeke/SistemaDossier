@@ -62,13 +62,12 @@ export default function SettingsNav({
             key={item.id}
             type="button"
             onClick={() => onChange(item.id)}
-            className="rounded-lg px-3 py-2.5 text-left text-sm font-medium transition"
-            style={{
-              backgroundColor: isActive
-                ? "var(--bg-surface-strong)"
-                : "transparent",
-              color: isActive ? "var(--text-primary)" : "var(--text-muted)",
-            }}
+            aria-current={isActive ? "page" : undefined}
+            className={
+              isActive
+                ? "ui-settings-nav-btn ui-settings-nav-btn--active"
+                : "ui-settings-nav-btn ui-settings-nav-btn--inactive"
+            }
           >
             {t(item.labelKey)}
           </button>

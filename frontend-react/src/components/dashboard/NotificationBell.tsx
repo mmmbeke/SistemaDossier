@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNotifications, type DossierNotification } from "@/providers/NotificationsProvider";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
-function BellIcon() {
+function BellIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -14,7 +14,7 @@ function BellIcon() {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="h-5 w-5"
+      className={className}
       aria-hidden
     >
       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -44,27 +44,34 @@ function NotificationRow({
     <Link
       href={n.href}
       onClick={onClick}
-      className="flex items-start gap-3 px-4 py-3 transition ui-hover-surface"
+      className={[
+        "group flex min-w-0 items-start gap-3 border-b px-4 py-3",
+        "transition-colors duration-200 ease-out ui-hover-surface",
+        n.read ? "border-l-2 border-l-transparent" : "border-l-2 border-l-[var(--accent-from)]",
+      ].join(" ")}
       style={{
         backgroundColor: n.read ? "var(--bg-panel)" : "var(--bg-panel-muted)",
-        borderBottom: "1px solid var(--border-default)",
+        borderBottomColor: "var(--border-default)",
       }}
     >
       <span
-        className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
-        style={{ backgroundColor: tone.dot }}
+        className="mt-1.5 h-2 w-2 shrink-0 rounded-full transition-transform duration-200 group-hover:scale-125"
+        style={{
+          backgroundColor: tone.dot,
+          boxShadow: n.read ? undefined : `0 0 0 3px color-mix(in srgb, ${tone.dot} 25%, transparent)`,
+        }}
         aria-hidden
       />
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2">
           <span
-            className="truncate text-sm font-medium"
+            className="min-w-0 flex-1 truncate text-sm font-medium transition-colors duration-200 group-hover:text-[var(--brand-cyan)]"
             style={{ color: "var(--text-primary)" }}
           >
             {n.title}
           </span>
           <span
-            className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+            className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-opacity duration-200 group-hover:opacity-90"
             style={{
               color: n.origin === "automated" ? "var(--alert-info-text)" : "var(--text-muted)",
               backgroundColor:
@@ -76,11 +83,27 @@ function NotificationRow({
               : t("notifications.manual")}
           </span>
         </span>
-        <span className="mt-0.5 block text-xs" style={{ color: "var(--text-muted)" }}>
+        <span
+          className="mt-0.5 block text-xs transition-colors duration-200 group-hover:text-[var(--text-secondary)]"
+          style={{ color: "var(--text-muted)" }}
+        >
           {t(`notifications.status_${tone.key}`)}
           {n.createdAt ? ` · ${n.createdAt.slice(0, 16).replace("T", " ")}` : ""}
         </span>
       </span>
+      <svg
+        viewBox="0 0 24 24"
+        width="14"
+        height="14"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="mt-1 shrink-0 opacity-0 transition-opacity duration-200 group-hover:opacity-60"
+        style={{ color: "var(--text-subtle)" }}
+        aria-hidden
+      >
+        <polyline points="9 18 15 12 9 6" />
+      </svg>
     </Link>
   );
 }
@@ -113,7 +136,6 @@ export default function NotificationBell() {
     setOpen((v) => {
       const next = !v;
       if (next && unreadCount > 0) {
-        // Al abrir, marcamos como leídas tras un instante para que el usuario vea el resaltado.
         window.setTimeout(() => markAllRead(), 1200);
       }
       return next;
@@ -126,17 +148,35 @@ export default function NotificationBell() {
         type="button"
         onClick={toggle}
         aria-label={t("notifications.aria")}
-        className="relative flex h-10 w-10 items-center justify-center rounded-full border shadow-md transition ui-hover-surface"
+        aria-expanded={open}
+        className={[
+          "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-md",
+          "transition-all duration-200 ease-out ui-hover-surface hover:scale-105",
+          open
+            ? "scale-105 border-[var(--accent-from)] text-[var(--brand-cyan)]"
+            : "hover:border-[var(--accent-from)] hover:text-[var(--brand-cyan)]",
+        ].join(" ")}
         style={{
-          borderColor: "var(--border-default)",
-          backgroundColor: "var(--bg-panel)",
+          borderColor: open ? undefined : "var(--border-default)",
+          backgroundColor: open ? "var(--bg-surface-hover)" : "var(--bg-panel)",
           color: "var(--text-primary)",
         }}
       >
-        <BellIcon />
+        <span
+          className={[
+            "transition-all duration-200",
+            open ? "text-[var(--brand-cyan)]" : "group-hover:text-[var(--brand-cyan)]",
+          ].join(" ")}
+        >
+          <BellIcon />
+        </span>
         {unreadCount > 0 && (
           <span
-            className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold text-white"
+            className={[
+              "absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1",
+              "text-[11px] font-bold text-white transition-transform duration-200",
+              open ? "scale-110" : "group-hover:scale-110",
+            ].join(" ")}
             style={{ backgroundColor: "#ef4444" }}
           >
             {unreadCount > 9 ? "9+" : unreadCount}
@@ -146,28 +186,40 @@ export default function NotificationBell() {
 
       {open && (
         <div
-          className="absolute right-0 mt-2 w-80 overflow-hidden rounded-xl border shadow-xl"
+          className="notification-panel-enter absolute right-0 mt-2 w-80 overflow-hidden rounded-xl border shadow-xl"
           style={{
             borderColor: "var(--border-strong)",
             backgroundColor: "var(--bg-panel)",
-            boxShadow: "0 16px 40px rgba(10, 20, 40, 0.18)",
+            boxShadow: "0 16px 40px rgba(10, 20, 40, 0.22)",
           }}
         >
           <div
             className="flex items-center justify-between px-4 py-3"
             style={{
               borderBottom: "1px solid var(--border-default)",
-              backgroundColor: "var(--bg-panel)",
+              backgroundImage:
+                "linear-gradient(180deg, var(--bg-card-start) 0%, var(--bg-panel) 100%)",
             }}
           >
-            <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
               {t("notifications.title")}
+              {unreadCount > 0 ? (
+                <span
+                  className="rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                  style={{
+                    color: "var(--brand-cyan)",
+                    backgroundColor: "color-mix(in srgb, var(--accent-from) 18%, transparent)",
+                  }}
+                >
+                  {unreadCount}
+                </span>
+              ) : null}
             </span>
             {notifications.length > 0 && (
               <button
                 type="button"
                 onClick={() => clearAll()}
-                className="text-xs font-medium transition hover:opacity-80"
+                className="ui-hover-danger rounded-md px-2 py-1 text-xs font-medium transition-colors duration-200"
                 style={{ color: "var(--text-muted)" }}
               >
                 {t("notifications.clear_all")}
@@ -175,11 +227,22 @@ export default function NotificationBell() {
             )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto" style={{ backgroundColor: "var(--bg-panel)" }}>
+          <div className="max-h-96 overflow-x-hidden overflow-y-auto" style={{ backgroundColor: "var(--bg-panel)" }}>
             {notifications.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-                {t("notifications.empty")}
-              </p>
+              <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                <div
+                  className="flex h-11 w-11 items-center justify-center rounded-full"
+                  style={{
+                    backgroundColor: "var(--bg-input)",
+                    color: "var(--text-subtle)",
+                  }}
+                >
+                  <BellIcon className="h-5 w-5 opacity-60" />
+                </div>
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  {t("notifications.empty")}
+                </p>
+              </div>
             ) : (
               notifications.map((n) => (
                 <NotificationRow
@@ -197,7 +260,7 @@ export default function NotificationBell() {
           <Link
             href="/dashboard/dossiers"
             onClick={() => setOpen(false)}
-            className="block px-4 py-3 text-center text-xs font-medium transition ui-hover-surface"
+            className="group flex items-center justify-center gap-1.5 px-4 py-3 text-center text-xs font-semibold transition-all duration-200 ease-out ui-hover-surface hover:text-[var(--brand-cyan)]"
             style={{
               color: "var(--accent-from)",
               borderTop: "1px solid var(--border-default)",
@@ -205,6 +268,18 @@ export default function NotificationBell() {
             }}
           >
             {t("notifications.view_all")}
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="transition-transform duration-200 group-hover:translate-x-0.5"
+              aria-hidden
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
           </Link>
         </div>
       )}

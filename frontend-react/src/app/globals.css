@@ -120,6 +120,10 @@ body {
   font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
 }
 
+textarea {
+  resize: none;
+}
+
 html {
   transition:
     background-color 0.2s ease,
@@ -162,6 +166,12 @@ h3 {
 .brand-logo-wrap .brand-logo--light,
 .brand-logo-wrap .brand-logo--dark {
   width: 100%;
+  transition: transform 0.22s ease;
+}
+
+.brand-logo-link:hover .brand-logo-wrap .brand-logo--light,
+.brand-logo-link:hover .brand-logo-wrap .brand-logo--dark {
+  transform: scale(1.05);
 }
 
 /* Alertas y estados — legibles en claro y oscuro */
@@ -208,6 +218,184 @@ h3 {
 
 .ui-hover-surface:hover {
   background-color: var(--hover-overlay);
+}
+
+.ui-hover-danger:hover {
+  color: var(--status-error) !important;
+  background-color: var(--alert-error-bg);
+}
+
+.ui-dashboard-action-link {
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-surface);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.ui-dashboard-action-link:hover {
+  background-color: var(--bg-surface-hover) !important;
+  border-color: var(--accent-from) !important;
+}
+
+.ui-dashboard-action-link:hover .ui-dashboard-action-link__title {
+  color: var(--brand-cyan) !important;
+}
+
+.ui-dashboard-action-link:hover .ui-dashboard-action-link__desc {
+  color: var(--text-secondary) !important;
+}
+
+.ui-dashboard-action-link:hover .ui-dashboard-action-link__icon {
+  color: var(--brand-cyan) !important;
+  background-color: color-mix(in srgb, var(--accent-from) 14%, var(--bg-surface-strong)) !important;
+}
+
+.ui-dashboard-action-link:hover .ui-dashboard-action-link__chevron {
+  color: var(--brand-cyan) !important;
+  opacity: 1 !important;
+}
+
+.ui-calendar-connect-btn {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+}
+
+.ui-calendar-connect-btn:hover:not(:disabled) {
+  transform: scale(1.01);
+  filter: brightness(1.07);
+  opacity: 1 !important;
+  box-shadow: 0 14px 32px rgba(0, 183, 235, 0.34) !important;
+}
+
+.ui-calendar-connect-btn:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.ui-hover-scale-btn {
+  transition:
+    transform 0.2s ease,
+    filter 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.ui-hover-scale-btn:hover:not(:disabled) {
+  transform: scale(1.01);
+  filter: brightness(1.05);
+}
+
+.ui-hover-scale-btn:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.ui-settings-nav-btn {
+  width: 100%;
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.375;
+  transition: all 0.2s ease-out;
+}
+
+.ui-settings-nav-btn--inactive {
+  color: var(--text-muted);
+  background-color: transparent;
+}
+
+.ui-settings-nav-btn--inactive:hover {
+  background-color: var(--hover-overlay) !important;
+  color: var(--text-primary) !important;
+  transform: translateX(2px);
+}
+
+.ui-settings-nav-btn--active {
+  color: var(--brand-cyan) !important;
+  background-color: var(--bg-surface-hover) !important;
+}
+
+.ui-settings-nav-btn--active:hover {
+  filter: brightness(1.08);
+}
+
+.ui-theme-picker-btn {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  border: 2px solid transparent;
+  padding: 1rem 0.75rem;
+  transition: all 0.2s ease-out;
+}
+
+.ui-theme-picker-btn--inactive {
+  color: var(--text-muted);
+  background-color: var(--bg-surface);
+  box-shadow: inset 0 0 0 1px var(--border-default);
+}
+
+.ui-theme-picker-btn--inactive:hover {
+  transform: scale(1.01);
+  color: var(--brand-cyan) !important;
+  background-color: var(--bg-surface-hover) !important;
+  border-color: rgba(0, 183, 235, 0.35) !important;
+  box-shadow: 0 0 0 1px rgba(0, 183, 235, 0.12) !important;
+}
+
+.ui-theme-picker-btn--active {
+  color: var(--text-primary);
+  background-color: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.15);
+}
+
+.ui-theme-picker-btn--active:hover {
+  transform: scale(1.01);
+  filter: brightness(1.06);
+}
+
+.ui-theme-picker-btn:active {
+  transform: scale(0.99);
+}
+
+.ui-settings-select {
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  padding: 0.625rem 2rem 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  outline: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238fa8c4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 0.875rem;
+}
+
+@keyframes notification-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.notification-panel-enter {
+  animation: notification-panel-in 0.22s ease-out forwards;
+  transform-origin: top right;
 }
 
 [data-theme="light"] h1,

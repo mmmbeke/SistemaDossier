@@ -804,8 +804,8 @@ def api_listar_eventos_calendario(
     mensaje = None
     if not reuniones:
         mensaje = (
-            "No se encontraron eventos. Crea una reunión de prueba en Outlook "
-            "(outlook.com → Calendario) o prueba con incluir_pasadas=true."
+            "No hay reuniones próximas en tu calendario. "
+            "Crea un evento en Outlook con «Empresa:» y «Contacto:» en la descripción."
         )
 
     return {"total": len(reuniones), "reuniones": reuniones, "mensaje": mensaje}
@@ -851,8 +851,8 @@ def api_listar_eventos_google_calendar(
     mensaje = None
     if not reuniones:
         mensaje = (
-            "No se encontraron eventos. Crea un evento en Google Calendar "
-            "o prueba con incluir_pasadas=true."
+            "No hay eventos próximos en tu calendario. "
+            "Crea un evento en Google Calendar con «Empresa:» y «Contacto:» en la descripción."
         )
 
     return {"total": len(reuniones), "reuniones": reuniones, "mensaje": mensaje}

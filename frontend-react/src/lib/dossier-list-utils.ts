@@ -1,5 +1,6 @@
 import type { FilterValue } from "@/components/dossier/FilterTabs";
 import { getCalendarMeetingLabel, readCalendarBlockFromData } from "@/lib/calendar-dossier-meta";
+import type { TranslationKey } from "@/i18n/types";
 import {
   isDossierFolderEntry,
   type DossierFolderListItem,
@@ -41,6 +42,16 @@ export function removeDossierFromFolder(
 export function isNonEmptyListEntry(entry: DossierListEntry): boolean {
   if (isDossierFolderEntry(entry)) return entry.dossiers.length > 0;
   return true;
+}
+
+export function formatDossierStatusLabel(
+  status: string,
+  t: (key: TranslationKey) => string
+): string {
+  if (status === "complete") return t("dossiers.status_complete");
+  if (status === "failed") return t("dossiers.status_failed");
+  if (status === "pending") return t("dossiers.status_pending");
+  return status.replace(/_/g, " ");
 }
 
 function dossierDataForEntry(entry: DossierListEntry): unknown {

@@ -3,12 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
-import UiAlert from "@/components/ui/UiAlert";
-import CalendarFormatGuideAction from "@/components/dashboard/CalendarFormatGuideAction";
-import GoogleCalendarPanel from "@/components/dashboard/GoogleCalendarPanel";
-import MicrosoftOutlookPanel from "@/components/dashboard/MicrosoftOutlookPanel";
+import OverviewCalendarsSection from "@/components/dashboard/OverviewCalendarsSection";
 import StatCard from "@/components/dashboard/StatCard";
 import TopBar from "@/components/dashboard/TopBar";
+import UiAlert from "@/components/ui/UiAlert";
 import {
   DossierApiError,
   fetchAuthMe,
@@ -19,8 +17,9 @@ import {
   type DossierListEntry,
   isDossierFolderEntry,
 } from "@/lib/dossier-api";
-import { getCalendarMeetingLabel } from "@/lib/calendar-dossier-meta";
-import { countListEntries } from "@/lib/dossier-list-utils";
+import { getCalendarMeetingLabel, getCalendarMeetingSubject } from "@/lib/calendar-dossier-meta";
+import { countListEntries, formatDossierStatusLabel } from "@/lib/dossier-list-utils";
+import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 
@@ -213,7 +212,7 @@ export default function OverviewPage() {
 
   const stats = useMemo(() => {
     const c = countListEntries(dossierRows);
-    return { total: c.all, complete: c.complete, pending: c.needs_update };
+    return { total: c.all, active: c.active, pending: c.needs_update };
   }, [dossierRows]);
 
   const activityItems = useMemo(() => {
@@ -226,23 +225,30 @@ export default function OverviewPage() {
       .slice(0, 6)
       .map((row) => {
         if (isDossierFolderEntry(row)) {
+          const title =
+            getCalendarMeetingSubject({
+              calendar_meeting: row.calendar_meeting,
+              dossier_data: row.dossiers[0]?.dossier_data,
+            }) || stripHtmlToPlainLine(row.title) || "—";
           return {
             id: row.id,
-            title: row.title,
-            subtitle: getCalendarMeetingLabel(row) || row.status,
+            title,
+            subtitle: getCalendarMeetingLabel(row) || formatDossierStatusLabel(row.status, t),
             dateLabel: formatActivityDate(row.updated_at || row.created_at),
             href: `/dashboard/dossiers/folder/${row.id}`,
           };
         }
+        const title =
+          stripHtmlToPlainLine(row.subject_name || row.subject_email) || "—";
         return {
           id: row.id,
-          title: row.subject_name || row.subject_email || "—",
-          subtitle: getCalendarMeetingLabel(row) || row.status,
+          title,
+          subtitle: getCalendarMeetingLabel(row) || formatDossierStatusLabel(row.status, t),
           dateLabel: formatActivityDate(row.updated_at || row.created_at),
           href: `/dashboard/dossiers/${row.id}`,
         };
       });
-  }, [dossierRows]);
+  }, [dossierRows, t]);
 
   const titleName = welcomeName || t("overview.anonymous");
   const creditsBalance = me?.credits_balance;
@@ -310,7 +316,7 @@ export default function OverviewPage() {
 
       <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard value={dashLoad === "ready" ? stats.total : "—"} label={t("stat.total_dossiers")} />
-        <StatCard value={dashLoad === "ready" ? stats.complete : "—"} label={t("stat.completed_dossiers")} />
+        <StatCard value={dashLoad === "ready" ? stats.active : "—"} label={t("stat.active_dossiers")} />
         <StatCard
           value={dashLoad === "ready" ? stats.pending : "—"}
           label={t("stat.needs_update")}
@@ -323,23 +329,7 @@ export default function OverviewPage() {
         />
       </section>
 
-      <section className="mb-8">
-        <DashboardCard
-          title={t("overview.microsoft_title")}
-          action={<CalendarFormatGuideAction provider="microsoft" />}
-        >
-          <MicrosoftOutlookPanel />
-        </DashboardCard>
-      </section>
-
-      <section className="mb-8">
-        <DashboardCard
-          title={t("overview.google_title")}
-          action={<CalendarFormatGuideAction provider="google" />}
-        >
-          <GoogleCalendarPanel />
-        </DashboardCard>
-      </section>
+      <OverviewCalendarsSection />
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <DashboardCard title={t("activity.title")}>
@@ -356,16 +346,16 @@ export default function OverviewPage() {
               {t("overview.activity_empty")}
             </p>
           ) : (
-            <ul className="flex flex-col gap-3">
+            <ul className="flex flex-col gap-2">
               {activityItems.map((item) => (
                 <li key={item.id}>
                   <Link
                     href={item.href}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition hover:opacity-95"
+                    className="group flex min-w-0 items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 transition-all duration-200 ease-out ui-hover-surface hover:border-[var(--border-default)]"
                     style={{ backgroundColor: "var(--bg-surface)" }}
                   >
                     <div
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 group-hover:text-[var(--brand-cyan)]"
                       style={{
                         backgroundColor: "var(--bg-surface-strong)",
                         color: "var(--text-muted)",
@@ -379,17 +369,39 @@ export default function OverviewPage() {
                         <polyline points="10 9 9 9 8 9" />
                       </svg>
                     </div>
-                    <div className="flex flex-1 flex-col min-w-0">
-                      <span className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span
+                        className="truncate text-sm font-medium transition-colors duration-200 group-hover:text-[var(--brand-cyan)]"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         {item.title}
                       </span>
-                      <span className="text-xs capitalize" style={{ color: "var(--text-muted)" }}>
+                      <span
+                        className="text-xs capitalize transition-colors duration-200 group-hover:text-[var(--text-secondary)]"
+                        style={{ color: "var(--text-muted)" }}
+                      >
                         {item.subtitle}
                       </span>
                     </div>
-                    <span className="text-xs shrink-0" style={{ color: "var(--text-subtle)" }}>
+                    <span
+                      className="shrink-0 text-xs transition-colors duration-200 group-hover:text-[var(--text-muted)]"
+                      style={{ color: "var(--text-subtle)" }}
+                    >
                       {item.dateLabel}
                     </span>
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="shrink-0 opacity-0 transition-opacity duration-200 group-hover:opacity-60"
+                      style={{ color: "var(--text-subtle)" }}
+                      aria-hidden
+                    >
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
                   </Link>
                 </li>
               ))}
@@ -403,26 +415,16 @@ export default function OverviewPage() {
               <li key={action.labelKey}>
                 <Link
                   href={action.href}
-                  className="group flex items-center gap-3 rounded-lg border px-3 py-3 transition hover:opacity-95"
-                  style={{
-                    borderColor: "var(--border-default)",
-                    backgroundColor: "var(--bg-surface)",
-                  }}
+                  className="ui-dashboard-action-link group flex min-w-0 items-center gap-3 rounded-lg px-3 py-3"
                 >
-                  <span
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                    style={{
-                      backgroundColor: "var(--bg-surface-strong)",
-                      color: "var(--accent-from)",
-                    }}
-                  >
+                  <span className="ui-dashboard-action-link__icon flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors duration-200" style={{ backgroundColor: "var(--bg-surface-strong)", color: "var(--accent-from)" }}>
                     {action.icon}
                   </span>
-                  <div className="flex flex-1 flex-col">
-                    <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="ui-dashboard-action-link__title text-sm font-semibold transition-colors duration-200" style={{ color: "var(--text-primary)" }}>
                       {t(action.labelKey)}
                     </span>
-                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    <span className="ui-dashboard-action-link__desc text-xs transition-colors duration-200" style={{ color: "var(--text-muted)" }}>
                       {t(action.descKey)}
                     </span>
                   </div>
@@ -433,7 +435,9 @@ export default function OverviewPage() {
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
+                    className="ui-dashboard-action-link__chevron shrink-0 opacity-60 transition-all duration-200"
                     style={{ color: "var(--text-subtle)" }}
+                    aria-hidden
                   >
                     <polyline points="9 18 15 12 9 6" />
                   </svg>
