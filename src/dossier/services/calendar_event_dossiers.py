@@ -49,6 +49,19 @@ from dossier.utils.html_text import strip_html_to_plain_line, strip_html_to_text
 from dossier.services.person_research_service import run_person_research
 from dossier.billing.credit_policy import PERSON_IDENTITY_CREDITS, credit_charging_enabled
 from dossier.schemas.dossier_generation import DEPTH_CREDITS
+from dossier.services.calendar_meeting_labels import (
+    COUNTRY_IN_DESC,
+    COUNTRY_INLINE_IN_JOB,
+    EMAIL_IN_DESC,
+    EMPRESA_DESC,
+    JOB_IN_DESC,
+    NUMBERED_CONTACT,
+    NUMBERED_COUNTRY,
+    NUMBERED_EMAIL,
+    NUMBERED_JOB,
+    PERSON_PATTERNS,
+    SUBJECT_CON,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,46 +82,29 @@ _SUBJECT_WITH = re.compile(
     r"(?i)^(?:reunión|reunion|demo|llamada|call|meeting)\s+(?:comercial|estratégica|estadategica|producto|con|de)\s+(.+)$"
 )
 
-_SUBJECT_CON = re.compile(r"(?i)^(?:reunión|reunion|meeting|call)\s+con\s+(.+)$")
+_SUBJECT_CON = SUBJECT_CON
 
-_EMPRESA_DESC = re.compile(
-    r"(?i)(?:empresa|company|cliente|client|organización|organization|organizacion)\s*:\s*(.+?)(?:\n|$)"
-)
+_EMPRESA_DESC = EMPRESA_DESC
 
 _GENERIC_MEETING_TITLE = re.compile(
     r"(?i)^(?:reunión|reunion|meeting|call|llamada|demo|sync|standup|stand-up|daily|weekly|"
-    r"kickoff|kick-off|1:1|one-on-one|catch-up|catchup|review|planning|genérico|generico)"
-    r"(?:\s+(?:semanal|diaria|de\s+equipo|interna|internal|team))?\s*$"
+    r"kickoff|kick-off|1:1|one-on-one|catch-up|catchup|review|planning|genérico|generico|"
+    r"réunion|reunião|reuniao|riunione|besprechung|termin)"
+    r"(?:\s+(?:semanal|diaria|de\s+equipo|interna|internal|team|hebdomadaire|wöchentlich))?\s*$"
 )
 
-_PERSON_PATTERNS = (
-    re.compile(r"(?i)contacto\s*:\s*(.+?)(?:\n|$)"),
-    re.compile(r"(?i)nombre\s*:\s*(.+?)(?:\n|$)"),
-    re.compile(r"(?i)(?:name|contact)\s*:\s*(.+?)(?:\n|$)"),
-    re.compile(r"(?i)reunión con\s+(.+?)(?:\n|$)"),
-    re.compile(r"(?i)meeting with\s+(.+?)(?:\n|$)"),
-)
+_PERSON_PATTERNS = PERSON_PATTERNS
 
-_EMAIL_IN_DESC = re.compile(r"(?i)email\s*[:.]\s*(.+?)(?:\n|$)")
+_EMAIL_IN_DESC = EMAIL_IN_DESC
 
-_JOB_IN_DESC = re.compile(
-    r"(?i)(?:cargo|puesto|rol|título|titulo|área|area)\s*:\s*(.+?)(?:\n|$)"
-)
+_JOB_IN_DESC = JOB_IN_DESC
 
-_COUNTRY_IN_DESC = re.compile(
-    r"(?i)(?:país|pais|country)(?:\s*\([^)]*\))?\s*:\s*(.+?)(?:\n|$)"
-)
+_COUNTRY_IN_DESC = COUNTRY_IN_DESC
 
-_NUMBERED_CONTACT = re.compile(
-    r"(?i)(?:contacto|nombre|name|contact)\s*(\d+)\s*:\s*(.+?)(?:\n|$)"
-)
-_NUMBERED_JOB = re.compile(
-    r"(?i)(?:cargo|puesto|rol|título|titulo|área|area|job|title|role)\s*(\d+)\s*:\s*(.+?)(?:\n|$)"
-)
-_NUMBERED_EMAIL = re.compile(r"(?i)email\s*(\d+)\s*[:.]\s*(.+?)(?:\n|$)")
-_NUMBERED_COUNTRY = re.compile(
-    r"(?i)(?:país|pais|country)(?:\s*\([^)]*\))?\s*(\d+)\s*:\s*(.+?)(?:\n|$)"
-)
+_NUMBERED_CONTACT = NUMBERED_CONTACT
+_NUMBERED_JOB = NUMBERED_JOB
+_NUMBERED_EMAIL = NUMBERED_EMAIL
+_NUMBERED_COUNTRY = NUMBERED_COUNTRY
 
 _OPTIONAL_FIELD_PLACEHOLDERS = frozenset(
     {
@@ -125,6 +121,13 @@ _OPTIONAL_FIELD_PLACEHOLDERS = frozenset(
         "na",
         "s/n",
         "sin especificar",
+        "not specified",
+        "non spécifié",
+        "non specifie",
+        "não especificado",
+        "nao especificado",
+        "nicht angegeben",
+        "non specificato",
     }
 )
 
@@ -337,7 +340,7 @@ def _split_job_and_country(job_raw: str | None, country: str | None) -> tuple[st
     job = _clean_optional_field(job_raw)
     if not job:
         return None, country
-    m = re.search(r"(?i)\s+pa[ií]s\s*:\s*(.+)$", job)
+    m = COUNTRY_INLINE_IN_JOB.search(job)
     if m:
         parsed_country = _clean_optional_field(m.group(1))
         parsed_job = _clean_optional_field(job[: m.start()])

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  CALENDAR_MEETING_FORMAT_EXAMPLE,
   CALENDAR_MEETING_SUBJECT_EXAMPLES,
 } from "@/lib/calendar-meeting-format";
 import { useTranslation } from "@/providers/PreferencesProvider";
@@ -117,7 +118,8 @@ function GuideContent({
 function GuideModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
-  const templateExample = t("calendar.guide.template_example");
+  const templateExample =
+    t("calendar.guide.template_example") || CALENDAR_MEETING_FORMAT_EXAMPLE;
 
   const onCopy = useCallback(async () => {
     try {

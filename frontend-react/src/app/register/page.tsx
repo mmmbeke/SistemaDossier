@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import AuthShell from "@/components/AuthShell";
 import FormField from "@/components/FormField";
 import PrimaryButton from "@/components/PrimaryButton";
@@ -96,7 +96,7 @@ function modeButtonClass(active: boolean): string {
   ].join(" ");
 }
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite")?.trim() || "";
@@ -690,5 +690,13 @@ export default function RegisterPage() {
         </PrimaryButton>
       </form>
     </AuthShell>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterPageContent />
+    </Suspense>
   );
 }

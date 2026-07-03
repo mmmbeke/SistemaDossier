@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import TopBar from "@/components/dashboard/TopBar";
 import FormField from "@/components/FormField";
@@ -40,7 +40,7 @@ function estimatePersonResearchEta(source: ResearchSourceUi, maxProfiles: number
   return 40 + Math.max(0, Math.min(5, maxProfiles) - 1) * 12;
 }
 
-export default function PersonResearchPage() {
+function PersonResearchPageContent() {
   const { t } = useTranslation();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -599,5 +599,13 @@ export default function PersonResearchPage() {
       </div>
     </>
     </MutatorGuard>
+  );
+}
+
+export default function PersonResearchPage() {
+  return (
+    <Suspense fallback={null}>
+      <PersonResearchPageContent />
+    </Suspense>
   );
 }

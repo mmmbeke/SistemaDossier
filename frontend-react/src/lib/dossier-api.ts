@@ -407,6 +407,34 @@ export async function refreshAuthSession(): Promise<AuthSuccessResponse> {
   return data;
 }
 
+/** Membresía del usuario para el selector de organización. */
+export type UserOrganizationItem = {
+  organization_id: string;
+  organization_name: string;
+  role: string;
+  workspace_kind: "personal" | "work";
+  is_primary: boolean;
+  is_active: boolean;
+};
+
+/** Organizaciones a las que pertenece el usuario autenticado. */
+export async function fetchMyOrganizations(): Promise<{ items: UserOrganizationItem[] }> {
+  return getJsonWithAuth<{ items: UserOrganizationItem[] }>("/auth/me/organizations");
+}
+
+/** Cambia la organización activa de la sesión y guarda el JWT nuevo. */
+export async function switchActiveOrganization(
+  organizationId: string
+): Promise<AuthSuccessResponse> {
+  const data = await postJsonWithAuth<AuthSuccessResponse>("/auth/session/switch", {
+    organization_id: organizationId,
+  });
+  assertAuthSuccessResponse(data);
+  const remember = getAuthTokenStorageMode() === "local";
+  persistAuthToken(data.access_token, remember);
+  return data;
+}
+
 export type AuthUserPreferencesPatch = {
   locale?: string;
   timezone?: string;
