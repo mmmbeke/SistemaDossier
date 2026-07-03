@@ -4,7 +4,7 @@ import DossierFolderCard from "@/components/dossier/DossierFolderCard";
 import DossierListCard from "@/components/dossier/DossierListCard";
 import type { FilterValue } from "@/components/dossier/FilterTabs";
 import { isDossierFolderEntry, type DossierListEntry, type DossierListItem } from "@/lib/dossier-api";
-import type { TypeFilterValue } from "@/lib/dossier-list-utils";
+import type { DossierViewMode, TypeFilterValue } from "@/lib/dossier-list-utils";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 
@@ -98,7 +98,7 @@ type Props = {
   };
   flatEntries: DossierListEntry[];
   filter: FilterValue;
-  viewMode?: "meeting_folders" | "standalone";
+  viewMode?: DossierViewMode;
   typeFilter: TypeFilterValue;
   deletingId: string | null;
   onDeleteDossier: (row: DossierListItem) => void;
@@ -117,7 +117,11 @@ export default function DossierGroupedList({
 }: Props) {
   if (filter !== "all" || viewMode === "standalone") {
     return (
-      <div className={viewMode === "standalone" ? OTHER_GRID_CLASS : MEETING_GRID_CLASS}>
+      <div
+        className={
+          viewMode === "standalone" || viewMode === "all" ? OTHER_GRID_CLASS : MEETING_GRID_CLASS
+        }
+      >
         {flatEntries.map((entry) =>
           renderEntry(entry, typeFilter, deletingId, onDeleteDossier, showDelete)
         )}

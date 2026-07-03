@@ -10,17 +10,20 @@ import {
 
 export type DossierTimeGroup = "upcoming" | "past" | "other";
 export type TypeFilterValue = "all" | "person" | "corporate";
-export type DossierViewMode = "meeting_folders" | "standalone";
+export type DossierViewMode = "all" | "meeting_folders" | "standalone";
 
 export function entryMatchesViewMode(
   entry: DossierListEntry,
   viewMode: DossierViewMode
 ): boolean {
+  if (viewMode === "all") return true;
   if (viewMode === "meeting_folders") return isDossierFolderEntry(entry);
   return !isDossierFolderEntry(entry);
 }
 
-export function countEntriesByViewMode(items: DossierListEntry[]): Record<DossierViewMode, number> {
+export function countEntriesByViewMode(
+  items: DossierListEntry[]
+): Record<Exclude<DossierViewMode, "all">, number> {
   let meeting_folders = 0;
   let standalone = 0;
   for (const entry of items) {

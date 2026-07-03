@@ -74,7 +74,7 @@ export default function NewDossierButton({ className = "" }: NewDossierButtonPro
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
+        className="ui-new-dossier-btn inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white"
         style={{
           backgroundImage:
             "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
@@ -123,10 +123,10 @@ export default function NewDossierButton({ className = "" }: NewDossierButtonPro
                 href={opt.href}
                 role="menuitem"
                 onClick={() => setOpen(false)}
-                className="flex gap-3 rounded-lg px-3 py-3 transition hover:bg-[var(--bg-panel-muted)]"
+                className="ui-new-dossier-option group flex gap-3 rounded-lg px-3 py-3"
               >
                 <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                  className="ui-new-dossier-option__icon flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
                   style={{
                     backgroundColor: "var(--bg-input)",
                     color: "var(--accent-from)",

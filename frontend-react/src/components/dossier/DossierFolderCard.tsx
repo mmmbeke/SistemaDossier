@@ -68,7 +68,7 @@ function ChildDossierChip({
 
   return (
     <div
-      className="relative flex min-w-0 flex-1 flex-col gap-2 rounded-lg border p-3 pr-10"
+      className="ui-dossier-chip relative flex min-w-0 flex-1 flex-col gap-2 rounded-lg border p-3 pr-10"
       style={{
         borderColor: isFailed ? "rgba(248,113,113,0.35)" : "var(--border-default)",
         backgroundColor: "var(--bg-input)",
@@ -94,9 +94,12 @@ function ChildDossierChip({
 
       <Link
         href={`/dashboard/dossiers/${row.id}`}
-        className="min-w-0 text-left transition hover:opacity-90"
+        className="ui-dossier-chip__link min-w-0 text-left"
       >
-        <span className="block truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+        <span
+          className="ui-dossier-chip__title block truncate text-sm font-semibold"
+          style={{ color: "var(--text-primary)" }}
+        >
           {stripHtmlToPlainLine(row.subject_name || row.subject_email) || "—"}
         </span>
         <span className="mt-0.5 block text-xs capitalize" style={{ color: "var(--text-muted)" }}>
@@ -157,7 +160,7 @@ export default function DossierFolderCard({
 
   return (
     <article
-      className="h-full rounded-xl border transition hover:border-strong"
+      className="ui-dossier-card group h-full rounded-xl border"
       style={{
         borderColor: "var(--border-default)",
         backgroundImage:
@@ -167,7 +170,7 @@ export default function DossierFolderCard({
       <div className="flex flex-col gap-4 p-4">
         <div className="flex min-w-0 gap-3">
           <div
-            className="flex h-14 w-14 shrink-0 items-center justify-center self-start rounded-xl"
+            className="ui-dossier-card__icon flex h-14 w-14 shrink-0 items-center justify-center self-start rounded-xl"
             style={{
               backgroundColor: "var(--bg-surface-strong)",
               color: "var(--accent-from)",
@@ -178,7 +181,7 @@ export default function DossierFolderCard({
           </div>
           <div className="min-w-0 flex-1">
             <p
-              className="text-base font-semibold leading-snug"
+              className="ui-dossier-card__title text-base font-semibold leading-snug"
               style={{ color: "var(--text-primary)" }}
             >
               {displayTitle || "—"}

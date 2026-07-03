@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import TopBar from "@/components/dashboard/TopBar";
@@ -12,7 +12,6 @@ import {
   fetchAuthMe,
   getStoredAccessToken,
   type AuthUser,
-  type PersonResearchApiResponse,
   type PersonResearchPayload,
 } from "@/lib/dossier-api";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
@@ -20,8 +19,6 @@ import { parsePersonResearchSearchParams } from "@/lib/person-research-from-doss
 import MutatorGuard from "@/components/auth/MutatorGuard";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 type ResearchSourceUi = "gemini_web" | "pdl";
 
@@ -42,7 +39,6 @@ function estimatePersonResearchEta(source: ResearchSourceUi, maxProfiles: number
 
 function PersonResearchPageContent() {
   const { t } = useTranslation();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { preferences } = usePreferences();
   const { enqueuePersonResearchJob, cancelJob, getActivePersonJob, jobs } = useDossierJobs();
@@ -59,11 +55,8 @@ function PersonResearchPageContent() {
   const [replaceDossierId, setReplaceDossierId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<PersonResearchApiResponse | null>(null);
-  const [showRaw, setShowRaw] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [me, setMe] = useState<AuthUser | null>(null);
-  const redirectAfterSaveRef = useRef<string | null>(null);
   const prefillAppliedRef = useRef(false);
   const usesEnrichment = researchSource === "pdl";
 
@@ -110,16 +103,8 @@ function PersonResearchPageContent() {
     if (!activeJobId) return;
     const job = jobs.find((j) => j.id === activeJobId);
     if (!job) return;
-    if (job.status === "completed" && job.result) {
-      const personResult = job.result as PersonResearchApiResponse;
-      setResult(personResult);
+    if (job.status === "completed") {
       setActiveJobId(null);
-      const dossierId = personResult.saved_dossier?.id;
-      const targetId = replaceDossierId || dossierId;
-      if (targetId && redirectAfterSaveRef.current !== targetId) {
-        redirectAfterSaveRef.current = targetId;
-        router.push(`/dashboard/dossiers/${targetId}`);
-      }
     }
     if (job.status === "failed" || job.status === "cancelled") {
       setActiveJobId(null);
@@ -127,7 +112,7 @@ function PersonResearchPageContent() {
         setError(job.error_message);
       }
     }
-  }, [jobs, activeJobId, router, replaceDossierId]);
+  }, [jobs, activeJobId]);
 
   function buildPayload(name: string, forceRefresh = false): PersonResearchPayload {
     const payload: PersonResearchPayload = {
@@ -157,7 +142,6 @@ function PersonResearchPageContent() {
 
   async function startResearch(forceRefresh: boolean) {
     setError("");
-    if (!forceRefresh) setResult(null);
     const name = fullName.trim();
     if (name.length < 2) {
       setError(t("person_research.error_name"));
@@ -217,7 +201,7 @@ function PersonResearchPageContent() {
       <nav className="mb-6">
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm transition hover:opacity-80"
+          className="ui-person-back-link inline-flex items-center gap-1.5 text-sm"
           style={{ color: "var(--text-muted)" }}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
@@ -272,14 +256,11 @@ function PersonResearchPageContent() {
                       type="button"
                       disabled={isGenerating}
                       onClick={() => setResearchSource(option.id)}
-                      className="rounded-xl border px-3 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
-                      style={{
-                        borderColor: selected ? "var(--accent-from)" : "var(--border-default)",
-                        backgroundColor: selected
-                          ? "rgba(0, 183, 235, 0.08)"
-                          : "var(--bg-surface)",
-                        boxShadow: selected ? "0 0 0 1px rgba(0, 183, 235, 0.35)" : undefined,
-                      }}
+                      className={
+                        selected
+                          ? "ui-person-source-btn ui-person-source-btn--active"
+                          : "ui-person-source-btn ui-person-source-btn--inactive"
+                      }
                     >
                       <span className="block text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                         {option.title}
@@ -413,7 +394,8 @@ function PersonResearchPageContent() {
                 </div>
                 <button
                   type="button"
-                  className="mt-3 text-xs font-medium text-red-300 hover:text-red-200"
+                  className="ui-hover-danger mt-3 rounded-md px-2 py-1 text-xs font-medium transition"
+                  style={{ color: "var(--status-error)" }}
                   onClick={() => void handleCancelGeneration()}
                 >
                   {t("person_research.cancel")}
@@ -424,7 +406,7 @@ function PersonResearchPageContent() {
                 className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:flex-wrap sm:items-center"
                 style={{ borderColor: "var(--border-default)" }}
               >
-                <PrimaryButton type="submit" loading={submitting} className="w-full sm:w-auto">
+                <PrimaryButton type="submit" loading={submitting} className="ui-new-dossier-btn w-full sm:w-auto">
                   {PERSON_RESEARCH_CREDITS === 1
                     ? t("generate.submit_one")
                     : t("generate.submit", { credits: PERSON_RESEARCH_CREDITS })}
@@ -434,11 +416,7 @@ function PersonResearchPageContent() {
                   disabled={submitting}
                   title={t("person_research.regenerate_hint")}
                   onClick={() => void handleRegenerate()}
-                  className="inline-flex w-full items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50 sm:w-auto"
-                  style={{
-                    borderColor: "var(--border-default)",
-                    color: "var(--accent-from)",
-                  }}
+                  className="ui-person-outline-btn w-full px-4 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   {t("person_research.regenerate")}
                 </button>
@@ -477,124 +455,6 @@ function PersonResearchPageContent() {
               </dl>
             </DashboardCard>
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          {result?.warnings?.length ? (
-            <DashboardCard title={t("person_research.warn_title")}>
-              <ul className="ui-text-warning list-inside list-disc text-sm">
-                {result.warnings.map((w, i) => (
-                  <li key={i}>{w}</li>
-                ))}
-              </ul>
-            </DashboardCard>
-          ) : null}
-
-          {result?.saved_dossier?.id ? (
-            <DashboardCard title={t("person_research.saved_title")}>
-              {result.dossier_source === "redis_cache" ? (
-                <div
-                  className="mb-3 inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold"
-                  style={{
-                    color: "var(--alert-info-text)",
-                    backgroundColor: "var(--alert-info-bg)",
-                    borderColor: "var(--alert-info-border)",
-                  }}
-                >
-                  {t("person_research.cache_badge")}
-                </div>
-              ) : null}
-              <p className="mb-3 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                {t("person_research.saved_body")}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href={`/dashboard/dossiers/${result.saved_dossier.id}`}
-                  className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95"
-                  style={{
-                    backgroundImage:
-                      "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
-                  }}
-                >
-                  {t("person_research.saved_open")}
-                </Link>
-                <Link
-                  href="/dashboard/dossiers"
-                  className="inline-flex items-center justify-center rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-90"
-                  style={{ borderColor: "var(--border-default)", color: "var(--accent-from)" }}
-                >
-                  {t("person_research.saved_list")}
-                </Link>
-              </div>
-            </DashboardCard>
-          ) : null}
-
-          {result?.gemini_analysis_markdown ? (
-            <DashboardCard title={t("person_research.section_analysis")}>
-              <div
-                className="api-md max-w-none text-sm leading-relaxed"
-                style={{ color: "var(--text-primary)" }}
-              >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {result.gemini_analysis_markdown}
-                </ReactMarkdown>
-              </div>
-            </DashboardCard>
-          ) : result && !isGenerating ? (
-            <DashboardCard title={t("person_research.section_analysis")}>
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                {t("person_research.no_analysis")}
-              </p>
-              <button
-                type="button"
-                disabled={submitting}
-                title={t("person_research.regenerate_hint")}
-                onClick={() => void handleRegenerate()}
-                className="mt-4 inline-flex items-center justify-center rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
-                style={{
-                  borderColor: "var(--border-default)",
-                  color: "var(--accent-from)",
-                }}
-              >
-                {t("person_research.regenerate")}
-              </button>
-            </DashboardCard>
-          ) : null}
-
-          {result &&
-          (result.filters_applied?.research_source === "pdl" ||
-            result.filters_applied?.research_source === "gemini_web" ||
-            (Array.isArray(result.search_attempts) && result.search_attempts.length > 0) ||
-            (Array.isArray(result.profile_urls) && result.profile_urls.length > 0)) ? (
-            <DashboardCard title={t("person_research.section_raw")}>
-              <button
-                type="button"
-                className="mb-3 text-xs font-medium underline-offset-2 hover:underline"
-                style={{ color: "var(--accent-from)" }}
-                onClick={() => setShowRaw((v) => !v)}
-              >
-                {t("person_research.toggle_raw")}
-              </button>
-              {showRaw ? (
-                <pre
-                  className="max-h-[480px] overflow-auto rounded-lg border p-3 text-xs leading-relaxed"
-                  style={{ borderColor: "var(--border-default)", color: "var(--text-muted)" }}
-                >
-                  {JSON.stringify(
-                    {
-                      filters_applied: result.filters_applied,
-                      search_attempts: result.search_attempts,
-                      profile_urls: result.profile_urls,
-                      profiles: result.profiles,
-                      posts_by_url: result.posts_by_url,
-                    },
-                    null,
-                    2
-                  )}
-                </pre>
-              ) : null}
-            </DashboardCard>
-          ) : null}
         </div>
       </div>
     </>
