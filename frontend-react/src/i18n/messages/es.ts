@@ -279,6 +279,10 @@ const messages = {
     "El plan y los créditos los define el administrador de tu empresa. Todos los miembros comparten el mismo plan.",
   "billing.automation_requires_pro":
     "La automatización de calendario requiere plan Pro o Enterprise. Puedes generar dossiers manualmente desde el calendario.",
+  "billing.corporate_requires_pro_title": "Dossiers de empresa (Pro)",
+  "billing.corporate_requires_pro":
+    "Los dossiers de empresa requieren plan Pro o Enterprise. En Free solo puedes generar dossiers de persona.",
+  "billing.corporate_go_person": "Investigación de personas",
   "billing.loading": "Cargando…",
   "addressbook.group_placeholder": "Nombre del grupo...",
   "addressbook.add_group": "+ Grupo",

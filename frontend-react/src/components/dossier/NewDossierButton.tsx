@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
+import { normalizePlanTier, planAllowsCorporateDossier } from "@/lib/mock-billing";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 type NewDossierButtonProps = {
@@ -30,7 +31,8 @@ function CorporateIcon() {
 
 export default function NewDossierButton({ className = "" }: NewDossierButtonProps) {
   const { t } = useTranslation();
-  const { canMutate, loading } = useAuthMe();
+  const { canMutate, loading, user } = useAuthMe();
+  const showCorporate = planAllowsCorporateDossier(normalizePlanTier(user?.organization_plan));
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -57,12 +59,16 @@ export default function NewDossierButton({ className = "" }: NewDossierButtonPro
       desc: t("quick.person_research_desc"),
       icon: <PersonIcon />,
     },
-    {
-      href: "/dashboard/corporate",
-      label: t("btn.new_dossier_corporate"),
-      desc: t("quick.corporate_desc"),
-      icon: <CorporateIcon />,
-    },
+    ...(showCorporate
+      ? [
+          {
+            href: "/dashboard/corporate",
+            label: t("btn.new_dossier_corporate"),
+            desc: t("quick.corporate_desc"),
+            icon: <CorporateIcon />,
+          },
+        ]
+      : []),
   ] as const;
 
   if (!loading && !canMutate) return null;

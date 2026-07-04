@@ -22,6 +22,14 @@ export function defaultDepthForPlan(plan: PlanTier): DossierDepth {
   return plan === "free" ? "basic" : "standard";
 }
 
+export function planAllowsCorporateDossier(plan: PlanTier): boolean {
+  return plan !== "free";
+}
+
+export function planAllowsAutomation(plan: PlanTier): boolean {
+  return plan !== "free";
+}
+
 export function planSummaryLabel(
   plan: PlanTier,
   creditsBalance?: number,

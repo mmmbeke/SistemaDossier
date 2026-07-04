@@ -26,9 +26,14 @@ def plan_allows_automation(plan: str | None) -> bool:
     return normalize_plan(plan) in ("pro", "enterprise")
 
 
-def plan_allows_calendar_corporate_dossier(plan: str | None) -> bool:
-    """Plan Free: desde calendario solo se genera dossier de persona (mismo formato de evento)."""
+def plan_allows_corporate_dossier(plan: str | None) -> bool:
+    """Plan Free: sin módulo B (empresa) — ni manual ni desde calendario."""
     return normalize_plan(plan) != "free"
+
+
+def plan_allows_calendar_corporate_dossier(plan: str | None) -> bool:
+    """Alias histórico: misma regla que ``plan_allows_corporate_dossier``."""
+    return plan_allows_corporate_dossier(plan)
 
 
 def default_depth_for_plan(plan: str | None) -> DossierDepth:
@@ -74,6 +79,18 @@ def assert_automation_allowed(org: Organization) -> None:
         detail=(
             "La automatización de calendario requiere plan Pro o Enterprise. "
             "Puedes generar dossiers manualmente desde el calendario."
+        ),
+    )
+
+
+def assert_corporate_dossier_allowed(org: Organization) -> None:
+    if plan_allows_corporate_dossier(org.plan):
+        return
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "Los dossiers de empresa requieren plan Pro o Enterprise. "
+            "En el plan Free solo puedes generar dossiers de persona."
         ),
     )
 
