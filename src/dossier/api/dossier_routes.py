@@ -42,7 +42,11 @@ from dossier.schemas.dossier_generation import (
 )
 from dossier.billing.credit_policy import assert_sufficient_credits, person_research_credit_cost
 from dossier.schemas.person_research import PersonResearchRequest
-from dossier.billing.entitlements import assert_depth_allowed, corporate_dossier_module_flags
+from dossier.billing.entitlements import (
+    assert_corporate_dossier_allowed,
+    assert_depth_allowed,
+    corporate_dossier_module_flags,
+)
 from dossier.services.corporate_company_search import search_corporate_company_candidates
 from dossier.services.person_research_pipeline import run_person_research_and_persist
 from dossier.services.dossier_generation_job_service import enqueue_person_research_job
@@ -119,6 +123,7 @@ def corporate_company_search(
     q: str = Query(..., min_length=2, max_length=200),
 ):
     """Búsqueda UK (Companies House) + US (SEC tickers) para desambiguar nombres de empresa."""
+    assert_corporate_dossier_allowed(ctx.org)
     return search_corporate_company_candidates(q)
 
 
@@ -184,6 +189,7 @@ def generate_corporate_dossier(
     """
     user, org = ctx.user, ctx.org
     charge = _corporate_credit_charging_enabled()
+    assert_corporate_dossier_allowed(org)
     assert_depth_allowed(org, body.depth)
     cost = DEPTH_CREDITS[body.depth] if charge else 0
     out_lang = effective_output_language(user, body.output_language)

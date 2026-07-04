@@ -15,6 +15,7 @@ import {
 } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import { useAuthMe, AUTH_ME_CHANGED_EVENT } from "@/hooks/useAuthMe";
+import { normalizePlanTier, planAllowsCorporateDossier } from "@/lib/mock-billing";
 import type { TranslationKey } from "@/i18n/types";
 
 const mutatorOnlyHrefs = new Set([
@@ -131,7 +132,8 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useTranslation();
-  const { canMutate } = useAuthMe();
+  const { canMutate, user } = useAuthMe();
+  const showCorporateNav = planAllowsCorporateDossier(normalizePlanTier(user?.organization_plan));
   const [footer, setFooter] = useState<FooterProfile | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
@@ -250,7 +252,11 @@ export default function Sidebar() {
 
       <nav className="flex-1 px-3 py-4">
         <ul className="flex flex-col gap-1">
-          {[...navItems.filter((item) => canMutate || !mutatorOnlyHrefs.has(item.href)), ...(isPlatformAdmin ? [adminNavItem] : [])].map((item) => {
+          {[...navItems.filter((item) => {
+            if (!canMutate && mutatorOnlyHrefs.has(item.href)) return false;
+            if (item.href === "/dashboard/corporate" && !showCorporateNav) return false;
+            return true;
+          }), ...(isPlatformAdmin ? [adminNavItem] : [])].map((item) => {
             const active = isActive(item.href);
             return (
               <li key={item.href}>

@@ -278,6 +278,10 @@ const messages = {
     "Your company admin sets the plan and credits. All members share the same plan.",
   "billing.automation_requires_pro":
     "Calendar automation requires a Pro or Enterprise plan. You can still generate dossiers manually from the calendar.",
+  "billing.corporate_requires_pro_title": "Company dossiers (Pro)",
+  "billing.corporate_requires_pro":
+    "Company dossiers require a Pro or Enterprise plan. On Free you can generate person dossiers only.",
+  "billing.corporate_go_person": "Person research",
   "billing.loading": "Loading…",
   "addressbook.group_placeholder": "Group name...",
   "addressbook.add_group": "+ Group",

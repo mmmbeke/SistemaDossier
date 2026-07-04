@@ -20,6 +20,7 @@ import {
 import { getCalendarMeetingLabel, getCalendarMeetingSubject } from "@/lib/calendar-dossier-meta";
 import { countListEntries, formatDossierStatusLabel } from "@/lib/dossier-list-utils";
 import { canMutateDossiers } from "@/lib/org-role";
+import { normalizePlanTier, planAllowsCorporateDossier } from "@/lib/mock-billing";
 import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
@@ -255,16 +256,19 @@ export default function OverviewPage() {
   const creditsBalance = me?.credits_balance;
   const monthlyLimit = me?.credits_monthly_limit;
   const visibleQuickActions = useMemo(
-    () =>
-      canMutateDossiers(me?.role)
+    () => {
+      const showCorporate = planAllowsCorporateDossier(normalizePlanTier(me?.organization_plan));
+      const base = canMutateDossiers(me?.role)
         ? quickActions
         : quickActions.filter(
             (a) =>
               a.href !== "/dashboard/person-research" &&
               a.href !== "/dashboard/corporate" &&
               a.href !== "/dashboard/automation"
-          ),
-    [me?.role]
+          );
+      return showCorporate ? base : base.filter((a) => a.href !== "/dashboard/corporate");
+    },
+    [me?.role, me?.organization_plan]
   );
   const creditsTrend =
     dashLoad === "ready" && me && typeof monthlyLimit === "number" && monthlyLimit > 0
