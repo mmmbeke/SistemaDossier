@@ -116,6 +116,7 @@ const messages = {
   "generate.name_hint":
     "Type a name, brand, or ticker. We search public registries—clearer text means fewer wrong matches.",
   "generate.email_optional": "Your email (optional)",
+  "generate.email_placeholder": "participant@company.com",
   "generate.depth_label": "How much should we gather?",
   "generate.depth_hint":
     "More detail = more credits & sources. Unsure? Start with Basic—you can rerun anytime.",
@@ -258,7 +259,7 @@ const messages = {
   "billing.current_plan_btn": "Current plan",
   "billing.upgrade": "Upgrade plan",
   "billing.free_features_0": "Module A (Identity)",
-  "billing.free_features_1": "No automation",
+  "billing.free_features_1": "Manual generation only",
   "billing.free_features_2": "Community support",
   "billing.pro_features_0": "Modules A + B + C",
   "billing.pro_features_1": "Calendar automation",
@@ -283,6 +284,17 @@ const messages = {
     "Company dossiers require a Pro or Enterprise plan. On Free you can generate person dossiers only.",
   "billing.corporate_go_person": "Person research",
   "billing.loading": "Loading…",
+  "billing.plan_free_price": "£0/month",
+  "billing.plan_pro_price": "TBD",
+  "billing.plan_enterprise_price": "Custom",
+  "billing.plan_free_name": "Free",
+  "billing.plan_pro_name": "Pro",
+  "billing.plan_enterprise_name": "Enterprise",
+  "billing.plan_free_credits": "10 credits/month",
+  "billing.plan_pro_credits": "500 credits/month",
+  "billing.plan_enterprise_credits": "Unlimited",
+  "billing.plan_cap_short": "{limit} cr/month",
+  "billing.plan_balance_suffix": " · {balance} avail.",
   "addressbook.group_placeholder": "Group name...",
   "addressbook.add_group": "+ Group",
   "addressbook.groups_empty": "No groups yet. Add a name above to create your first list.",
@@ -336,6 +348,15 @@ const messages = {
   "detail.enrichment_no_profiles":
     "PDL returned no profiles: the report used your input and DeepSeek only. Add corporate email, LinkedIn, or regenerate.",
   "detail.enrichment_profiles_found": "PDL matched {count} profile(s).",
+  "detail.warn_pdl_profile_linkedin": "PDL found a profile (LinkedIn: {linkedin}).",
+  "detail.warn_pdl_profile_no_linkedin": "PDL found a profile (no LinkedIn in the response).",
+  "detail.warn_pdl_rate_limit": "PDL returned 429 (rate limit). Wait and retry.",
+  "detail.warn_pdl_no_profile":
+    "No verifiable profile found. Try a corporate email, LinkedIn, or company acronym.",
+  "detail.warn_pdl_contact_in_match":
+    "PDL includes email/phone in the match when available; there is no separate reveal step.",
+  "detail.warn_pdl_auth": "PDL returned 401: check PDL_API_KEY in `.env`.",
+  "detail.warn_pdl_credits": "PDL returned 402: credits exhausted or payment required on your account.",
   "detail.show_raw_json": "Show raw JSON",
   "detail.hide_raw_json": "Hide raw JSON",
   "detail.api_pipeline_sources": "Pipeline, sources & agents",
@@ -529,6 +550,8 @@ const messages = {
   "calendar.guide.subject_title": "Subject line (company only)",
   "calendar.guide.subject_hint":
     "If you only add the company in the subject, we detect it from patterns like:",
+  "calendar.guide.subject_examples":
+    "Business meeting — Tesla\nMeeting with Acme Corp\nCall with Acme Corp\nSync — Acme Corp",
   "overview.calendar_enrichment_diagnostics": "PDL / data sources",
   "overview.google_oauth_ok": "Google Calendar connected successfully.",
   "overview.google_oauth_error": "Google Calendar connection failed.",
@@ -752,6 +775,8 @@ const messages = {
   "settings.members.invite_subtitle":
     "You can only invite emails from the @{domain} domain. Existing users join instantly.",
   "settings.members.invite_email_label": "Work email",
+  "settings.members.invite_email_placeholder": "name@company.com",
+  "settings.members.invite_email_placeholder_domain": "name@{domain}",
   "settings.members.invite_button": "Invite",
   "settings.members.invite_sending": "Sending…",
   "settings.members.invite_created": "Invite created. Copy the link and share it.",
@@ -788,6 +813,12 @@ const messages = {
   "settings.members.remove_confirm":
     "Remove this member from the organization? They will lose access to org dossiers.",
   "settings.members.empty": "There are no members in this organization.",
+  "settings.members.error_corporate_email":
+    "Your email must use a corporate domain (not Gmail, personal Outlook, etc.).",
+  "settings.members.error_invite_wrong_domain":
+    "You can only invite email addresses from the @{domain} domain.",
+  "settings.members.error_invites_workspace_only":
+    "Invitations are only available for company organizations.",
   "settings.general_title": "General Settings",
   "settings.theme": "Theme",
   "theme.dark": "Dark",
@@ -801,6 +832,18 @@ const messages = {
   "expiry.never": "Never",
   "settings.expiry_hint": "Mark dossiers as \"needs update\" after this period",
   "settings.language_title": "Language & Region",
+  "locale.en": "English (US)",
+  "locale.en_gb": "English (UK)",
+  "locale.es": "Spanish",
+  "locale.pt": "Portuguese",
+  "locale.it": "Italian",
+  "locale.fr": "French",
+  "locale.de": "German",
+  "timezone.europe_london": "London",
+  "timezone.europe_paris": "Paris",
+  "timezone.america_new_york": "New York",
+  "timezone.america_los_angeles": "Los Angeles",
+  "timezone.asia_tokyo": "Tokyo",
   "settings.display_language": "Display Language",
   "settings.timezone": "Timezone",
   "settings.date_format": "Date Format",

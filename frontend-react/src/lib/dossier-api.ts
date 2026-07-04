@@ -275,6 +275,10 @@ function parseFastApiDetail(data: unknown): string {
   if (!data || typeof data !== "object") return "";
   const d = data as { detail?: unknown };
   if (typeof d.detail === "string") return d.detail;
+  if (typeof d.detail === "object" && d.detail !== null && !Array.isArray(d.detail)) {
+    const obj = d.detail as { code?: unknown };
+    if (typeof obj.code === "string") return obj.code;
+  }
   if (Array.isArray(d.detail)) {
     return d.detail.map((item) => formatFastApiValidationItem(item)).join(" ");
   }

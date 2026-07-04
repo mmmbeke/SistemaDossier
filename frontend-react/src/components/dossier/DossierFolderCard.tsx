@@ -5,7 +5,7 @@ import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import DeleteDossierIconButton from "@/components/dossier/DeleteDossierIconButton";
 import DossierStatusBadge from "@/components/dossier/DossierStatusBadge";
 import { formatDate } from "@/lib/format";
-import { dossierItemMatchesTypeFilter, type TypeFilterValue } from "@/lib/dossier-list-utils";
+import { dossierItemMatchesTypeFilter, depthLevelLabel, type TypeFilterValue } from "@/lib/dossier-list-utils";
 import { getCalendarMeetingSubject } from "@/lib/calendar-dossier-meta";
 import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import type { DossierFolderListItem, DossierListItem } from "@/lib/dossier-api";
@@ -103,7 +103,7 @@ function ChildDossierChip({
           {stripHtmlToPlainLine(row.subject_name || row.subject_email) || "—"}
         </span>
         <span className="mt-0.5 block text-xs capitalize" style={{ color: "var(--text-muted)" }}>
-          {row.depth_level}
+          {depthLevelLabel(row.depth_level, t)}
         </span>
         {isFailed && statusMsg ? (
           <span className="mt-1 block text-xs leading-snug" style={{ color: "var(--text-muted)" }}>

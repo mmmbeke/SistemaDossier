@@ -5,6 +5,7 @@ import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import DeleteDossierIconButton from "@/components/dossier/DeleteDossierIconButton";
 import DossierStatusBadge from "@/components/dossier/DossierStatusBadge";
 import { formatDate } from "@/lib/format";
+import { depthLevelLabel } from "@/lib/dossier-list-utils";
 import type { DossierListItem } from "@/lib/dossier-api";
 import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useTranslation } from "@/providers/PreferencesProvider";
@@ -97,7 +98,7 @@ export default function DossierListCard({ dossier, deletingId, onDelete, showDel
           />
 
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: "var(--text-subtle)" }}>
-            <span className="capitalize">{dossier.depth_level}</span>
+            <span className="capitalize">{depthLevelLabel(dossier.depth_level, t)}</span>
             {dateLabel ? <span>{dateLabel}</span> : null}
           </div>
         </div>

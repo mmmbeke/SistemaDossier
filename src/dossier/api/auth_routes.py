@@ -32,6 +32,7 @@ from dossier.db import is_database_configured
 from dossier.db.models import Organization, OrgMembership, User
 from dossier.db.session import get_db
 from dossier.org_dossier_context import apply_dossier_context_patch, read_dossier_context
+from dossier.api_errors import INVITES_WORKSPACE_ONLY, OrgApiError, org_api_http_detail
 from dossier.org_email_domain import ensure_org_email_domain
 from dossier.org_workspace import ORG_NAME_PERSONAL_PLACEHOLDER, read_workspace_kind
 from dossier.schemas.auth import (
@@ -509,8 +510,8 @@ def register_user(
     if body.workspace_kind == "work":
         try:
             ensure_org_email_domain(org, email=email_norm)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+        except OrgApiError as e:
+            raise HTTPException(status_code=400, detail=org_api_http_detail(e)) from e
 
     user = User(
         email=email_norm,
@@ -869,12 +870,12 @@ def list_organization_invites(
     if read_workspace_kind(ctx.org) != "work":
         raise HTTPException(
             status_code=400,
-            detail="Las invitaciones solo están disponibles para organizaciones de empresa.",
+            detail={"code": INVITES_WORKSPACE_ONLY},
         )
     try:
         domain = ensure_org_email_domain(ctx.org, email=ctx.user.email)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    except OrgApiError as e:
+        raise HTTPException(status_code=400, detail=org_api_http_detail(e)) from e
     db.add(ctx.org)
     items = list_org_invites(db, organization_id=ctx.org.id)
     db.commit()

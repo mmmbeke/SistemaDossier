@@ -23,7 +23,7 @@ import { canMutateDossiers } from "@/lib/org-role";
 import { normalizePlanTier, planAllowsCorporateDossier } from "@/lib/mock-billing";
 import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useTranslation } from "@/providers/PreferencesProvider";
-import type { TranslationKey } from "@/i18n/types";
+import type { Locale, TranslationKey } from "@/i18n/types";
 
 const quickActions: {
   href: string;
@@ -100,15 +100,23 @@ function firstDisplayName(fullName: string, email: string): string {
   return local || email;
 }
 
-function formatActivityDate(iso: string | null): string {
+function localeToDateLocale(locale: Locale): string {
+  return locale === "en-gb" ? "en-GB" : locale;
+}
+
+function formatActivityDate(iso: string | null, locale: Locale): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
-  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+  return d.toLocaleDateString(localeToDateLocale(locale), {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export default function OverviewPage() {
-  const { t } = useTranslation();
+  const { t, preferences } = useTranslation();
   const [welcomeName, setWelcomeName] = useState<string>(() => {
     if (typeof window === "undefined") return "";
     const p = readDossierUserPreview();
@@ -236,7 +244,7 @@ export default function OverviewPage() {
             id: row.id,
             title,
             subtitle: getCalendarMeetingLabel(row) || formatDossierStatusLabel(row.status, t),
-            dateLabel: formatActivityDate(row.updated_at || row.created_at),
+            dateLabel: formatActivityDate(row.updated_at || row.created_at, preferences.locale),
             href: `/dashboard/dossiers/folder/${row.id}`,
           };
         }
@@ -246,11 +254,11 @@ export default function OverviewPage() {
           id: row.id,
           title,
           subtitle: getCalendarMeetingLabel(row) || formatDossierStatusLabel(row.status, t),
-          dateLabel: formatActivityDate(row.updated_at || row.created_at),
+          dateLabel: formatActivityDate(row.updated_at || row.created_at, preferences.locale),
           href: `/dashboard/dossiers/${row.id}`,
         };
       });
-  }, [dossierRows, t]);
+  }, [dossierRows, t, preferences.locale]);
 
   const titleName = welcomeName || t("overview.anonymous");
   const creditsBalance = me?.credits_balance;
