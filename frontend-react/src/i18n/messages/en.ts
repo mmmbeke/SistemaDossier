@@ -486,6 +486,10 @@ const messages = {
   "overview.microsoft_title": "Microsoft Outlook",
   "overview.microsoft_subtitle":
     "Connect your calendar to list upcoming meetings using your Dossier session (no Microsoft token in the browser).",
+  "overview.calendar_disconnect": "Sign out",
+  "overview.calendar_disconnecting": "Signing out…",
+  "overview.calendar_disconnect_server":
+    "The server does not have the disconnect feature loaded. Restart the backend (Ctrl+C, then python main.py).",
   "overview.microsoft_connect": "Connect Outlook",
   "overview.microsoft_connected": "Outlook connected",
   "overview.microsoft_loading": "Loading meetings…",

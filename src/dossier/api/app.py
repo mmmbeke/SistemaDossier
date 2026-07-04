@@ -27,6 +27,7 @@ from dossier.api.admin_routes import router as admin_router
 from dossier.api.auth_routes import (
     OrgAuthContext,
     auth_payload_and_user,
+    get_current_user,
     get_current_user_and_org,
     get_db_if_configured,
     require_mutator,
@@ -1514,6 +1515,29 @@ def update_calendar_automation_settings(
         "skip_internal_meetings": rows[0].skip_internal_meetings,
         "events_rescheduled": rescheduled,
         "message": " ".join(messages) if messages else "Preferencias actualizadas.",
+    }
+
+
+@app.post("/integrations/{provider}/disconnect", tags=["Integraciones"])
+def disconnect_calendar_integration(
+    provider: str,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Session = Depends(get_db_if_configured),
+):
+    """Desconecta un calendario (Google u Outlook): marca ``revoked_at`` y borra tokens."""
+    from dossier.services.calendar_integrations import revoke_calendar_integration_for_user
+
+    try:
+        row = revoke_calendar_integration_for_user(db, user_id=user.id, provider=provider)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+    return {
+        "provider": row.provider,
+        "disconnected": True,
+        "message": "Calendario desconectado.",
     }
 
 
