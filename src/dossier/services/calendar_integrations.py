@@ -142,3 +142,49 @@ def upsert_google_calendar_tokens(
     db.commit()
     db.refresh(row)
     return row
+
+
+def revoke_calendar_integration_for_user(
+    db: Session,
+    *,
+    user_id: UUID,
+    provider: str,
+) -> CalendarIntegration:
+    """Revoca la integración de calendario del usuario."""
+    provider_key = (provider or "").strip().lower()
+    if provider_key == "outlook":
+        provider_key = "microsoft"
+    if provider_key not in ("microsoft", "google"):
+        raise ValueError("Proveedor no válido. Usa 'microsoft'/'outlook' o 'google'.")
+
+    row = db.execute(
+        select(CalendarIntegration).where(
+            CalendarIntegration.user_id == user_id,
+            CalendarIntegration.provider == provider_key,
+        )
+    ).scalar_one_or_none()
+
+    if row is None or row.revoked_at is not None or not row.is_enabled:
+        raise LookupError("No hay una conexión activa con ese calendario.")
+
+    now = datetime.now(timezone.utc)
+    row.revoked_at = now
+    row.is_enabled = False
+    row.access_token_encrypted = None
+    row.refresh_token_encrypted = None
+
+    from dossier.db.models import CalendarEvent
+
+    pending = db.execute(
+        select(CalendarEvent).where(
+            CalendarEvent.calendar_integration_id == row.id,
+            CalendarEvent.processing_status == "scheduled",
+        )
+    ).scalars().all()
+    for event in pending:
+        event.processing_status = "skipped"
+        event.skip_reason = "Calendario desconectado por el usuario."
+
+    db.commit()
+    db.refresh(row)
+    return row
