@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import PrimaryButton from "@/components/PrimaryButton";
 import {
+  disconnectCalendarIntegration,
   DossierApiError,
   fetchGoogleCalendarEventos,
   fetchGoogleIntegrationStartAsJson,
@@ -58,6 +59,7 @@ export default function CalendarIntegrationPanel({ provider, embedded = false }:
   const [connected, setConnected] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const checkConnection = useCallback(async () => {
     if (!getStoredAccessToken()) {
@@ -109,6 +111,28 @@ export default function CalendarIntegrationPanel({ provider, embedded = false }:
     }
   }
 
+  async function onDisconnect() {
+    setDisconnecting(true);
+    setErr(null);
+    try {
+      await disconnectCalendarIntegration(provider);
+      setConnected(false);
+      setLoad("ready");
+      setErr(t(keys.noConnection));
+    } catch (e) {
+      if (e instanceof DossierApiError) {
+        const msg = e.message === "Not Found"
+          ? t("overview.calendar_disconnect_server")
+          : e.message;
+        setErr(msg);
+      } else {
+        setErr(t(keys.error));
+      }
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
   const token = typeof window !== "undefined" ? getStoredAccessToken() : null;
   const providerAccent = provider === "google" ? "#4285f4" : "#0078d4";
   const providerAccentBorder =
@@ -118,21 +142,33 @@ export default function CalendarIntegrationPanel({ provider, embedded = false }:
     <div className={embedded ? "flex flex-col gap-3" : "flex flex-col gap-4 px-1 py-1"}>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         {connected ? (
-          <span
-            className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold sm:text-sm ${
-              embedded ? "w-full sm:flex-1" : "w-full sm:w-auto sm:min-w-[200px]"
-            }`}
-            style={{
-              borderColor: providerAccentBorder,
-              color: providerAccent,
-              backgroundColor: "var(--bg-surface)",
-            }}
-          >
-            <span aria-hidden className="text-base leading-none">
-              ✓
+          <>
+            <span
+              className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold sm:text-sm ${
+                embedded ? "w-full sm:flex-1" : "w-full sm:w-auto sm:min-w-[200px]"
+              }`}
+              style={{
+                borderColor: providerAccentBorder,
+                color: providerAccent,
+                backgroundColor: "var(--bg-surface)",
+              }}
+            >
+              <span aria-hidden className="text-base leading-none">
+                ✓
+              </span>
+              {t(keys.connected)}
             </span>
-            {t(keys.connected)}
-          </span>
+            <button
+              type="button"
+              onClick={() => void onDisconnect()}
+              disabled={disconnecting}
+              className={`ui-calendar-disconnect-btn gap-2 px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm ${
+                embedded ? "w-full sm:w-auto" : "w-full sm:w-auto"
+              }`}
+            >
+              {disconnecting ? t("overview.calendar_disconnecting") : t("overview.calendar_disconnect")}
+            </button>
+          </>
         ) : (
           <PrimaryButton
             type="button"
