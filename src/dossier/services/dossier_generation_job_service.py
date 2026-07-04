@@ -319,13 +319,14 @@ def _calendar_job_failure_message(item: dict[str, Any]) -> str | None:
 
 def process_dossier_generation_job(db: Session, job_id: UUID) -> None:
     job = db.get(DossierGenerationJob, job_id)
-    if job is None or job.status != "queued":
+    if job is None or job.status not in ("queued", "running"):
         return
 
-    now = datetime.now(timezone.utc)
-    job.status = "running"
-    job.started_at = now
-    db.commit()
+    if job.status == "queued":
+        now = datetime.now(timezone.utc)
+        job.status = "running"
+        job.started_at = now
+        db.commit()
 
     try:
         if job.job_type == "person_manual":
@@ -456,14 +457,22 @@ def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None
 
 
 def claim_next_queued_job(db: Session) -> DossierGenerationJob | None:
-    """Devuelve el job más antiguo en cola sin cambiar su estado."""
-    stmt = (
+    """Claim atómico del job más antiguo en cola (seguro con varios workers)."""
+    job = db.scalars(
         select(DossierGenerationJob)
         .where(DossierGenerationJob.status == "queued")
         .order_by(DossierGenerationJob.created_at.asc())
         .limit(1)
-    )
-    return db.scalars(stmt).first()
+        .with_for_update(skip_locked=True)
+    ).first()
+    if job is None:
+        return None
+    now = datetime.now(timezone.utc)
+    job.status = "running"
+    job.started_at = now
+    db.commit()
+    db.refresh(job)
+    return job
 
 
 def list_jobs_for_user(

@@ -8,6 +8,7 @@ import json
 import requests
 from fastapi import APIRouter, HTTPException, Query, status
 
+from dossier.security.legacy_routes import assert_legacy_route_allowed
 from dossier.services.google_calendar_api import normalizar_evento_google
 from dossier.services.calendar_event_dossiers import generate_dossiers_from_calendar_event
 
@@ -33,6 +34,7 @@ async def api_generar_dossier_desde_google(
     Próximo evento en el calendario principal de Google + dossier con IA.
     El token debe obtenerse con OAuth incluyendo scope de Calendar.
     """
+    assert_legacy_route_allowed()
     try:
         ahora = (
             datetime.datetime.now(datetime.timezone.utc)

@@ -44,6 +44,7 @@ from dossier.config import PROJECT_ROOT, load_env
 from dossier.db import is_database_configured
 from dossier.db.connection import get_engine
 from dossier.db.models import Organization, User
+from dossier.security.legacy_routes import assert_legacy_route_allowed
 from dossier.security.jwt_tokens import (
     create_google_oauth_state,
     create_microsoft_oauth_state,
@@ -1317,7 +1318,8 @@ def api_generar_dossiers_desde_google_calendar_post(
 
 @app.get("/generar-dossier")
 def api_generar_dossier(tema: str, participantes: str, descripcion: str = ""):
-    """Genera un dossier con IA a partir de tema y participantes."""
+    """Genera un dossier con IA a partir de tema y participantes (legacy; desactivado por defecto)."""
+    assert_legacy_route_allowed()
     informe = generar_dossier_ejecutivo(tema, participantes, descripcion)
 
     return {
