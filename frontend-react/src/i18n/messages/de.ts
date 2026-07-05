@@ -455,6 +455,10 @@ const messages = {
   "overview.microsoft_title": "Microsoft Outlook",
   "overview.microsoft_subtitle":
     "Kalender verbinden, um anstehende Meetings mit Ihrer Dossier-Sitzung anzuzeigen (kein Microsoft-Token im Browser).",
+  "overview.calendar_disconnect": "Abmelden",
+  "overview.calendar_disconnecting": "Abmeldung…",
+  "overview.calendar_disconnect_server":
+    "Der Server hat die Trennfunktion nicht geladen. Backend neu starten (Strg+C, dann python main.py).",
   "overview.microsoft_connect": "Outlook verbinden",
   "overview.microsoft_connected": "Outlook verbunden",
   "overview.microsoft_loading": "Meetings werden geladen…",
