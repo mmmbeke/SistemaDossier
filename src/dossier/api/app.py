@@ -1567,7 +1567,8 @@ async def sqlalchemy_exception_handler(_request: Request, exc: SQLAlchemyError) 
         content={
             "detail": (
                 "Error al consultar la base de datos. Suele deberse a que el esquema PostgreSQL "
-                "no coincide con el código (falta ejecutar el SQL de migración en Railway)."
+                "no coincide con el código (falta ejecutar Migracion.md y "
+                "docs/sql/patch_after_migracion_v1.sql en Neon)."
             ),
             "error_type": type(exc).__name__,
         },
