@@ -31,6 +31,7 @@ import {
   type PersonResearchPayload,
   type PersonResearchApiResponse,
 } from "@/lib/dossier-api";
+import { isPdlProfileFoundInfoWarning } from "@/lib/translate-pdl-warning";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
 import type { TranslationKey } from "@/i18n/types";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
@@ -155,8 +156,7 @@ function personJobHasPartialFailure(job: TrackedJob): boolean {
   const hasAnalysis = !!personResult.gemini_analysis_markdown?.trim();
   const criticalWarnings = (personResult.warnings ?? []).filter(
     (w) =>
-      !w.includes("PDL encontró perfil") &&
-      !w.includes("encontró perfil") &&
+      !isPdlProfileFoundInfoWarning(w) &&
       !w.toLowerCase().includes("no se encontró información adicional") &&
       !w.toLowerCase().includes("no se encontró perfil verificable"),
   );
@@ -167,12 +167,11 @@ function personJobWarning(job: TrackedJob): string | undefined {
   if (job.job_type !== "person_manual" || job.status !== "completed" || !job.result) {
     return undefined;
   }
-  const warnings = (job.result as PersonResearchApiResponse).warnings ?? [];
   return warnings.find(
     (w) =>
-      !w.includes("PDL encontró perfil") &&
-      !w.includes("encontró perfil") &&
-      !w.toLowerCase().includes("no se encontró información adicional"),
+      !isPdlProfileFoundInfoWarning(w) &&
+      !w.toLowerCase().includes("no se encontró información adicional") &&
+      !w.toLowerCase().includes("no se encontró perfil verificable"),
   );
 }
 

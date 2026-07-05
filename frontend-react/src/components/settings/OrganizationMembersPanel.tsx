@@ -16,9 +16,16 @@ import {
   type OrgMemberManageItem,
 } from "@/lib/dossier-api";
 import { invalidateAuthMeCache, notifyAuthMeChanged, setAuthMeCache } from "@/hooks/useAuthMe";
+import { translateApiError } from "@/lib/translate-api-error";
 import type { OrgRole } from "@/lib/org-role";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
+import type { TranslateFn } from "@/i18n";
+
+function memberApiErrorMessage(err: unknown, t: TranslateFn): string {
+  if (err instanceof DossierApiError) return translateApiError(err, t);
+  return t("settings.members.load_error");
+}
 
 const ASSIGNABLE_ROLES: OrgRole[] = ["admin", "user", "viewer"];
 
@@ -78,7 +85,7 @@ export default function OrganizationMembersPanel() {
     } catch (e) {
       setMembers([]);
       setInvites([]);
-      setLoadError(e instanceof DossierApiError ? e.message : t("settings.members.load_error"));
+      setLoadError(memberApiErrorMessage(e, t));
     } finally {
       setLoading(false);
     }
@@ -107,7 +114,7 @@ export default function OrganizationMembersPanel() {
         }
       }
     } catch (e) {
-      setActionError(e instanceof DossierApiError ? e.message : t("settings.members.load_error"));
+      setActionError(memberApiErrorMessage(e, t));
     } finally {
       setBusyUserId(null);
     }
@@ -123,7 +130,7 @@ export default function OrganizationMembersPanel() {
       await deleteOrgMember(member.user_id);
       setMembers((prev) => prev.filter((m) => m.user_id !== member.user_id));
     } catch (e) {
-      setActionError(e instanceof DossierApiError ? e.message : t("settings.members.load_error"));
+      setActionError(memberApiErrorMessage(e, t));
     } finally {
       setBusyUserId(null);
     }
@@ -148,7 +155,7 @@ export default function OrganizationMembersPanel() {
         setActionOk(t("settings.members.invite_created"));
       }
     } catch (err) {
-      setActionError(err instanceof DossierApiError ? err.message : t("settings.members.load_error"));
+      setActionError(memberApiErrorMessage(err, t));
     } finally {
       setInviting(false);
     }
@@ -165,7 +172,7 @@ export default function OrganizationMembersPanel() {
         prev.map((i) => (i.id === invite.id ? { ...i, status: "revoked", invite_url: null } : i))
       );
     } catch (e) {
-      setActionError(e instanceof DossierApiError ? e.message : t("settings.members.load_error"));
+      setActionError(memberApiErrorMessage(e, t));
     } finally {
       setBusyUserId(null);
     }
@@ -195,7 +202,11 @@ export default function OrganizationMembersPanel() {
               type="email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder={orgDomain ? `nombre@${orgDomain}` : "nombre@empresa.com"}
+              placeholder={
+                orgDomain
+                  ? t("settings.members.invite_email_placeholder_domain", { domain: orgDomain })
+                  : t("settings.members.invite_email_placeholder")
+              }
               required
               disabled={inviting}
               className="rounded-lg border px-3 py-2 text-sm outline-none"

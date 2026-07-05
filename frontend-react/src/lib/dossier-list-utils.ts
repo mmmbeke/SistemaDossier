@@ -251,3 +251,18 @@ export function countListEntries(items: DossierListEntry[]): {
   }
   return { all: items.length, active, past, needs_update, complete };
 }
+
+const DEPTH_LABEL_KEYS: Record<string, TranslationKey> = {
+  basic: "depth.option_basic_label",
+  standard: "depth.option_standard_label",
+  deep: "depth.option_deep_label",
+};
+
+export function depthLevelLabel(
+  depth: string,
+  t: (key: TranslationKey) => string,
+): string {
+  const key = depth?.trim().toLowerCase();
+  const labelKey = key ? DEPTH_LABEL_KEYS[key] : undefined;
+  return labelKey ? t(labelKey) : depth;
+}

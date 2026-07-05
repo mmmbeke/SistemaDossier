@@ -13,6 +13,24 @@ import {
 } from "@/lib/dossier-api";
 import { PLANS, type PlanTier } from "@/lib/mock-billing";
 
+const PLAN_NAME_KEYS: Record<PlanTier, TranslationKey> = {
+  free: "billing.plan_free_name",
+  pro: "billing.plan_pro_name",
+  enterprise: "billing.plan_enterprise_name",
+};
+
+const PLAN_PRICE_KEYS: Record<PlanTier, TranslationKey> = {
+  free: "billing.plan_free_price",
+  pro: "billing.plan_pro_price",
+  enterprise: "billing.plan_enterprise_price",
+};
+
+const PLAN_CREDITS_KEYS: Record<PlanTier, TranslationKey> = {
+  free: "billing.plan_free_credits",
+  pro: "billing.plan_pro_credits",
+  enterprise: "billing.plan_enterprise_credits",
+};
+
 const PLAN_FEATURE_KEYS: Record<PlanTier, TranslationKey[]> = {
   free: [
     "billing.free_features_0",
@@ -123,7 +141,7 @@ export default function BillingPanel() {
                     className="text-xl font-bold capitalize"
                     style={{ color: "var(--text-primary)" }}
                   >
-                    {currentPlan}
+                    {t(PLAN_NAME_KEYS[currentPlan])}
                   </p>
                 </div>
               </div>
@@ -200,13 +218,13 @@ export default function BillingPanel() {
           >
             <div>
               <h4 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
-                {plan.name}
+                {t(PLAN_NAME_KEYS[plan.id])}
               </h4>
               <p className="text-sm" style={{ color: "var(--accent-from)" }}>
-                {plan.price}
+                {t(PLAN_PRICE_KEYS[plan.id])}
               </p>
               <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-                {plan.credits}
+                {t(PLAN_CREDITS_KEYS[plan.id])}
               </p>
             </div>
             <ul className="flex flex-1 flex-col gap-2 text-sm" style={{ color: "var(--text-muted)" }}>

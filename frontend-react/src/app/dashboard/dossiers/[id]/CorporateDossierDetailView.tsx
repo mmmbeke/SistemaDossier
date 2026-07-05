@@ -25,6 +25,7 @@ import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import { formatLongDate } from "@/lib/format";
+import { translatePdlWarning } from "@/lib/translate-pdl-warning";
 
 const EMPTY_REPORT_MARKERS = new Set([
   "(No se generó texto de informe tras la búsqueda.)",
@@ -275,7 +276,13 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
                     : "var(--status-warning)",
               }}
             >
-              {statusFailed ? t("dossiers.status_failed") : dossier.status}
+              {statusFailed
+                ? t("dossiers.status_failed")
+                : statusOk
+                  ? t("dossiers.status_complete")
+                  : dossier.status === "pending"
+                    ? t("dossiers.status_pending")
+                    : dossier.status.replace(/_/g, " ")}
             </span>
             {meta.cacheHit ? (
               <span
@@ -453,7 +460,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             {lushaDiagnostics.warnings.length > 0 ? (
               <ul className="ui-text-warning mt-2 list-disc pl-5">
                 {lushaDiagnostics.warnings.map((w, i) => (
-                  <li key={i}>{w}</li>
+                  <li key={i}>{translatePdlWarning(w, t)}</li>
                 ))}
               </ul>
             ) : null}

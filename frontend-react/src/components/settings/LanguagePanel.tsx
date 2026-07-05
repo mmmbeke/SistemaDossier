@@ -1,10 +1,10 @@
 "use client";
 
 import DashboardCard from "@/components/dashboard/DashboardCard";
+import type { TranslationKey } from "@/i18n/types";
 import { usePreferences } from "@/providers/PreferencesProvider";
 import {
   DOSSIER_OUTPUT_LANGUAGE_CODES,
-  LOCALE_LABELS,
   SUPPORTED_LOCALES,
   type DateFormat,
   type DossierOutputLanguageCode,
@@ -18,21 +18,31 @@ const DATE_FORMAT_OPTIONS: { value: DateFormat; label: string }[] = [
   { value: "yyyy-mm-dd", label: "YYYY-MM-DD" },
 ];
 
-const OUTPUT_LANGUAGE_LABELS: Record<DossierOutputLanguageCode, string> = {
-  es: LOCALE_LABELS.es,
-  en: LOCALE_LABELS.en,
-  pt: LOCALE_LABELS.pt,
-  it: LOCALE_LABELS.it,
-  fr: LOCALE_LABELS.fr,
-  de: LOCALE_LABELS.de,
+const LOCALE_OPTION_KEYS: Record<Locale, TranslationKey> = {
+  en: "locale.en",
+  "en-gb": "locale.en_gb",
+  es: "locale.es",
+  pt: "locale.pt",
+  it: "locale.it",
+  fr: "locale.fr",
+  de: "locale.de",
 };
 
-const TIMEZONES = [
-  "Europe/London",
-  "Europe/Paris",
-  "America/New_York",
-  "America/Los_Angeles",
-  "Asia/Tokyo",
+const OUTPUT_LANGUAGE_KEYS: Record<DossierOutputLanguageCode, TranslationKey> = {
+  es: "locale.es",
+  en: "locale.en",
+  pt: "locale.pt",
+  it: "locale.it",
+  fr: "locale.fr",
+  de: "locale.de",
+};
+
+const TIMEZONE_OPTIONS: { value: string; labelKey: TranslationKey }[] = [
+  { value: "Europe/London", labelKey: "timezone.europe_london" },
+  { value: "Europe/Paris", labelKey: "timezone.europe_paris" },
+  { value: "America/New_York", labelKey: "timezone.america_new_york" },
+  { value: "America/Los_Angeles", labelKey: "timezone.america_los_angeles" },
+  { value: "Asia/Tokyo", labelKey: "timezone.asia_tokyo" },
 ];
 
 export default function LanguagePanel() {
@@ -59,7 +69,7 @@ export default function LanguagePanel() {
           >
             {SUPPORTED_LOCALES.map((loc) => (
               <option key={loc} value={loc}>
-                {LOCALE_LABELS[loc]}
+                {t(LOCALE_OPTION_KEYS[loc])}
               </option>
             ))}
           </select>
@@ -74,9 +84,9 @@ export default function LanguagePanel() {
             onChange={(e) => setTimezone(e.target.value)}
             className="ui-settings-select"
           >
-            {TIMEZONES.map((tz) => (
-              <option key={tz} value={tz}>
-                {tz.replace(/_/g, " ")}
+            {TIMEZONE_OPTIONS.map(({ value, labelKey }) => (
+              <option key={value} value={value}>
+                {t(labelKey)}
               </option>
             ))}
           </select>
@@ -111,7 +121,7 @@ export default function LanguagePanel() {
             <option value="match">{t("output.match")}</option>
             {DOSSIER_OUTPUT_LANGUAGE_CODES.map((code) => (
               <option key={code} value={code}>
-                {OUTPUT_LANGUAGE_LABELS[code]}
+                {t(OUTPUT_LANGUAGE_KEYS[code])}
               </option>
             ))}
           </select>

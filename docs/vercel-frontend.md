@@ -1,6 +1,6 @@
 # Desplegar el frontend (Next.js) en Vercel
 
-El backend **FastAPI** debe ir en otro servicio (p. ej. **Railway**). Vercel solo construye **`frontend-react`**.
+El backend **FastAPI** debe ir en otro servicio (p. ej. **Render** o Railway). Vercel solo construye **`frontend-react`**. Guía API en producción: [render-deploy.md](render-deploy.md).
 
 ## Sobre el JSON “Welcome to the API!”
 
@@ -14,9 +14,9 @@ Ese mensaje **no está en este repositorio**. Si aparecía en la preview de Verc
    - **Include files outside the root directory in the Build Step:** **OFF**
 
 2. **Settings → Environment Variables**
-   - `NEXT_PUBLIC_API_URL` = URL HTTPS de tu API (Railway), p. ej. `https://tu-servicio.up.railway.app` (sin barra final).
+   - `NEXT_PUBLIC_API_URL` = URL HTTPS de tu API (Render), p. ej. `https://sistemadossier-api.onrender.com` (sin barra final).
 
-3. **Backend (Railway u otro): variable `CORS_ORIGINS`**
+3. **Backend (Render u otro): variable `CORS_ORIGINS`**
 
    Incluye el origen del front en producción, por ejemplo:
 
