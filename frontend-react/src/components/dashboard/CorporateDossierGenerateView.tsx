@@ -26,6 +26,7 @@ import {
 } from "@/lib/mock-billing";
 import { DEPTH_OPTIONS, type DossierDepth } from "@/lib/mock-generation";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import { translateApiErrorMessage, translateDossierStatusMessage } from "@/lib/translate-backend-message";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
@@ -164,7 +165,7 @@ export default function CorporateDossierGenerateView({
       setSearchResults(r);
     } catch (e) {
       if (e instanceof DossierApiError) {
-        setError(e.message || t("generate.error.api"));
+        setError(translateApiErrorMessage(e, t) || t("generate.error.api"));
       } else {
         setError(t("generate.error.api"));
       }
@@ -189,7 +190,7 @@ export default function CorporateDossierGenerateView({
     if (job.status === "failed" || job.status === "cancelled") {
       setActiveJobId(null);
       if (job.status === "failed" && job.error_message) {
-        setError(job.error_message);
+        setError(translateDossierStatusMessage(job.error_message, t) ?? job.error_message);
       }
     }
   }, [jobs, activeJobId]);
@@ -250,7 +251,7 @@ export default function CorporateDossierGenerateView({
         if (e.status === 401) {
           setError(t("generate.error.auth"));
         } else {
-          setError(e.message || t("generate.error.api"));
+          setError(translateApiErrorMessage(e, t) || t("generate.error.api"));
         }
       } else {
         setError(t("generate.error.api"));
@@ -268,7 +269,7 @@ export default function CorporateDossierGenerateView({
       setActiveJobId(null);
     } catch (err) {
       if (err instanceof DossierApiError) {
-        setError(err.message || t("corporate_page.cancel_error"));
+        setError(translateApiErrorMessage(err, t) || t("corporate_page.cancel_error"));
       } else {
         setError(t("corporate_page.cancel_error"));
       }

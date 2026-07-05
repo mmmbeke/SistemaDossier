@@ -369,6 +369,34 @@ const messages = {
   "detail.api_extra_payload": "Otros campos en dossier_data",
   "detail.delete": "Eliminar dossier",
   "detail.delete_error": "No se pudo eliminar el dossier.",
+  "detail.loading_dossier": "Cargando dossier…",
+  "detail.load_dossier_error":
+    "No se pudo cargar el dossier (¿iniciaste sesión y existe en tu organización?).",
+  "detail.back_to_list": "Volver al listado",
+  "auth.shell.title": "Inteligencia de personas en tiempo real para reuniones de alto impacto.",
+  "auth.shell.subtitle":
+    "TraceLens sintetiza información pública de registros corporativos, medios y redes profesionales en un brief personalizado en menos de 90 segundos.",
+  "auth.shell.bullet_speed": "Generación en menos de 60 segundos",
+  "auth.shell.bullet_coverage": "Cobertura UK, USA y Europa continental",
+  "auth.shell.bullet_alerts": "Alertas de riesgo automáticas",
+  "backend.status_report_error": "Error en el informe generado.",
+  "backend.status_pipeline_error": "Error en síntesis o en el pipeline.",
+  "backend.status_person_analysis_error": "Error al generar el análisis de persona.",
+  "backend.status_cancelled_by_user": "Cancelado por el usuario",
+  "backend.status_person_retry_hint":
+    "No se pudo generar el análisis de persona. Reintenta o usa «Nueva búsqueda de persona» con más datos.",
+  "backend.error_email_exists": "Ya existe una cuenta con este email. Prueba a iniciar sesión.",
+  "backend.error_invite_invalid": "La invitación ya no es válida.",
+  "backend.error_invite_email_mismatch":
+    "Debes registrarte con el correo al que se envió la invitación.",
+  "backend.error_no_session": "No hay sesión. Inicia sesión de nuevo.",
+  "backend.error_insufficient_credits":
+    "Créditos insuficientes: se requieren {cost} y la organización tiene {balance}.",
+  "backend.error_insufficient_credits_generic": "Créditos insuficientes para esta operación.",
+  "backend.error_job_not_found": "Job no encontrado.",
+  "backend.error_locale_unsupported": "Locale no soportado.",
+  "backend.error_plan_depth":
+    "Tu plan no permite esta profundidad de dossier. Actualiza a Pro o Enterprise.",
   "common.clear": "Limpiar",
   "common.loading": "Cargando…",
   "common.at_company": "en",
@@ -484,6 +512,15 @@ const messages = {
   "overview.calendars_title": "Calendarios",
   "overview.calendars_intro":
     "Conectá Outlook o Google Calendar para generar dossiers desde tus reuniones. Cada cuenta se vincula por separado; los activos los ves en Mis Dossiers.",
+  "overview.calendar_meetings_heading": "Próximas reuniones",
+  "overview.calendar_filter_all": "Todas",
+  "overview.calendar_filter_outlook": "Outlook",
+  "overview.calendar_filter_google": "Google Calendar",
+  "overview.calendar_timezone_label": "Horarios en {timezone}",
+  "overview.calendar_all_day": "Todo el día",
+  "overview.calendar_refresh": "Actualizar",
+  "overview.calendar_past_badge": "Pasada",
+  "overview.calendar_location": "Ubicación",
   "overview.microsoft_title": "Microsoft Outlook",
   "overview.microsoft_subtitle":
     "Conectá tu calendario para ver reuniones próximas con tu sesión de Dossier (sin pegar token de Microsoft en el navegador).",

@@ -14,6 +14,7 @@ import {
   writeDossierUserPreview,
   type OrgInvitePreview,
 } from "@/lib/dossier-api";
+import { translateApiErrorMessage } from "@/lib/translate-backend-message";
 import { useTranslation, usePreferences } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 import type { Locale } from "@/i18n/types";
@@ -111,7 +112,7 @@ function RegisterPageContent() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [timezone, setTimezone] = useState("UTC");
-  const [accountLocale, setAccountLocale] = useState<Locale>("es");
+  const [accountLocale, setAccountLocale] = useState<Locale>(uiLocale);
   const [accepted, setAccepted] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
@@ -145,7 +146,9 @@ function RegisterPageContent() {
         if (cancelled) return;
         setInvitePreview(null);
         setFormError(
-          e instanceof DossierApiError ? e.message : t("settings.members.invite_invalid")
+          e instanceof DossierApiError
+            ? translateApiErrorMessage(e, t)
+            : t("settings.members.invite_invalid")
         );
       })
       .finally(() => {
@@ -309,6 +312,7 @@ function RegisterPageContent() {
         email: email.trim().toLowerCase(),
         password,
         full_name: fullName,
+        locale: accountLocale,
         workspace_kind: isInviteFlow ? "work" : accountKind,
         ...(isInviteFlow
           ? { invite_token: inviteToken }
@@ -336,7 +340,7 @@ function RegisterPageContent() {
       if (err instanceof DossierApiError) {
         if (err.isMixedContentBlocked()) setFormError(t("auth.error.mixed_content"));
         else if (err.isNetworkError()) setFormError(t("auth.error.network"));
-        else setFormError(err.message || t("auth.error.server"));
+        else setFormError(translateApiErrorMessage(err, t) || t("auth.error.server"));
       } else {
         setFormError(t("auth.error.server"));
       }

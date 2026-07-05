@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import CalendarMeetingFormatGuide from "@/components/dashboard/CalendarMeetingFormatGuide";
 import CalendarIntegrationPanel from "@/components/dashboard/CalendarIntegrationPanel";
+import CalendarMeetingsList from "@/components/dashboard/CalendarMeetingsList";
 import type { CalendarProvider } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
@@ -147,6 +148,13 @@ export default function OverviewCalendarsSection() {
             accent="#4285f4"
             icon={<GoogleIcon />}
           />
+        </div>
+
+        <div
+          className="mt-6 border-t pt-6"
+          style={{ borderColor: "var(--border-subtle)" }}
+        >
+          <CalendarMeetingsList />
         </div>
       </DashboardCard>
     </section>

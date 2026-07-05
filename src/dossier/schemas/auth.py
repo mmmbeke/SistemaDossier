@@ -16,6 +16,11 @@ class RegisterRequest(BaseModel):
     company_name: str | None = Field(default=None, max_length=255)
     workspace_kind: Literal["personal", "work"] = "work"
     invite_token: str | None = Field(default=None, max_length=128)
+    locale: str | None = Field(
+        default=None,
+        max_length=16,
+        description="Idioma de interfaz (en, es, pt, it, fr, de, en-gb).",
+    )
 
     @model_validator(mode="before")
     @classmethod

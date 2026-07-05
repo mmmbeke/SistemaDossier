@@ -52,3 +52,89 @@ export function formatLongDate(
     year: "numeric",
   }).format(d);
 }
+
+export type MeetingTimeDisplay = {
+  dayKey: string;
+  dayLabel: string;
+  timeLabel: string;
+  fullLabel: string;
+  isPast: boolean;
+};
+
+function parseMeetingInstant(iso: string | undefined): Date | null {
+  if (!iso?.trim()) return null;
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return null;
+  return new Date(ms);
+}
+
+/** Agrupa y muestra reuniones de calendario en la zona horaria del usuario. */
+export function formatMeetingTimeRange(
+  inicio: string | undefined,
+  fin: string | undefined,
+  prefs: Pick<UserPreferences, "locale" | "timezone">,
+  options?: { allDay?: boolean; allDayLabel?: string },
+): MeetingTimeDisplay {
+  const loc = intlLocale(prefs.locale);
+  const tz = prefs.timezone || "UTC";
+  const start = parseMeetingInstant(inicio);
+  const end = parseMeetingInstant(fin);
+  const now = Date.now();
+  const isPast = end ? end.getTime() < now : start ? start.getTime() < now : false;
+
+  if (!start) {
+    const fallback = (inicio || "—").slice(0, 40);
+    return {
+      dayKey: "unknown",
+      dayLabel: fallback,
+      timeLabel: "",
+      fullLabel: fallback,
+      isPast,
+    };
+  }
+
+  const dayFmt = new Intl.DateTimeFormat(loc, {
+    timeZone: tz,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+  const dayKeyFmt = new Intl.DateTimeFormat(loc, {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const dayLabel = dayFmt.format(start);
+  const dayKey = dayKeyFmt.format(start);
+
+  if (options?.allDay) {
+    const allDay = options.allDayLabel ?? "All day";
+    return {
+      dayKey,
+      dayLabel,
+      timeLabel: allDay,
+      fullLabel: `${dayLabel} · ${allDay}`,
+      isPast,
+    };
+  }
+
+  const timeFmt = new Intl.DateTimeFormat(loc, {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const dateTimeFmt = new Intl.DateTimeFormat(loc, {
+    timeZone: tz,
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  const t0 = timeFmt.format(start);
+  const t1 = end ? timeFmt.format(end) : "";
+  const timeLabel = t1 ? `${t0} – ${t1}` : t0;
+  const fullStart = dateTimeFmt.format(start);
+  const fullLabel = end ? `${fullStart} – ${timeFmt.format(end)}` : fullStart;
+
+  return { dayKey, dayLabel, timeLabel, fullLabel, isPast };
+}

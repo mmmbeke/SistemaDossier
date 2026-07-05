@@ -89,6 +89,14 @@ router = APIRouter(prefix="/auth", tags=["Autenticación app"])
 _ALLOWED_DOSSIER_OUTPUT_PREFS = frozenset(
     {"match", "auto", "es", "en", "pt", "it", "fr", "de"}
 )
+_ALLOWED_UI_LOCALES = frozenset({"en", "en-gb", "es", "pt", "it", "fr", "de"})
+
+
+def _normalize_register_locale(raw: str | None) -> str:
+    loc = (raw or "es").strip().lower().replace("_", "-")
+    if loc not in _ALLOWED_UI_LOCALES:
+        return "es"
+    return loc
 
 
 def _signup_org_credits() -> tuple[int, int]:
@@ -471,7 +479,7 @@ def register_user(
             email_verified=False,
             password_hash=hash_password(body.password),
             full_name=body.full_name.strip()[:255],
-            locale="es",
+            locale=_normalize_register_locale(body.locale),
         )
         db.add(user)
         db.flush()
@@ -518,7 +526,7 @@ def register_user(
         email_verified=False,
         password_hash=hash_password(body.password),
         full_name=body.full_name.strip()[:255],
-        locale="es",
+        locale=_normalize_register_locale(body.locale),
     )
     db.add(org)
     db.flush()

@@ -4,7 +4,7 @@
  */
 export const CALENDAR_FIELD_LABELS = {
   company: [
-    "empresa", "company", "compañía", "compania", "cliente", "client",
+    "empresa", "company", "compañía", "compania", "compañia", "cliente", "client",
     "organización", "organizacion", "organization", "organização", "organizacao",
     "entreprise", "société", "societe", "azienda", "impresa", "società", "societa",
     "unternehmen", "firma", "kunde",

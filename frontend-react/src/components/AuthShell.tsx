@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 import BrandLogo from "./BrandLogo";
+import { useTranslation } from "@/providers/PreferencesProvider";
 
 type AuthShellProps = {
   title: string;
@@ -18,6 +21,8 @@ export default function AuthShell({
   footer,
   wide = false,
 }: AuthShellProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
       <aside
@@ -28,7 +33,8 @@ export default function AuthShell({
           borderRight: "1px solid var(--border-subtle)",
         }}
       >
-        <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full opacity-20 blur-3xl"
+        <div
+          className="absolute -right-32 -top-32 h-96 w-96 rounded-full opacity-20 blur-3xl"
           style={{
             backgroundImage:
               "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)",
@@ -43,16 +49,13 @@ export default function AuthShell({
             className="text-3xl font-semibold leading-tight tracking-tight"
             style={{ color: "var(--text-primary)" }}
           >
-            Inteligencia de personas en tiempo real para reuniones de alto
-            impacto.
+            {t("auth.shell.title")}
           </h2>
           <p
             className="max-w-md text-base leading-relaxed"
             style={{ color: "var(--text-muted)" }}
           >
-            Project Dossier sintetiza información pública de registros
-            corporativos, medios y redes profesionales en un brief personalizado
-            en menos de 90 segundos.
+            {t("auth.shell.subtitle")}
           </p>
           <ul className="flex flex-col gap-3 text-sm" style={{ color: "var(--text-muted)" }}>
             <li className="flex items-center gap-3">
@@ -60,21 +63,21 @@ export default function AuthShell({
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ backgroundColor: "var(--brand-cyan)" }}
               />
-              Generación en menos de 60 segundos
+              {t("auth.shell.bullet_speed")}
             </li>
             <li className="flex items-center gap-3">
               <span
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ backgroundColor: "var(--brand-cyan)" }}
               />
-              Cobertura UK, USA y Europa continental
+              {t("auth.shell.bullet_coverage")}
             </li>
             <li className="flex items-center gap-3">
               <span
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ backgroundColor: "var(--brand-cyan)" }}
               />
-              Alertas de riesgo automáticas
+              {t("auth.shell.bullet_alerts")}
             </li>
           </ul>
         </div>
@@ -100,9 +103,7 @@ export default function AuthShell({
 
           {children}
 
-          <div className="mt-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-            {footer}
-          </div>
+          <div className="mt-8">{footer}</div>
         </div>
       </main>
     </div>

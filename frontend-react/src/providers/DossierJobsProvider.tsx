@@ -32,6 +32,10 @@ import {
   type PersonResearchApiResponse,
 } from "@/lib/dossier-api";
 import { isPdlProfileFoundInfoWarning } from "@/lib/translate-pdl-warning";
+import {
+  translateBackendWarning,
+  translateDossierStatusMessage,
+} from "@/lib/translate-backend-message";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
 import type { TranslationKey } from "@/i18n/types";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
@@ -626,17 +630,21 @@ function DossierJobToasts({
                   {isActive && t("dossier_jobs.generating")}
                   {isOk && t("dossier_jobs.ready")}
                   {isPartial && t("dossier_jobs.partial")}
-                  {isFail && (job.error_message || t("dossier_jobs.failed"))}
+                  {isFail &&
+                    (job.error_message
+                      ? translateDossierStatusMessage(job.error_message, t) ??
+                        job.error_message
+                      : t("dossier_jobs.failed"))}
                   {isCancelled && t("dossier_jobs.cancelled")}
                 </p>
                 {calendarWarning ? (
                   <p className="mt-1.5 text-sm ui-text-warning line-clamp-3 leading-relaxed">
-                    {calendarWarning}
+                    {translateBackendWarning(calendarWarning, t)}
                   </p>
                 ) : null}
                 {personWarning ? (
                   <p className="mt-1.5 text-sm ui-text-warning line-clamp-3 leading-relaxed">
-                    {personWarning}
+                    {translateBackendWarning(personWarning, t)}
                   </p>
                 ) : null}
               </div>

@@ -15,6 +15,7 @@ import {
   type PersonResearchPayload,
 } from "@/lib/dossier-api";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import { translateApiErrorMessage } from "@/lib/translate-backend-message";
 import { parsePersonResearchSearchParams } from "@/lib/person-research-from-dossier";
 import MutatorGuard from "@/components/auth/MutatorGuard";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
@@ -162,7 +163,7 @@ function PersonResearchPageContent() {
       setActiveJobId(jobId);
     } catch (err) {
       if (err instanceof DossierApiError) {
-        setError(err.message || t("generate.error.api"));
+        setError(translateApiErrorMessage(err, t) || t("generate.error.api"));
       } else {
         setError(t("generate.error.api"));
       }
@@ -188,7 +189,7 @@ function PersonResearchPageContent() {
       setActiveJobId(null);
     } catch (err) {
       if (err instanceof DossierApiError) {
-        setError(err.message || t("person_research.cancel_error"));
+        setError(translateApiErrorMessage(err, t) || t("person_research.cancel_error"));
       } else {
         setError(t("person_research.cancel_error"));
       }

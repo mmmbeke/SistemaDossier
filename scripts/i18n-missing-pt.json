@@ -1,0 +1,342 @@
+{
+  "auth.gate_checking": {
+    "en": "Checking session…",
+    "es": "Comprobando sesión…"
+  },
+  "auth.password_show": {
+    "en": "Show password",
+    "es": "Mostrar contraseña"
+  },
+  "auth.password_hide": {
+    "en": "Hide password",
+    "es": "Ocultar contraseña"
+  },
+  "auth.error.session_expired": {
+    "en": "Your session expired or is no longer valid. Please sign in again.",
+    "es": "Tu sesión expiró o ya no es válida. Vuelve a iniciar sesión."
+  },
+  "generate.pipeline_title": {
+    "en": "How is your dossier built?",
+    "es": "¿Cómo se construye tu dossier?"
+  },
+  "generate.pipeline_desc": {
+    "en": "What does the list below mean? Each line is a stage the system runs, in order. Depending on the depth you pick, some stages may be skipped. When are credits used? Only if the run completes successfully.",
+    "es": "¿Qué significa la lista de abajo? Cada línea es una fase que el sistema ejecuta en orden. Según el nivel que elijas, puede que alguna no aplique. ¿Cuándo se usan los créditos? Solo si el proceso termina correctamente."
+  },
+  "detail.pipeline_person": {
+    "en": "People dossier",
+    "es": "Dossier de persona"
+  },
+  "detail.loading_dossier": {
+    "en": "Loading dossier…",
+    "es": "Cargando dossier…"
+  },
+  "detail.load_dossier_error": {
+    "en": "Could not load the dossier (are you signed in and does it belong to your organization?).",
+    "es": "No se pudo cargar el dossier (¿iniciaste sesión y existe en tu organización?)."
+  },
+  "detail.back_to_list": {
+    "en": "Back to list",
+    "es": "Volver al listado"
+  },
+  "auth.shell.title": {
+    "en": "Real-time people intelligence for high-impact meetings.",
+    "es": "Inteligencia de personas en tiempo real para reuniones de alto impacto."
+  },
+  "auth.shell.subtitle": {
+    "en": "TraceLens synthesizes public data from corporate registries, media, and professional networks into a tailored brief in under 90 seconds.",
+    "es": "TraceLens sintetiza información pública de registros corporativos, medios y redes profesionales en un brief personalizado en menos de 90 segundos."
+  },
+  "auth.shell.bullet_speed": {
+    "en": "Generation in under 60 seconds",
+    "es": "Generación en menos de 60 segundos"
+  },
+  "auth.shell.bullet_coverage": {
+    "en": "UK, US, and continental Europe coverage",
+    "es": "Cobertura UK, USA y Europa continental"
+  },
+  "auth.shell.bullet_alerts": {
+    "en": "Automatic risk alerts",
+    "es": "Alertas de riesgo automáticas"
+  },
+  "backend.status_report_error": {
+    "en": "Error generating the report.",
+    "es": "Error en el informe generado."
+  },
+  "backend.status_pipeline_error": {
+    "en": "Error in synthesis or the pipeline.",
+    "es": "Error en síntesis o en el pipeline."
+  },
+  "backend.status_person_analysis_error": {
+    "en": "Error generating the person analysis.",
+    "es": "Error al generar el análisis de persona."
+  },
+  "backend.status_cancelled_by_user": {
+    "en": "Cancelled by user",
+    "es": "Cancelado por el usuario"
+  },
+  "backend.status_person_retry_hint": {
+    "en": "Could not generate the person analysis. Retry or run a new people search with more details.",
+    "es": "No se pudo generar el análisis de persona. Reintenta o usa «Nueva búsqueda de persona» con más datos."
+  },
+  "backend.error_email_exists": {
+    "en": "An account with this email already exists. Try signing in.",
+    "es": "Ya existe una cuenta con este email. Prueba a iniciar sesión."
+  },
+  "backend.error_invite_invalid": {
+    "en": "This invitation is no longer valid.",
+    "es": "La invitación ya no es válida."
+  },
+  "backend.error_invite_email_mismatch": {
+    "en": "You must register with the email address that received the invitation.",
+    "es": "Debes registrarte con el correo al que se envió la invitación."
+  },
+  "backend.error_no_session": {
+    "en": "No active session. Please sign in again.",
+    "es": "No hay sesión. Inicia sesión de nuevo."
+  },
+  "backend.error_insufficient_credits": {
+    "en": "Insufficient credits: {cost} required and the organization has {balance}.",
+    "es": "Créditos insuficientes: se requieren {cost} y la organización tiene {balance}."
+  },
+  "backend.error_insufficient_credits_generic": {
+    "en": "Insufficient credits for this operation.",
+    "es": "Créditos insuficientes para esta operación."
+  },
+  "backend.error_job_not_found": {
+    "en": "Job not found.",
+    "es": "Job no encontrado."
+  },
+  "backend.error_locale_unsupported": {
+    "en": "Unsupported locale.",
+    "es": "Locale no soportado."
+  },
+  "backend.error_plan_depth": {
+    "en": "Your plan does not allow this dossier depth. Upgrade to Pro or Enterprise.",
+    "es": "Tu plan no permite esta profundidad de dossier. Actualiza a Pro o Enterprise."
+  },
+  "common.loading": {
+    "en": "Loading…",
+    "es": "Cargando…"
+  },
+  "depth.requires_pro": {
+    "en": "Requires Pro or Enterprise plan",
+    "es": "Requiere plan Pro o Enterprise"
+  },
+  "gen.step.starting": {
+    "en": "Prepare and validate your request",
+    "es": "Preparar y validar tu solicitud"
+  },
+  "gen.step.corporate": {
+    "en": "Fetch data from UK and US public registries",
+    "es": "Obtener datos de registros públicos UK y EE. UU."
+  },
+  "gen.step.news": {
+    "en": "Add news and media context (when your level includes it)",
+    "es": "Añadir noticias y contexto en medios (si tu nivel lo incluye)"
+  },
+  "gen.step.synthesis": {
+    "en": "Turn findings into a structured dossier",
+    "es": "Convertir los hallazgos en un dossier estructurado"
+  },
+  "gen.step.complete": {
+    "en": "Save the dossier to My Dossiers",
+    "es": "Guardar el dossier en Mis dossiers"
+  },
+  "overview.microsoft_when": {
+    "en": "When",
+    "es": "Cuándo"
+  },
+  "overview.microsoft_participants": {
+    "en": "Participants",
+    "es": "Participantes"
+  },
+  "overview.microsoft_oauth_ok": {
+    "en": "Outlook connected successfully.",
+    "es": "Outlook conectado correctamente."
+  },
+  "overview.microsoft_oauth_error": {
+    "en": "Outlook connection failed.",
+    "es": "Falló la conexión con Outlook."
+  },
+  "overview.microsoft_banner_close": {
+    "en": "Dismiss",
+    "es": "Cerrar"
+  },
+  "overview.microsoft_include_past": {
+    "en": "Include past meetings",
+    "es": "Incluir reuniones pasadas"
+  },
+  "overview.microsoft_generate_dossier": {
+    "en": "Generate dossier",
+    "es": "Generar dossier"
+  },
+  "overview.microsoft_generating": {
+    "en": "Generating…",
+    "es": "Generando…"
+  },
+  "overview.microsoft_generate_error": {
+    "en": "Could not generate the dossier from this meeting.",
+    "es": "No se pudo generar el dossier desde esta reunión."
+  },
+  "overview.microsoft_generate_empty": {
+    "en": "The API returned no dossier for this meeting.",
+    "es": "La API no devolvió dossier para esta reunión."
+  },
+  "overview.microsoft_generate_success": {
+    "en": "Dossier generated.",
+    "es": "Dossier generado."
+  },
+  "overview.microsoft_generated_preview": {
+    "en": "Preview",
+    "es": "Vista previa"
+  },
+  "overview.microsoft_no_event_id": {
+    "en": "This row has no event id; refresh the list.",
+    "es": "Esta fila no tiene id de evento; actualizá la lista."
+  },
+  "overview.google_when": {
+    "en": "When",
+    "es": "Cuándo"
+  },
+  "overview.google_participants": {
+    "en": "Participantes",
+    "es": "Participantes"
+  },
+  "overview.calendar_description": {
+    "en": "Description",
+    "es": "Descripción"
+  },
+  "overview.calendar_description_empty": {
+    "en": "No description on this event. Add «Company: …» and «Contact:» / «Contact 1:» in the event body in your calendar.",
+    "es": "Sin descripción en el calendario. Añade en Outlook «Empresa: …» y «Contacto:» / «Contacto 1:» en el cuerpo del evento."
+  },
+  "overview.calendar_description_no_contact": {
+    "en": "No contact detected in the description (use «Contact:» or «Contact 1:», «Contact 2:»…); only the company dossier will be generated.",
+    "es": "No se detecta contacto en la descripción (usa «Contacto:» o «Contacto 1:», «Contacto 2:»…); solo se generará el dossier de empresa."
+  },
+  "overview.google_oauth_ok": {
+    "en": "Google Calendar connected successfully.",
+    "es": "Google Calendar conectado correctamente."
+  },
+  "overview.google_oauth_error": {
+    "en": "Google Calendar connection failed.",
+    "es": "Falló la conexión con Google Calendar."
+  },
+  "overview.google_banner_close": {
+    "en": "Dismiss",
+    "es": "Cerrar"
+  },
+  "overview.google_include_past": {
+    "en": "Include recent past events",
+    "es": "Incluir eventos pasados recientes"
+  },
+  "overview.google_generate_dossier": {
+    "en": "Generate dossier",
+    "es": "Generar dossier"
+  },
+  "overview.google_generating": {
+    "en": "Generating…",
+    "es": "Generando…"
+  },
+  "overview.google_generate_error": {
+    "en": "Could not generate the dossier from this event.",
+    "es": "No se pudo generar el dossier desde este evento."
+  },
+  "overview.google_generate_empty": {
+    "en": "The API returned no dossier for this event.",
+    "es": "La API no devolvió dossier para este evento."
+  },
+  "overview.google_generate_success": {
+    "en": "Dossier generated.",
+    "es": "Dossier generado."
+  },
+  "overview.google_generated_preview": {
+    "en": "Preview",
+    "es": "Vista previa"
+  },
+  "overview.calendar_dossiers_title": {
+    "en": "Generated dossiers",
+    "es": "Dossiers generados"
+  },
+  "overview.calendar_dossiers_saved": {
+    "en": "Saved to My Dossiers.",
+    "es": "Guardados en Mis Dossiers."
+  },
+  "overview.calendar_dossiers_open_list": {
+    "en": "View all",
+    "es": "Ver todos"
+  },
+  "overview.calendar_dossier_view_saved": {
+    "en": "Open in My Dossiers",
+    "es": "Abrir en Mis Dossiers"
+  },
+  "overview.google_no_event_id": {
+    "en": "This row has no event id; refresh the list.",
+    "es": "Esta fila no tiene id de evento; actualizá la lista."
+  },
+  "overview.calendar_diagnose": {
+    "en": "Calendar diagnostic",
+    "es": "Diagnóstico de calendario"
+  },
+  "overview.calendar_diagnose_loading": {
+    "en": "Checking calendar…",
+    "es": "Comprobando calendario…"
+  },
+  "overview.calendar_diagnose_error": {
+    "en": "Could not fetch calendar diagnostic.",
+    "es": "No se pudo obtener el diagnóstico."
+  },
+  "time.20_min": {
+    "en": "20 minutes",
+    "es": "20 minutos"
+  },
+  "dossiers.login_required": {
+    "en": "Sign in to load dossiers from your organisation.",
+    "es": "Inicia sesión para cargar los dossiers de tu organización."
+  },
+  "dossiers.login_required_cta": {
+    "en": "Go to sign in",
+    "es": "Ir a iniciar sesión"
+  },
+  "rbac.viewer_blocked_title": {
+    "en": "Read-only access",
+    "es": "Acceso de solo lectura"
+  },
+  "rbac.viewer_blocked_hint": {
+    "en": "Your viewer role cannot use this section. You can browse dossiers shared with you.",
+    "es": "Tu rol viewer no permite usar esta sección. Puedes consultar dossiers compartidos contigo."
+  },
+  "rbac.viewer_go_dossiers": {
+    "en": "Go to dossiers",
+    "es": "Ir a dossiers"
+  },
+  "dossiers.calendar_meeting_from": {
+    "en": "Source:",
+    "es": "Origen:"
+  },
+  "dossiers.folder_label": {
+    "en": "Meeting folder",
+    "es": "Carpeta de reunión"
+  },
+  "dossiers.folder_open": {
+    "en": "Open folder",
+    "es": "Abrir carpeta"
+  },
+  "dossiers.folder_loading": {
+    "en": "Loading folder…",
+    "es": "Cargando carpeta…"
+  },
+  "dossiers.folder_not_found": {
+    "en": "Folder not found.",
+    "es": "No se encontró la carpeta."
+  },
+  "dossiers.folder_empty": {
+    "en": "This folder has no dossiers left.",
+    "es": "Esta carpeta ya no tiene dossiers."
+  },
+  "dossiers.folder_other_dossier": {
+    "en": "Report",
+    "es": "Informe"
+  }
+}
