@@ -171,12 +171,14 @@ function personJobWarning(job: TrackedJob): string | undefined {
   if (job.job_type !== "person_manual" || job.status !== "completed" || !job.result) {
     return undefined;
   }
-  return warnings.find(
+  const personResult = job.result as PersonResearchApiResponse;
+  const criticalWarnings = (personResult.warnings ?? []).filter(
     (w) =>
       !isPdlProfileFoundInfoWarning(w) &&
       !w.toLowerCase().includes("no se encontró información adicional") &&
       !w.toLowerCase().includes("no se encontró perfil verificable"),
   );
+  return criticalWarnings[0];
 }
 
 function dossierHref(job: TrackedJob): string | null {

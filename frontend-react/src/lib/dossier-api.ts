@@ -7,6 +7,8 @@
  *   permitiendo el origen del Next.js (ver `CORS_ORIGINS` en `.env` del backend).
  */
 
+import type { Locale } from "@/i18n/types";
+
 /** Clave donde guardamos el JWT tras login o registro (localStorage o sessionStorage). */
 export const AUTH_TOKEN_STORAGE_KEY = "dossier_access_token";
 
