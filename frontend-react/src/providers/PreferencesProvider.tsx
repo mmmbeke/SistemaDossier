@@ -26,16 +26,19 @@ import {
   preferencesToAuthPatch,
 } from "@/lib/auth-preferences-sync";
 import { getStoredAccessToken, patchAuthUserPreferences, type AuthUser } from "@/lib/dossier-api";
+import { getBrowserTimezone, getEffectiveTimezone } from "@/lib/timezones";
 
 const STORAGE_KEY = "dossier-preferences";
 
 type PreferencesContextValue = {
   preferences: UserPreferences;
+  /** Zona horaria efectiva (sistema o manual). */
+  effectiveTimezone: string;
   t: TranslateFn;
   locale: Locale;
   setTheme: (theme: ThemeChoice) => void;
   setLocale: (locale: Locale) => void;
-  setTimezone: (timezone: string) => void;
+  setTimezone: (timezone: string, followSystem?: boolean) => void;
   setDateFormat: (format: DateFormat) => void;
   setOutputLanguage: (lang: OutputLanguage) => void;
   setDossierExpiry: (expiry: string) => void;
@@ -52,6 +55,9 @@ function loadPreferences(): UserPreferences {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const merged = { ...DEFAULT_PREFERENCES, ...JSON.parse(raw) } as UserPreferences;
+      if (merged.timezoneFollowSystem === undefined) {
+        merged.timezoneFollowSystem = false;
+      }
       // Legado: «auto» = español; con UI no española suele confundirse con «match».
       if (merged.outputLanguage === "auto") {
         merged.outputLanguage = merged.locale === "es" ? "es" : "match";
@@ -60,12 +66,21 @@ function loadPreferences(): UserPreferences {
     }
     const legacyTheme = localStorage.getItem("dossier-theme") as ThemeChoice | null;
     if (legacyTheme) {
-      return { ...DEFAULT_PREFERENCES, theme: legacyTheme };
+      return {
+        ...DEFAULT_PREFERENCES,
+        theme: legacyTheme,
+        timezone: getBrowserTimezone(),
+        timezoneFollowSystem: true,
+      };
     }
   } catch {
     /* ignore */
   }
-  return DEFAULT_PREFERENCES;
+  return {
+    ...DEFAULT_PREFERENCES,
+    timezone: getBrowserTimezone(),
+    timezoneFollowSystem: true,
+  };
 }
 
 function savePreferences(prefs: UserPreferences) {
@@ -164,10 +179,20 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   }, [
     preferences.locale,
     preferences.timezone,
+    preferences.timezoneFollowSystem,
     preferences.outputLanguage,
     preferences.dossierExpiry,
     ready,
   ]);
+
+  const effectiveTimezone = useMemo(
+    () =>
+      getEffectiveTimezone(
+        preferences.timezone,
+        preferences.timezoneFollowSystem ?? false,
+      ),
+    [preferences.timezone, preferences.timezoneFollowSystem],
+  );
 
   const t = useMemo(
     () => createTranslator(preferences.locale),
@@ -177,11 +202,16 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const value = useMemo<PreferencesContextValue>(
     () => ({
       preferences,
+      effectiveTimezone,
       t,
       locale: preferences.locale,
       setTheme: (theme) => updatePreferences({ theme }),
       setLocale: (locale) => updatePreferences({ locale }),
-      setTimezone: (timezone) => updatePreferences({ timezone }),
+      setTimezone: (timezone, followSystem) =>
+        updatePreferences({
+          timezone,
+          ...(followSystem !== undefined ? { timezoneFollowSystem: followSystem } : {}),
+        }),
       setDateFormat: (dateFormat) => updatePreferences({ dateFormat }),
       setOutputLanguage: (outputLanguage) =>
         updatePreferences({ outputLanguage }),
@@ -189,7 +219,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       updatePreferences,
       hydrateFromAuthUser,
     }),
-    [preferences, t, updatePreferences, hydrateFromAuthUser]
+    [preferences, effectiveTimezone, t, updatePreferences, hydrateFromAuthUser]
   );
 
   return (

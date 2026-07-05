@@ -1,6 +1,7 @@
 import type { AuthUser } from "@/lib/dossier-api";
 import type { Locale, OutputLanguage, UserPreferences } from "@/i18n/types";
 import { SUPPORTED_LOCALES } from "@/i18n/types";
+import { getEffectiveTimezone } from "@/lib/timezones";
 
 const OUTPUT_LANGUAGE_PREFS: OutputLanguage[] = [
   "match",
@@ -41,6 +42,7 @@ export function authUserToPreferencesPatch(me: AuthUser): Partial<UserPreference
   const tz = (me.timezone || "").trim();
   if (tz) {
     patch.timezone = tz;
+    patch.timezoneFollowSystem = false;
   }
   const out = (me.dossier_output_language || "").trim();
   if (out && isOutputLanguagePref(out)) {
@@ -54,7 +56,10 @@ export function authUserToPreferencesPatch(me: AuthUser): Partial<UserPreference
 }
 
 export function preferencesToAuthPatch(
-  prefs: Pick<UserPreferences, "locale" | "timezone" | "outputLanguage" | "dossierExpiry">
+  prefs: Pick<
+    UserPreferences,
+    "locale" | "timezone" | "timezoneFollowSystem" | "outputLanguage" | "dossierExpiry"
+  >
 ): {
   locale: string;
   timezone: string;
@@ -66,7 +71,7 @@ export function preferencesToAuthPatch(
     raw === "never" ? null : RETENTION_DAYS.has(raw) ? Number(raw) : 30;
   return {
     locale: prefs.locale,
-    timezone: prefs.timezone,
+    timezone: getEffectiveTimezone(prefs.timezone, prefs.timezoneFollowSystem ?? false),
     dossier_output_language: prefs.outputLanguage,
     dossier_retention_days,
   };

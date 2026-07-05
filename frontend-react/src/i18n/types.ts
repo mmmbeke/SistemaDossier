@@ -27,6 +27,8 @@ export type UserPreferences = {
   theme: ThemeChoice;
   locale: Locale;
   timezone: string;
+  /** Si true, usa la zona horaria del dispositivo (navegador/SO). */
+  timezoneFollowSystem: boolean;
   dateFormat: DateFormat;
   outputLanguage: OutputLanguage;
   dossierExpiry: string;
@@ -35,7 +37,8 @@ export type UserPreferences = {
 export const DEFAULT_PREFERENCES: UserPreferences = {
   theme: "dark",
   locale: "es",
-  timezone: "Europe/London",
+  timezone: "UTC",
+  timezoneFollowSystem: true,
   dateFormat: "dd/mm/yyyy",
   outputLanguage: "match",
   dossierExpiry: "30",

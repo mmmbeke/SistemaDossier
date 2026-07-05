@@ -1,6 +1,7 @@
 "use client";
 
 import DashboardCard from "@/components/dashboard/DashboardCard";
+import TimezoneSelect from "@/components/settings/TimezoneSelect";
 import type { TranslationKey } from "@/i18n/types";
 import { usePreferences } from "@/providers/PreferencesProvider";
 import {
@@ -37,22 +38,14 @@ const OUTPUT_LANGUAGE_KEYS: Record<DossierOutputLanguageCode, TranslationKey> = 
   de: "locale.de",
 };
 
-const TIMEZONE_OPTIONS: { value: string; labelKey: TranslationKey }[] = [
-  { value: "Europe/London", labelKey: "timezone.europe_london" },
-  { value: "Europe/Paris", labelKey: "timezone.europe_paris" },
-  { value: "America/New_York", labelKey: "timezone.america_new_york" },
-  { value: "America/Los_Angeles", labelKey: "timezone.america_los_angeles" },
-  { value: "Asia/Tokyo", labelKey: "timezone.asia_tokyo" },
-];
-
 export default function LanguagePanel() {
   const {
     t,
     preferences,
     setLocale,
-    setTimezone,
     setDateFormat,
     setOutputLanguage,
+    updatePreferences,
   } = usePreferences();
 
   return (
@@ -79,17 +72,17 @@ export default function LanguagePanel() {
           <span style={{ color: "var(--text-secondary)" }}>
             {t("settings.timezone")}
           </span>
-          <select
-            value={preferences.timezone}
-            onChange={(e) => setTimezone(e.target.value)}
+          <TimezoneSelect
+            timezone={preferences.timezone}
+            followSystem={preferences.timezoneFollowSystem ?? false}
+            onChange={({ timezone, followSystem }) =>
+              updatePreferences({ timezone, timezoneFollowSystem: followSystem })
+            }
+            locale={preferences.locale}
+            systemLabel={t("settings.timezone_system")}
+            t={t}
             className="ui-settings-select"
-          >
-            {TIMEZONE_OPTIONS.map(({ value, labelKey }) => (
-              <option key={value} value={value}>
-                {t(labelKey)}
-              </option>
-            ))}
-          </select>
+          />
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm">

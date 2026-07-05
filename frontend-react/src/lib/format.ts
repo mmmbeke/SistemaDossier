@@ -63,7 +63,13 @@ export type MeetingTimeDisplay = {
 
 function parseMeetingInstant(iso: string | undefined): Date | null {
   if (!iso?.trim()) return null;
-  const ms = Date.parse(iso);
+  let s = iso.trim();
+  // Outlook/Graph puede enviar UTC sin sufijo "Z"; sin zona el navegador usa hora local.
+  const hasExplicitTz = /[zZ]$|[+-]\d{2}:\d{2}$/.test(s);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s) && !hasExplicitTz) {
+    s = s.replace(/\.\d+$/, "") + "Z";
+  }
+  const ms = Date.parse(s);
   if (Number.isNaN(ms)) return null;
   return new Date(ms);
 }

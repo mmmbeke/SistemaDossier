@@ -6,6 +6,7 @@ import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import AuthShell from "@/components/AuthShell";
 import FormField from "@/components/FormField";
 import PrimaryButton from "@/components/PrimaryButton";
+import TimezoneSelect from "@/components/settings/TimezoneSelect";
 import {
   authRegister,
   DossierApiError,
@@ -15,6 +16,7 @@ import {
   type OrgInvitePreview,
 } from "@/lib/dossier-api";
 import { translateApiErrorMessage } from "@/lib/translate-backend-message";
+import { getBrowserTimezone, getEffectiveTimezone } from "@/lib/timezones";
 import { useTranslation, usePreferences } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 import type { Locale } from "@/i18n/types";
@@ -58,21 +60,6 @@ const STRENGTH_KEYS: TranslationKey[] = [
   "auth.strength.strong",
 ];
 
-const REGISTER_TIMEZONES = [
-  "UTC",
-  "Europe/London",
-  "Europe/Madrid",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "America/New_York",
-  "America/Los_Angeles",
-  "America/Santiago",
-  "America/Buenos_Aires",
-  "America/Sao_Paulo",
-  "Asia/Singapore",
-  "Australia/Sydney",
-] as const;
-
 const ACCOUNT_LOCALES: { value: Locale; native: string }[] = [
   { value: "es", native: "Español" },
   { value: "en", native: "English" },
@@ -111,7 +98,8 @@ function RegisterPageContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [timezone, setTimezone] = useState("UTC");
+  const [timezone, setTimezone] = useState(getBrowserTimezone);
+  const [timezoneFollowSystem, setTimezoneFollowSystem] = useState(true);
   const [accountLocale, setAccountLocale] = useState<Locale>(uiLocale);
   const [accepted, setAccepted] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
@@ -160,9 +148,15 @@ function RegisterPageContent() {
   }, [inviteToken, t]);
 
   useEffect(() => {
-    setTimezone(preferences.timezone || "UTC");
+    if (preferences.timezoneFollowSystem) {
+      setTimezoneFollowSystem(true);
+      setTimezone(getBrowserTimezone());
+    } else {
+      setTimezoneFollowSystem(false);
+      setTimezone(preferences.timezone || getBrowserTimezone());
+    }
     setAccountLocale(preferences.locale);
-  }, [preferences.timezone, preferences.locale]);
+  }, [preferences.timezone, preferences.timezoneFollowSystem, preferences.locale]);
 
   useEffect(() => {
     if (draftHydratedRef.current || typeof window === "undefined") return;
@@ -313,6 +307,7 @@ function RegisterPageContent() {
         password,
         full_name: fullName,
         locale: accountLocale,
+        timezone: getEffectiveTimezone(timezone, timezoneFollowSystem),
         workspace_kind: isInviteFlow ? "work" : accountKind,
         ...(isInviteFlow
           ? { invite_token: inviteToken }
@@ -603,25 +598,26 @@ function RegisterPageContent() {
                 >
                   {t("auth.register.timezone")}
                 </label>
-                <select
+                <TimezoneSelect
                   id="timezone"
                   name="timezone"
-                  value={timezone}
+                  timezone={timezone}
+                  followSystem={timezoneFollowSystem}
                   title={t("auth.register.timezone_hint")}
-                  onChange={(e) => setTimezone(e.target.value)}
+                  onChange={({ timezone: tz, followSystem }) => {
+                    setTimezone(tz);
+                    setTimezoneFollowSystem(followSystem);
+                  }}
+                  locale={accountLocale}
+                  systemLabel={t("settings.timezone_system")}
+                  t={t}
                   className={selectClassName()}
                   style={{
                     backgroundColor: bgInput,
                     borderColor: borderDefault,
                     color: textPrimary,
                   }}
-                >
-                  {REGISTER_TIMEZONES.map((tz) => (
-                    <option key={tz} value={tz}>
-                      {tz}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
               <div className="flex flex-col gap-1">
                 <label

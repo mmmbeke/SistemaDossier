@@ -348,6 +348,7 @@ export async function authRegister(payload: {
   workspace_kind?: "personal" | "work";
   invite_token?: string | null;
   locale?: Locale | null;
+  timezone?: string | null;
 }): Promise<AuthSuccessResponse> {
   const data = await postJson<AuthSuccessResponse>("/auth/register", payload);
   assertAuthSuccessResponse(data);

@@ -69,7 +69,7 @@ export default function CalendarMeetingsList({
   top = 20,
 }: Props) {
   const { t } = useTranslation();
-  const { preferences } = usePreferences();
+  const { preferences, effectiveTimezone } = usePreferences();
   const { enqueueCalendarJob, isEventGenerating, getJobForEvent } = useDossierJobs();
 
   const [googleConnected, setGoogleConnected] = useState(false);
@@ -84,6 +84,11 @@ export default function CalendarMeetingsList({
   const [diagnoseLoading, setDiagnoseLoading] = useState(false);
   const [diagnoseJson, setDiagnoseJson] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
+
+  const timePrefs = useMemo(
+    () => ({ locale: preferences.locale, timezone: effectiveTimezone }),
+    [preferences.locale, effectiveTimezone],
+  );
 
   const loadMeetings = useCallback(async () => {
     if (!getStoredAccessToken()) {
@@ -222,7 +227,7 @@ export default function CalendarMeetingsList({
   const groupedByDay = useMemo(() => {
     const map = new Map<string, { dayLabel: string; items: MeetingRow[] }>();
     for (const m of filteredMeetings) {
-      const when = formatMeetingTimeRange(m.inicio, m.fin, preferences, {
+      const when = formatMeetingTimeRange(m.inicio, m.fin, timePrefs, {
         allDay: m.todo_el_dia,
         allDayLabel,
       });
@@ -234,7 +239,7 @@ export default function CalendarMeetingsList({
       }
     }
     return [...map.entries()];
-  }, [filteredMeetings, preferences, allDayLabel]);
+  }, [filteredMeetings, timePrefs, allDayLabel]);
 
   const filterButtons: { id: ProviderFilter; labelKey: TranslationKey }[] = [
     { id: "all", labelKey: "overview.calendar_filter_all" },
@@ -405,7 +410,7 @@ export default function CalendarMeetingsList({
                 {items.map((m) => {
                   const rowKey = meetingRowKey(m);
                   const expanded = expandedKey === rowKey;
-                  const when = formatMeetingTimeRange(m.inicio, m.fin, preferences, {
+                  const when = formatMeetingTimeRange(m.inicio, m.fin, timePrefs, {
                     allDay: m.todo_el_dia,
                     allDayLabel,
                   });

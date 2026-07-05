@@ -34,6 +34,33 @@ def _iso_utc(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _graph_datetime_to_utc_iso(dt_str: str) -> str:
+    """
+    Graph devuelve ``dateTime`` sin sufijo de zona aunque el header
+    ``Prefer: outlook.timezone="UTC"`` indique que el valor está en UTC.
+    """
+    if not dt_str or not str(dt_str).strip():
+        return ""
+    s = str(dt_str).strip()
+    if s.endswith(("Z", "z")):
+        return s if s.endswith("Z") else s[:-1] + "Z"
+    tz_pos = max(s.rfind("+"), s.rfind("-"))
+    if tz_pos > 10:
+        try:
+            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            pass
+    try:
+        if "." in s:
+            base, frac = s.split(".", 1)
+            s = f"{base}.{frac[:6]}"
+        dt = datetime.fromisoformat(s).replace(tzinfo=timezone.utc)
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return str(dt_str).strip()
+
+
 def _get_graph(url: str, access_token: str, params: dict) -> dict:
     response = requests.get(
         url,
@@ -230,16 +257,16 @@ def _formatear_participantes(evento: dict) -> str:
 
 def normalizar_evento(evento: dict) -> dict:
     """Reduce un evento de Graph a los campos que usa el dossier."""
-    inicio = (evento.get("start") or {}).get("dateTime", "")
-    fin = (evento.get("end") or {}).get("dateTime", "")
+    inicio_raw = (evento.get("start") or {}).get("dateTime", "")
+    fin_raw = (evento.get("end") or {}).get("dateTime", "")
 
     return {
         "id": evento.get("id"),
         "tema": strip_html_to_plain_line(evento.get("subject")) or "Sin asunto",
         "descripcion": _extract_descripcion(evento),
         "participantes": _formatear_participantes(evento),
-        "inicio": inicio,
-        "fin": fin,
+        "inicio": _graph_datetime_to_utc_iso(inicio_raw),
+        "fin": _graph_datetime_to_utc_iso(fin_raw),
         "ubicacion": (evento.get("location") or {}).get("displayName") or "",
         "todo_el_dia": evento.get("isAllDay", False),
     }
