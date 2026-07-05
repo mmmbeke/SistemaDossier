@@ -1,4 +1,5 @@
 import type { DossierDepth } from "@/lib/mock-generation";
+import type { TranslationKey } from "@/i18n/types";
 
 export type PlanTier = "free" | "pro" | "enterprise";
 
@@ -30,57 +31,42 @@ export function planAllowsAutomation(plan: PlanTier): boolean {
   return plan !== "free";
 }
 
+type TranslateFn = (
+  key: TranslationKey,
+  params?: Record<string, string | number>,
+) => string;
+
 export function planSummaryLabel(
+  t: TranslateFn,
   plan: PlanTier,
   creditsBalance?: number,
   monthlyLimit?: number,
 ): string {
+  const name = t(
+    plan === "free"
+      ? "billing.plan_free_name"
+      : plan === "pro"
+        ? "billing.plan_pro_name"
+        : "billing.plan_enterprise_name",
+  );
   const cap =
     plan === "enterprise" || (monthlyLimit ?? 0) >= 999_999
-      ? "Ilimitado"
-      : `${monthlyLimit ?? "—"} cr/mes`;
-  const name = plan === "free" ? "Free" : plan === "pro" ? "Pro" : "Enterprise";
+      ? t("billing.unlimited")
+      : t("billing.plan_cap_short", { limit: monthlyLimit ?? "—" });
   const balance =
-    typeof creditsBalance === "number" ? ` · ${creditsBalance} disp.` : "";
+    typeof creditsBalance === "number"
+      ? t("billing.plan_balance_suffix", { balance: creditsBalance })
+      : "";
   return `${name} · ${cap}${balance}`;
 }
 
 export type Plan = {
   id: PlanTier;
   name: string;
-  price: string;
-  credits: string;
-  features: string[];
 };
 
 export const PLANS: Plan[] = [
-  {
-    id: "free",
-    name: "Free",
-    price: "£0/mes",
-    credits: "10 créditos/mes",
-    features: ["Módulo A (Identidad)", "Sin automatización", "Soporte comunidad"],
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "Por definir",
-    credits: "500 créditos/mes",
-    features: [
-      "Módulos A + B + C",
-      "Automatización calendario",
-      "Email + chat support",
-    ],
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    price: "Negociado",
-    credits: "Ilimitado",
-    features: [
-      "Todo Pro + API access",
-      "SLA dedicado 24/7",
-      "White-label (v2.0)",
-    ],
-  },
+  { id: "free", name: "Free" },
+  { id: "pro", name: "Pro" },
+  { id: "enterprise", name: "Enterprise" },
 ];

@@ -31,6 +31,7 @@ import {
   type PersonResearchPayload,
   type PersonResearchApiResponse,
 } from "@/lib/dossier-api";
+import { isPdlProfileFoundInfoWarning } from "@/lib/translate-pdl-warning";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
 import type { TranslationKey } from "@/i18n/types";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
@@ -154,7 +155,7 @@ function personJobHasPartialFailure(job: TrackedJob): boolean {
   if (!personResult.saved_dossier?.id) return false;
   const hasAnalysis = !!personResult.gemini_analysis_markdown?.trim();
   const criticalWarnings = (personResult.warnings ?? []).filter(
-    (w) => !w.includes("PDL encontró perfil"),
+    (w) => !isPdlProfileFoundInfoWarning(w),
   );
   return !hasAnalysis || criticalWarnings.length > 0;
 }
@@ -164,7 +165,7 @@ function personJobWarning(job: TrackedJob): string | undefined {
     return undefined;
   }
   const warnings = (job.result as PersonResearchApiResponse).warnings ?? [];
-  return warnings.find((w) => !w.includes("PDL encontró perfil"));
+  return warnings.find((w) => !isPdlProfileFoundInfoWarning(w));
 }
 
 function dossierHref(job: TrackedJob): string | null {

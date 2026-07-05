@@ -1,6 +1,7 @@
 """Dominio de correo corporativo de la organización (para invitaciones)."""
 from __future__ import annotations
 
+from dossier.api_errors import CORPORATE_EMAIL_REQUIRED, OrgApiError
 from dossier.db.models import Organization
 from dossier.services.lusha_company import email_to_company_domain
 
@@ -28,9 +29,7 @@ def ensure_org_email_domain(org: Organization, *, email: str) -> str:
         return existing
     dom = email_to_company_domain(email)
     if not dom:
-        raise ValueError(
-            "Tu correo debe ser de dominio corporativo (no Gmail, Outlook personal, etc.)."
-        )
+        raise OrgApiError(CORPORATE_EMAIL_REQUIRED)
     settings = _as_settings_dict(org)
     settings[EMAIL_DOMAIN_KEY] = dom
     org.settings = settings

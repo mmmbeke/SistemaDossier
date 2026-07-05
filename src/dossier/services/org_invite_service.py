@@ -11,6 +11,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from dossier.db.models import OrgInvite, OrgMembership, Organization, User
+from dossier.api_errors import (
+    INVITE_WRONG_DOMAIN,
+    INVITES_WORKSPACE_ONLY,
+    OrgApiError,
+    org_api_http_detail,
+)
 from dossier.org_email_domain import email_matches_org_domain, ensure_org_email_domain, read_org_email_domain
 from dossier.org_workspace import read_workspace_kind
 from dossier.security.rbac import normalize_org_role
@@ -128,19 +134,19 @@ def create_org_invite(
     if read_workspace_kind(org) != "work":
         raise HTTPException(
             status_code=400,
-            detail="Las invitaciones solo están disponibles para organizaciones de empresa.",
+            detail={"code": INVITES_WORKSPACE_ONLY},
         )
 
     try:
         org_domain = ensure_org_email_domain(org, email=inviter.email)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    except OrgApiError as e:
+        raise HTTPException(status_code=400, detail=org_api_http_detail(e)) from e
 
     email_norm = _normalize_email(email)
     if not email_matches_org_domain(org, email_norm, fallback_admin_email=inviter.email):
         raise HTTPException(
             status_code=400,
-            detail=f"Solo puedes invitar correos del dominio @{org_domain}.",
+            detail={"code": INVITE_WRONG_DOMAIN, "domain": org_domain},
         )
 
     norm_role = normalize_org_role(role)

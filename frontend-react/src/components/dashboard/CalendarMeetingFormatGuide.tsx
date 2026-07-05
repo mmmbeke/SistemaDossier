@@ -26,6 +26,12 @@ function GuideContent({
   compact?: boolean;
 }) {
   const { t } = useTranslation();
+  const subjectExamples = (
+    t("calendar.guide.subject_examples") || CALENDAR_MEETING_SUBJECT_EXAMPLES.join("\n")
+  )
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 
   return (
     <div
@@ -106,7 +112,7 @@ function GuideContent({
         </p>
         <p className="leading-relaxed">{t("calendar.guide.subject_hint")}</p>
         <ul className="mt-1.5 list-disc space-y-0.5 pl-5 font-mono text-xs">
-          {CALENDAR_MEETING_SUBJECT_EXAMPLES.map((ex) => (
+          {subjectExamples.map((ex) => (
             <li key={ex}>{ex}</li>
           ))}
         </ul>

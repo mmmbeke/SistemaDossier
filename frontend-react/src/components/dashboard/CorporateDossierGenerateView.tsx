@@ -588,7 +588,7 @@ export default function CorporateDossierGenerateView({
                   label={t("generate.email_optional")}
                   name="email"
                   type="email"
-                  placeholder="participante@empresa.com"
+                  placeholder={t("generate.email_placeholder")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isGenerating}
@@ -668,6 +668,7 @@ export default function CorporateDossierGenerateView({
                 <dt style={{ color: "var(--text-muted)" }}>{t("generate.plan")}</dt>
                 <dd style={{ color: "var(--text-primary)" }}>
                   {planSummaryLabel(
+                    t,
                     plan,
                     me?.credits_balance,
                     me?.credits_monthly_limit,
