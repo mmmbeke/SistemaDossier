@@ -36,6 +36,25 @@ function reportBodyIsPresent(body: string): boolean {
   return Boolean(t) && !EMPTY_REPORT_MARKERS.has(t);
 }
 
+/** Oculta avisos de éxito o duplicados del mensaje principal (sin mencionar PDL). */
+function personEnrichmentWarningsForDisplay(
+  warnings: string[],
+  profilesCount: number | null,
+): string[] {
+  const filtered = warnings.filter((w) => {
+    const lower = w.toLowerCase();
+    if (lower.includes("pdl encontró perfil")) return false;
+    if (profilesCount === 0) {
+      if (lower.includes("pdl no devolvió")) return false;
+      if (lower.includes("no se encontró perfil verificable")) return false;
+      if (lower.includes("no se encontró un perfil verificable")) return false;
+      if (lower.includes("no se encontró información adicional")) return false;
+    }
+    return true;
+  });
+  return [...new Set(filtered)];
+}
+
 type Props = {
   dossier: DossierDetailResponse;
 };
@@ -136,7 +155,11 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
       ? o.profile_urls.filter((u): u is string => typeof u === "string")
       : [];
     if (profilesCount === null && warnings.length === 0 && urls.length === 0) return null;
-    return { profilesCount, warnings, urls };
+    return {
+      profilesCount,
+      warnings: personEnrichmentWarningsForDisplay(warnings, profilesCount),
+      urls,
+    };
   }, [dossier.dossier_data]);
 
   const created = dossier.created_at
@@ -388,43 +411,54 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
       ) : null}
 
       {isPersonPipeline && lushaDiagnostics ? (
-        <div
-          className="mb-6 rounded-xl border px-4 py-3 text-sm"
-          style={{
-            borderColor: "var(--border-default)",
-            backgroundColor: "var(--bg-surface)",
-            color: "var(--text-muted)",
-          }}
-        >
-          <p className="font-medium" style={{ color: "var(--text-primary)" }}>
-            {t("overview.calendar_enrichment_diagnostics")}
+        lushaDiagnostics.profilesCount === 0 ? (
+          <p
+            className="mb-6 rounded-xl border px-4 py-3 text-sm ui-text-warning leading-relaxed"
+            role="status"
+            style={{
+              borderColor: "var(--border-default)",
+              backgroundColor: "var(--bg-surface)",
+            }}
+          >
+            {t("detail.enrichment_no_profiles")}
           </p>
-          <p className="mt-1">
-            {lushaDiagnostics.profilesCount === 0
-              ? t("detail.enrichment_no_profiles")
-              : t("detail.enrichment_profiles_found", {
-                  count: lushaDiagnostics.profilesCount ?? 0,
-                })}
-          </p>
-          {lushaDiagnostics.urls.length > 0 ? (
-            <ul className="mt-2 list-disc pl-5">
-              {lushaDiagnostics.urls.map((u) => (
-                <li key={u}>
-                  <a href={u} target="_blank" rel="noreferrer" className="underline">
-                    {u}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {lushaDiagnostics.warnings.length > 0 ? (
-            <ul className="ui-text-warning mt-2 list-disc pl-5">
-              {lushaDiagnostics.warnings.map((w, i) => (
-                <li key={i}>{w}</li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
+        ) : (
+          <div
+            className="mb-6 rounded-xl border px-4 py-3 text-sm"
+            style={{
+              borderColor: "var(--border-default)",
+              backgroundColor: "var(--bg-surface)",
+              color: "var(--text-muted)",
+            }}
+          >
+            <p className="font-medium" style={{ color: "var(--text-primary)" }}>
+              {t("overview.calendar_enrichment_diagnostics")}
+            </p>
+            <p className="mt-1">
+              {t("detail.enrichment_profiles_found", {
+                count: lushaDiagnostics.profilesCount ?? 0,
+              })}
+            </p>
+            {lushaDiagnostics.urls.length > 0 ? (
+              <ul className="mt-2 list-disc pl-5">
+                {lushaDiagnostics.urls.map((u) => (
+                  <li key={u}>
+                    <a href={u} target="_blank" rel="noreferrer" className="underline">
+                      {u}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {lushaDiagnostics.warnings.length > 0 ? (
+              <ul className="ui-text-warning mt-2 list-disc pl-5">
+                {lushaDiagnostics.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        )
       ) : null}
 
       <div className="flex flex-col gap-6">

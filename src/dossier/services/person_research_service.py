@@ -86,7 +86,7 @@ def run_person_research(
             profile_urls.extend(u for u in (p.get("linkedin_urls") or []) if u not in profile_urls)
 
     if req.include_posts and not gemini_only:
-        warnings.append("La opción «incluir posts» no está disponible con PDL; se ignoró.")
+        warnings.append("La opción «incluir posts» no está disponible; se ignoró.")
 
     gemini_md: str | None = None
     gemini_google_search_used = False
@@ -108,11 +108,6 @@ def run_person_research(
                 output_language=out_lang,
             )
             gemini_google_search_used = True
-            if not gemini_only and not profiles:
-                warnings.append(
-                    "No se encontró un perfil verificable en registros profesionales. "
-                    "El informe se generó con los datos del encargo; prueba añadir email, LinkedIn o cargo."
-                )
         except RuntimeError as e:
             warnings.append(str(e))
         except Exception as e:  # noqa: BLE001
@@ -131,7 +126,7 @@ def run_person_research(
             )
     elif profiles and not has_llm_key:
         warnings.append(
-            "DEEPSEEK_API_KEY no configurada: se omitió el análisis con IA sobre datos PDL."
+            "DEEPSEEK_API_KEY no configurada: se omitió el análisis con IA sobre los datos encontrados."
         )
     elif profiles:
         try:
@@ -148,7 +143,7 @@ def run_person_research(
                 gemini_md = md_web
             elif md_web and gemini_md:
                 warnings.append(
-                    "Búsqueda web complementaria omitida en el informe: el análisis PDL "
+                    "Búsqueda web complementaria omitida: el análisis principal "
                     "ya incluye la estructura completa."
                 )
         except RuntimeError as e:
@@ -162,11 +157,11 @@ def run_person_research(
             gemini_md = md_web
         elif not has_llm_key:
             warnings.append(
-                "Sin perfiles de PDL y sin DEEPSEEK_API_KEY: no se pudo ejecutar el análisis con IA."
+                "Sin datos de enriquecimiento y sin DEEPSEEK_API_KEY: no se pudo ejecutar el análisis con IA."
             )
         elif _person_web_disabled():
             warnings.append(
-                "Sin perfiles de PDL y DEEPSEEK_DISABLE_PERSON_WEB=1: no se ejecutó el análisis con IA."
+                "Sin datos de enriquecimiento y DEEPSEEK_DISABLE_PERSON_WEB=1: no se ejecutó el análisis con IA."
             )
 
     gemini_md = normalize_person_report_text(gemini_md)

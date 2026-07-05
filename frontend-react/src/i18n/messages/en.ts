@@ -334,8 +334,8 @@ const messages = {
   "detail.person_refine_bullet_geo": "Country, region, or city",
   "detail.person_refine_cta": "New people search",
   "detail.enrichment_no_profiles":
-    "PDL returned no profiles: the report used your input and DeepSeek only. Add corporate email, LinkedIn, or regenerate.",
-  "detail.enrichment_profiles_found": "PDL matched {count} profile(s).",
+    "No additional information was found about this person. The report was built from your input. Add more details (work email, LinkedIn, company, role…) or double-check the full name for better accuracy.",
+  "detail.enrichment_profiles_found": "Public records matched {count} profile(s).",
   "detail.show_raw_json": "Show raw JSON",
   "detail.hide_raw_json": "Hide raw JSON",
   "detail.api_pipeline_sources": "Pipeline, sources & agents",

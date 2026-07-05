@@ -335,8 +335,8 @@ const messages = {
   "detail.person_refine_bullet_geo": "País, región o ciudad",
   "detail.person_refine_cta": "Nueva búsqueda de persona",
   "detail.enrichment_no_profiles":
-    "PDL no devolvió perfiles: el informe se basó en los datos del encargo y DeepSeek. Añade email corporativo, LinkedIn o regenera.",
-  "detail.enrichment_profiles_found": "PDL encontró {count} perfil(es).",
+    "No se encontró información adicional sobre esta persona. El informe se generó con los datos del encargo. Añade más información (email corporativo, LinkedIn, empresa, cargo…) o revisa que el nombre completo sea correcto para mayor exactitud.",
+  "detail.enrichment_profiles_found": "Se encontró información en registros públicos ({count} perfil/es).",
   "detail.show_raw_json": "Ver JSON en bruto",
   "detail.hide_raw_json": "Ocultar JSON en bruto",
   "detail.api_pipeline_sources": "Pipeline, fuentes y agentes",

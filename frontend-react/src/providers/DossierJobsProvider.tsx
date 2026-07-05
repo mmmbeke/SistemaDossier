@@ -154,7 +154,11 @@ function personJobHasPartialFailure(job: TrackedJob): boolean {
   if (!personResult.saved_dossier?.id) return false;
   const hasAnalysis = !!personResult.gemini_analysis_markdown?.trim();
   const criticalWarnings = (personResult.warnings ?? []).filter(
-    (w) => !w.includes("PDL encontró perfil"),
+    (w) =>
+      !w.includes("PDL encontró perfil") &&
+      !w.includes("encontró perfil") &&
+      !w.toLowerCase().includes("no se encontró información adicional") &&
+      !w.toLowerCase().includes("no se encontró perfil verificable"),
   );
   return !hasAnalysis || criticalWarnings.length > 0;
 }
@@ -164,7 +168,12 @@ function personJobWarning(job: TrackedJob): string | undefined {
     return undefined;
   }
   const warnings = (job.result as PersonResearchApiResponse).warnings ?? [];
-  return warnings.find((w) => !w.includes("PDL encontró perfil"));
+  return warnings.find(
+    (w) =>
+      !w.includes("PDL encontró perfil") &&
+      !w.includes("encontró perfil") &&
+      !w.toLowerCase().includes("no se encontró información adicional"),
+  );
 }
 
 function dossierHref(job: TrackedJob): string | null {

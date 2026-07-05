@@ -38,6 +38,12 @@ def _contact_key(profile: dict[str, Any]) -> str:
     return f"name:{name}|{comp}"
 
 
+WARN_NO_PERSON_ENRICHMENT = (
+    "No se encontró información adicional sobre esta persona. "
+    "Añade más información o revisa que el nombre completo sea correcto para mayor exactitud."
+)
+
+
 def fetch_pdl_profiles(
     req: PersonResearchRequest,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
@@ -139,25 +145,19 @@ def fetch_pdl_profiles(
     profiles = profiles[: req.max_profiles]
 
     if profiles:
-        li = (profiles[0].get("linkedin_urls") or [None])[0]
-        if li:
-            warnings.append(f"PDL encontró perfil (LinkedIn: {li}).")
-        else:
-            warnings.append("PDL encontró perfil (sin LinkedIn en respuesta).")
+        pass  # éxito: no añadir aviso en UI (profiles_count basta)
     elif attempts:
         failed = [a for a in attempts if "http_status" in a]
         if failed and all(a.get("http_status") in (401, 402) for a in failed):
             warnings.append(pdl_error_message(PdlApiError(int(failed[0]["http_status"]), str(failed[0].get("error") or ""))))
         elif failed and any(a.get("http_status") == 429 for a in failed):
-            warnings.append("PDL respondió 429 (límite de tasa). Espera y reintenta.")
+            warnings.append("Límite de solicitudes alcanzado. Espera un momento y reintenta.")
         else:
-            warnings.append(
-                "No se encontró perfil verificable. Prueba email corporativo, LinkedIn o acrónimo de empresa."
-            )
+            warnings.append(WARN_NO_PERSON_ENRICHMENT)
 
     if req.reveal_contact_details:
         warnings.append(
-            "PDL incluye email/teléfono en el match cuando existen; no hay paso «reveal» aparte."
+            "El email y teléfono se incluyen en el match cuando existen; no hay paso «reveal» aparte."
         )
 
     return profiles, attempts, warnings
