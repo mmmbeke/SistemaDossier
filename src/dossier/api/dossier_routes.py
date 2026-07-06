@@ -384,6 +384,7 @@ def get_dossier_by_id(
         "calendar_meeting": calendar_meeting_summary_from_dossier_data(
             d.dossier_data if isinstance(d.dossier_data, dict) else None,
             trigger_source=d.trigger_source,
+            tz_name=getattr(user, "timezone", None),
         ),
         "permissions": dossier_permissions_payload(
             db,
@@ -584,7 +585,8 @@ def list_dossiers_for_org(
         role=role,
     ).order_by(Dossier.created_at.desc()).limit(limit)
     rows = db.execute(stmt).scalars().all()
+    user_tz = getattr(user, "timezone", None) or "UTC"
     return {
         "organization_id": str(org.id),
-        "items": build_dossier_list_entries(rows),
+        "items": build_dossier_list_entries(rows, tz_name=user_tz),
     }

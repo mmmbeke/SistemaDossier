@@ -1,4 +1,7 @@
 /** Metadatos de reunión guardados en `dossier_data.calendar`. */
+import type { UserPreferences } from "@/i18n/types";
+import { formatCalendarMeetingInstant } from "@/lib/format";
+
 export type CalendarDossierMeta = {
   provider?: string;
   external_event_id?: string;
@@ -17,19 +20,6 @@ function readCalendarBlock(dossierData: unknown): CalendarDossierMeta | null {
   return cal as CalendarDossierMeta;
 }
 
-function formatMeetingStart(iso: string | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso.slice(0, 16);
-  return new Intl.DateTimeFormat(undefined, {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-}
-
 function stripMeetingDatetimeSuffix(label: string): string {
   const sep = " · ";
   const idx = label.lastIndexOf(sep);
@@ -42,26 +32,41 @@ function stripMeetingDatetimeSuffix(label: string): string {
   return label;
 }
 
-function buildMeetingLabelFromBlock(cal: CalendarDossierMeta): string | null {
+function buildMeetingLabelFromBlock(
+  cal: CalendarDossierMeta,
+  prefs?: Pick<UserPreferences, "locale" | "timezone">,
+): string | null {
+  const tema = cal.tema?.trim() || stripMeetingDatetimeSuffix(cal.meeting_label?.trim() || "");
+  if (!tema) return null;
+  if (prefs && cal.inicio?.trim()) {
+    const when = formatCalendarMeetingInstant(cal.inicio, prefs);
+    return when ? `${tema} · ${when}` : tema;
+  }
   const explicit = cal.meeting_label?.trim();
   if (explicit) return explicit;
-  const tema = cal.tema?.trim();
-  if (!tema) return null;
-  const when = formatMeetingStart(cal.inicio);
-  return when ? `${tema} · ${when}` : tema;
+  return tema;
 }
 
 /** Etiqueta legible de la reunión de calendario asociada al dossier. */
-export function getCalendarMeetingLabel(dossier: {
-  trigger_source?: string | null;
-  calendar_meeting?: string | null;
-  dossier_data?: unknown;
-}): string | null {
+export function getCalendarMeetingLabel(
+  dossier: {
+    trigger_source?: string | null;
+    calendar_meeting?: string | null;
+    dossier_data?: unknown;
+  },
+  prefs?: Pick<UserPreferences, "locale" | "timezone">,
+): string | null {
+  const source = (dossier.trigger_source || "").trim();
+  const cal = readCalendarBlock(dossier.dossier_data);
+
+  if (cal && prefs?.timezone) {
+    const rebuilt = buildMeetingLabelFromBlock(cal, prefs);
+    if (rebuilt) return rebuilt;
+  }
+
   const fromApi = dossier.calendar_meeting?.trim();
   if (fromApi) return fromApi;
 
-  const source = (dossier.trigger_source || "").trim();
-  const cal = readCalendarBlock(dossier.dossier_data);
   if (!cal && source !== "calendar") return null;
   if (!cal) return null;
 

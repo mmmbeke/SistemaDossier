@@ -20,8 +20,11 @@ export default function CalendarMeetingLabel({
   dossier_data,
   compact = false,
 }: Props) {
-  const { t } = useTranslation();
-  const label = getCalendarMeetingLabel({ trigger_source, calendar_meeting, dossier_data });
+  const { t, preferences } = useTranslation();
+  const label = getCalendarMeetingLabel(
+    { trigger_source, calendar_meeting, dossier_data },
+    preferences,
+  );
   if (!label) return null;
 
   const cal = readCalendarBlockFromData(dossier_data);

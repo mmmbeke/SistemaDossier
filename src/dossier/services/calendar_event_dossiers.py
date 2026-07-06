@@ -17,7 +17,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from dossier.db.models import Dossier
+from dossier.db.models import Dossier, User
 from dossier.billing.entitlements import corporate_dossier_module_flags, plan_allows_calendar_corporate_dossier
 from dossier.graphs.corporate_dossier_graph import JurisdictionScope, run_corporate_dossier_langgraph
 from dossier.cache.corporate_dossier_redis import (
@@ -907,31 +907,45 @@ def _person_failure_message(
     )
 
 
-def _format_meeting_datetime(inicio: str | None) -> str:
+def _format_meeting_datetime(inicio: str | None, tz_name: str | None = None) -> str:
     if not inicio:
         return ""
     raw = inicio.strip()
     try:
         normalized = raw.replace("Z", "+00:00")
         dt = datetime.fromisoformat(normalized)
-        if dt.tzinfo is not None:
-            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-        return dt.strftime("%d/%m/%Y %H:%M")
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        tz_key = (tz_name or "UTC").strip() or "UTC"
+        try:
+            from zoneinfo import ZoneInfo
+
+            local = dt.astimezone(ZoneInfo(tz_key))
+        except Exception:
+            local = dt.astimezone(timezone.utc)
+        return local.strftime("%d/%m/%Y %H:%M")
     except ValueError:
         return raw[:16]
 
 
-def build_calendar_meeting_label(reunion: dict[str, Any]) -> str:
-    """Etiqueta legible de la reunión (asunto + fecha/hora)."""
+def build_calendar_meeting_label(
+    reunion: dict[str, Any],
+    tz_name: str | None = None,
+) -> str:
+    """Etiqueta legible de la reunión (asunto + fecha/hora en zona del usuario)."""
     tema = (reunion.get("tema") or "").strip() or "Reunión"
-    when = _format_meeting_datetime(reunion.get("inicio"))
+    when = _format_meeting_datetime(reunion.get("inicio"), tz_name)
     if when:
         return f"{tema} · {when}"
     return tema
 
 
-def _calendar_meta(reunion: dict[str, Any], provider: str) -> dict[str, Any]:
-    meeting_label = build_calendar_meeting_label(reunion)
+def _calendar_meta(
+    reunion: dict[str, Any],
+    provider: str,
+    tz_name: str | None = None,
+) -> dict[str, Any]:
+    meeting_label = build_calendar_meeting_label(reunion, tz_name)
     return {
         "provider": provider,
         "external_event_id": reunion.get("id"),
@@ -947,6 +961,7 @@ def calendar_meeting_summary_from_dossier_data(
     dossier_data: dict[str, Any] | None,
     *,
     trigger_source: str | None = None,
+    tz_name: str | None = None,
 ) -> str | None:
     """Etiqueta de reunión para listados (nuevos y dossiers ya guardados)."""
     if (trigger_source or "").strip() != "calendar":
@@ -955,15 +970,18 @@ def calendar_meeting_summary_from_dossier_data(
     cal = data.get("calendar")
     if not isinstance(cal, dict):
         return None
-    label = cal.get("meeting_label")
-    if isinstance(label, str) and label.strip():
-        return label.strip()[:255]
     reunion = {
         "tema": cal.get("tema"),
         "inicio": cal.get("inicio"),
     }
-    built = build_calendar_meeting_label(reunion)
-    return built[:255] if built else None
+    if reunion.get("tema") or reunion.get("inicio"):
+        built = build_calendar_meeting_label(reunion, tz_name)
+        if built:
+            return built[:255]
+    label = cal.get("meeting_label")
+    if isinstance(label, str) and label.strip():
+        return label.strip()[:255]
+    return None
 
 
 def persist_calendar_dossiers(
@@ -984,7 +1002,9 @@ def persist_calendar_dossiers(
     """
     parsed = result.get("parse") or {}
     reunion = result.get("reunion") or {}
-    cal = _calendar_meta(reunion, calendar_provider)
+    user_row = db.get(User, user_id) if user_id else None
+    user_tz = getattr(user_row, "timezone", None) if user_row else None
+    cal = _calendar_meta(reunion, calendar_provider, user_tz)
     now = datetime.now(timezone.utc)
     saved: dict[str, Any] = {}
     folder_id = uuid.uuid4()

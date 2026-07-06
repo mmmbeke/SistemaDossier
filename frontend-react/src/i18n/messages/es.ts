@@ -322,6 +322,7 @@ const messages = {
   "detail.api_no_subject": "Sin nombre",
   "detail.api_dates": "Creado {created} · Actualizado {updated}",
   "detail.cache_badge": "Redis · prueba",
+  "detail.output_language_badge": "Informe en {language}",
   "detail.api_report_title": "Informe generado por IA",
   "detail.api_no_body": "No hay cuerpo de informe guardado para este dossier.",
   "detail.api_meta_title": "Metadatos de generación",
