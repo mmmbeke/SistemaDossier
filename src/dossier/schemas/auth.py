@@ -111,6 +111,23 @@ class ForgotPasswordResponse(BaseModel):
     ok: Literal[True] = True
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class ChangeEmailRequest(BaseModel):
+    new_email: EmailStr
+    current_password: str = Field(min_length=1, max_length=128)
+
+
+class DeleteAccountRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    confirm: Literal["DELETE"] = Field(
+        description="Escribe DELETE para confirmar la eliminación irreversible."
+    )
+
+
 class UserPreferencesPatch(BaseModel):
     """Cuerpo PATCH /auth/me/preferences — idioma de interfaz y salida de dossiers."""
 

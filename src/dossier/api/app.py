@@ -1098,7 +1098,7 @@ def api_generar_dossiers_desde_calendario(
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db_if_configured),
 ):
-    """Empresa (asunto) → Companies House / SEC; persona (descripción) → Lusha."""
+    """Empresa (asunto) → Companies House / SEC; persona (descripción) → PDL + DeepSeek."""
     user, org = ctx.user, ctx.org
     org_ctx = format_dossier_context_for_prompt(org)
     token = _graph_token_for_calendar_route(db, authorization, access_token)
@@ -1219,7 +1219,7 @@ def api_generar_dossiers_desde_google_calendar(
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db_if_configured),
 ):
-    """Empresa (asunto) → Companies House / SEC; persona (descripción) → Lusha."""
+    """Empresa (asunto) → Companies House / SEC; persona (descripción) → PDL + DeepSeek."""
     user, org = ctx.user, ctx.org
     org_ctx = format_dossier_context_for_prompt(org)
     token = _google_token_for_calendar_route(db, authorization, access_token)

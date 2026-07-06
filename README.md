@@ -1,6 +1,6 @@
 # Sistema Dossier
 
-Backend **FastAPI**, consultas **Companies House** y **SEC EDGAR**, análisis con **Gemini**, calendario **Microsoft Graph** y conexión opcional a **PostgreSQL**.
+Backend **FastAPI**, consultas **Companies House** y **SEC EDGAR**, síntesis con **DeepSeek**, enriquecimiento de personas con **People Data Labs (PDL)**, calendario **Microsoft Graph / Google** y **PostgreSQL**.
 
 ## Estructura (resumen)
 
@@ -8,10 +8,11 @@ Backend **FastAPI**, consultas **Companies House** y **SEC EDGAR**, análisis co
 |-----------|-----------|
 | **`main.py`** | Arranque del servidor (`uvicorn`) |
 | **`src/dossier/api/app.py`** | Rutas HTTP (FastAPI) |
-| **`src/dossier/services/`** | Calendario Graph + dossier ejecutivo (LangGraph + Gemini) |
+| **`src/dossier/services/`** | Calendario, dossiers, personas (PDL + DeepSeek), organizaciones |
 | **`src/dossier/graphs/`** | Grafo LangGraph (agentes UK/US en paralelo → síntesis) |
 | **`src/dossier/db/`** | PostgreSQL |
-| **`src/dossier/gemini/`** | Análisis de archivos con Gemini |
+| **`src/dossier/gemini/`** | Shim de compatibilidad → `llm/` (DeepSeek) |
+| **`src/dossier/llm/`** | Cliente DeepSeek y utilidades de informes |
 | **`src/dossier/companies_house/`** | CLI Reino Unido |
 | **`src/dossier/sec_edgar/`** | CLI Estados Unidos |
 | **`scripts/`** | Entradas `companies_house.py`, `sec_edgar.py` |
@@ -56,7 +57,9 @@ python scripts/sec_edgar.py
 | Variable | Uso |
 |----------|-----|
 | `COMPANIES_HOUSE_API_KEY` | API Companies House |
-| `GEMINI_API_KEY` | Síntesis del dossier (LangGraph) y análisis de archivos en CLIs |
+| `DEEPSEEK_API_KEY` | Síntesis del dossier corporativo e informes de persona |
+| `PDL_API_KEY` | Enriquecimiento de personas (People Data Labs) |
+| `GEMINI_API_KEY` | Análisis de archivos en CLIs SEC / Companies House |
 | `OPENAI_API_KEY` | Solo si activas `DOSSIER_LEGACY_OPENAI=1` (dossier sin LangGraph) |
 | `MICROSOFT_*` | Login Outlook / Graph |
 | `DATABASE_URL` o `POSTGRES_*` | Base de datos (opcional) |

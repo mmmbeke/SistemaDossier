@@ -37,7 +37,10 @@ def pdl_error_message(err: PdlApiError) -> str:
     if err.status == 401:
         return "PDL respondió 401: revisa PDL_API_KEY en `.env`."
     if err.status == 402:
-        return "PDL respondió 402: créditos agotados o pago requerido en tu cuenta."
+        return (
+            "PDL: créditos de enriquecimiento agotados. "
+            "Se intentó búsqueda alternativa; si no hay resultados, recarga créditos en tu cuenta PDL."
+        )
     if err.status == 429:
         return "PDL respondió 429 (límite de tasa). Espera y reintenta."
     return f"PDL HTTP {err.status}: {(err.body or '')[:280]}"

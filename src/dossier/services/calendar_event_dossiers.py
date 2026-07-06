@@ -43,6 +43,9 @@ from dossier.services.person_research_config import default_person_research_sour
 from dossier.services.person_dossier_dedup import (
     person_research_fingerprint,
     person_research_response_from_redis_cache,
+    person_research_cache_payload_from_result,
+    profiles_count_from_research_result,
+    should_cache_person_research_result,
 )
 from dossier.services.output_language import normalize_output_language
 from dossier.utils.html_text import strip_html_to_plain_line, strip_html_to_text
@@ -64,12 +67,6 @@ from dossier.services.calendar_meeting_labels import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _lusha_calendar_reveal_contacts() -> bool:
-    """Revelar email/teléfono Lusha al generar desde calendario (consume créditos Lusha)."""
-    raw = os.getenv("LUSHA_CALENDAR_REVEAL_CONTACTS", "1").strip().lower()
-    return raw in ("1", "true", "yes", "on")
 
 
 _SUBJECT_PREFIX = re.compile(
@@ -615,12 +612,16 @@ def _person_research_from_cache_or_pipeline(
             )
             result = nr
             md_new = (nr.get("gemini_analysis_markdown") or "").strip()
-            if md_new and not md_new.lstrip().startswith("# Error"):
+            if should_cache_person_research_result(
+                nr,
+                gemini_only=req.research_source == PersonResearchSource.gemini_web,
+            ):
                 set_person_cached_payload(
                     fp,
                     {
                         "markdown": md_new,
                         "gemini_google_search_used": nr.get("gemini_google_search_used"),
+                        **person_research_cache_payload_from_result(nr),
                     },
                 )
             cache_hit = False
@@ -631,8 +632,7 @@ def _person_research_from_cache_or_pipeline(
         result = person_research_response_from_redis_cache(
             req,
             organization_context_block=organization_context_block,
-            markdown=str(cached_payload.get("markdown") or ""),
-            gemini_google_search_used=cached_payload.get("gemini_google_search_used"),
+            cached_payload=cached_payload,
         )
 
     redis_key = person_cache_redis_key(fp) if cache_hit else None
@@ -1144,7 +1144,7 @@ def persist_calendar_dossiers(
             if isinstance(fa, dict) and fa.get("research_source"):
                 person_research_source = str(fa["research_source"])
             lusha_diag = {
-                "profiles_count": len(p_payload.get("profiles") or []),
+                "profiles_count": profiles_count_from_research_result(p_payload),
                 "profile_urls": p_payload.get("profile_urls") or [],
                 "warnings": p_payload.get("warnings") or [],
                 "gemini_google_search_used": p_payload.get("gemini_google_search_used"),

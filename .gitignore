@@ -35,6 +35,10 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Scripts de prueba privados y artefactos i18n generados
+scripts/_*.py
+scripts/i18n-missing-*.json
+
 # Playwright / tests E2E (frontend-react)
 .playwright-browsers/
 playwright-report/

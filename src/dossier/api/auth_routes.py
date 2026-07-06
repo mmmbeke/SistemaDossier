@@ -36,6 +36,9 @@ from dossier.api_errors import INVITES_WORKSPACE_ONLY, OrgApiError, org_api_http
 from dossier.org_email_domain import ensure_org_email_domain
 from dossier.org_workspace import ORG_NAME_PERSONAL_PLACEHOLDER, read_workspace_kind
 from dossier.schemas.auth import (
+    ChangeEmailRequest,
+    ChangePasswordRequest,
+    DeleteAccountRequest,
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     LoginRequest,
@@ -82,6 +85,11 @@ from dossier.services.org_membership_service import (
     list_org_members_for_management,
     remove_org_member,
     update_org_member_role,
+)
+from dossier.services.account_service import (
+    change_user_email,
+    change_user_password,
+    delete_user_account,
 )
 
 router = APIRouter(prefix="/auth", tags=["Autenticación app"])
@@ -737,6 +745,63 @@ def read_current_user(
 ) -> UserPublic:
     org_id = _org_id_from_authorization(authorization)
     return build_user_public(db, user, organization_id=org_id)
+
+
+@router.patch("/me/password", status_code=204)
+def patch_my_password(
+    body: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_if_configured),
+) -> None:
+    change_user_password(
+        db,
+        user=user,
+        current_password=body.current_password,
+        new_password=body.new_password,
+    )
+
+
+@router.patch("/me/email", response_model=TokenResponse)
+def patch_my_email(
+    body: ChangeEmailRequest,
+    authorization: Annotated[str | None, Header()] = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_if_configured),
+) -> TokenResponse:
+    updated = change_user_email(
+        db,
+        user=user,
+        new_email=str(body.new_email),
+        current_password=body.current_password,
+    )
+    org_id = _org_id_from_authorization(authorization)
+    pair = (
+        load_membership_for_org(db, updated.id, org_id)
+        if org_id is not None
+        else None
+    ) or load_session_membership(db, updated.id)
+    if pair is None:
+        raise HTTPException(status_code=500, detail="Usuario sin membresía de organización.")
+    org, membership = pair
+    token = create_access_token(
+        user_id=str(updated.id),
+        email=updated.email,
+        organization_id=str(org.id),
+        role=membership.role,
+    )
+    return TokenResponse(
+        access_token=token,
+        user=build_user_public(db, updated, org.id),
+    )
+
+
+@router.delete("/me", status_code=204)
+def delete_my_account(
+    body: DeleteAccountRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_if_configured),
+) -> None:
+    delete_user_account(db, user=user, current_password=body.current_password)
 
 
 @router.get("/me/pending-invites", response_model=OrgPendingInvitesResponse)

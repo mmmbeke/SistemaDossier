@@ -1,9 +1,8 @@
 """
 Informe de persona con DeepSeek (sin búsqueda web en vivo).
 
-Cuando Lusha no devuelve perfiles o no está disponible, el modelo redacta
-el informe a partir del encargo, contexto de reunión y conocimiento público
-del modelo (sin grounding Google Search).
+Cuando PDL no devuelve perfiles, el modelo redacta el informe a partir del encargo
+y del conocimiento del modelo (sin grounding en buscadores externos).
 """
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Variantes de nombre de empresa para búsqueda Lusha (v3)."""
+"""Variantes de nombre de empresa para búsqueda PDL y contexto de persona."""
 from __future__ import annotations
 
 import re
@@ -48,7 +48,7 @@ def email_to_company_domain(email: str | None) -> str | None:
 
 def company_search_variants(company: str | None) -> list[str]:
     """
-    Genera alias de empresa para Lusha (companyName).
+    Genera alias de empresa para búsquedas PDL.
 
     - Texto entre paréntesis: «Universidad X (UTEM)» → UTEM
     - Sin sufijos legales: «Nvidia CORP» → Nvidia
