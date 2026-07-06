@@ -12,8 +12,7 @@ import {
   readDossierUserPreview,
   writeDossierUserPreview,
 } from "@/lib/dossier-api";
-import { useTranslation, usePreferences } from "@/providers/PreferencesProvider";
-import { LOCALE_LABELS, SUPPORTED_LOCALES, type Locale } from "@/i18n/types";
+import { useTranslation } from "@/providers/PreferencesProvider";
 import { useAuthMe, AUTH_ME_CHANGED_EVENT } from "@/hooks/useAuthMe";
 import { normalizePlanTier, planAllowsCorporateDossier, planTierLabel } from "@/lib/plans";
 import type { TranslationKey } from "@/i18n/types";
@@ -149,7 +148,6 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useTranslation();
-  const { preferences, setLocale } = usePreferences();
   const { canMutate, user } = useAuthMe();
   const showCorporateNav = planAllowsCorporateDossier(normalizePlanTier(user?.organization_plan));
   const [footer, setFooter] = useState<FooterProfile | null>(null);
@@ -370,39 +368,6 @@ export default function Sidebar() {
               boxShadow: "0 -8px 24px rgba(0,0,0,0.35)",
             }}
           >
-            <p
-              className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide"
-              style={{ color: "var(--text-subtle)" }}
-            >
-              {t("settings.display_language")}
-            </p>
-            {SUPPORTED_LOCALES.map((loc) => {
-              const active = preferences.locale === loc;
-              return (
-                <button
-                  key={loc}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={active}
-                  className="flex w-full px-3 py-2 text-left text-sm transition ui-hover-surface"
-                  style={{
-                    color: active ? "var(--accent-from)" : "var(--text-primary)",
-                    fontWeight: active ? 600 : 400,
-                  }}
-                  onClick={() => {
-                    setLocale(loc as Locale);
-                    setMenuOpen(false);
-                  }}
-                >
-                  {LOCALE_LABELS[loc]}
-                  {active ? " ✓" : ""}
-                </button>
-              );
-            })}
-            <div
-              className="my-1 border-t"
-              style={{ borderColor: "var(--border-subtle)" }}
-            />
             <button
               type="button"
               role="menuitem"
