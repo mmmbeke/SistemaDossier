@@ -61,7 +61,7 @@ export type MeetingTimeDisplay = {
   isPast: boolean;
 };
 
-function parseMeetingInstant(iso: string | undefined): Date | null {
+export function parseMeetingInstant(iso: string | undefined): Date | null {
   if (!iso?.trim()) return null;
   let s = iso.trim();
   // Outlook/Graph puede enviar UTC sin sufijo "Z"; sin zona el navegador usa hora local.
@@ -143,4 +143,21 @@ export function formatMeetingTimeRange(
   const fullLabel = end ? `${fullStart} – ${timeFmt.format(end)}` : fullStart;
 
   return { dayKey, dayLabel, timeLabel, fullLabel, isPast };
+}
+
+/** Fecha y hora de reunión en la zona horaria del usuario (p. ej. dossier de calendario). */
+export function formatCalendarMeetingInstant(
+  iso: string | undefined,
+  prefs: Pick<UserPreferences, "locale" | "timezone">,
+): string {
+  const start = parseMeetingInstant(iso);
+  if (!start) return (iso || "").slice(0, 16);
+  return new Intl.DateTimeFormat(intlLocale(prefs.locale), {
+    timeZone: prefs.timezone || "UTC",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(start);
 }

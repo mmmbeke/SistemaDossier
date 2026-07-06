@@ -321,6 +321,7 @@ const messages = {
   "detail.api_no_subject": "Unnamed subject",
   "detail.api_dates": "Created {created} · Updated {updated}",
   "detail.cache_badge": "Redis · test",
+  "detail.output_language_badge": "Report in {language}",
   "detail.api_report_title": "AI-generated report",
   "detail.api_no_body": "No report was stored for this dossier.",
   "detail.api_meta_title": "Generation metadata",

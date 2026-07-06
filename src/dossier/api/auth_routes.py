@@ -681,6 +681,9 @@ def switch_active_organization(
         raise HTTPException(status_code=404, detail="Organización no disponible.")
 
     _clear_and_set_primary_org(db, user.id, org.id)
+    from dossier.services.org_membership_service import sync_calendar_integrations_org
+
+    sync_calendar_integrations_org(db, user_id=user.id, organization_id=org.id)
     db.commit()
     db.refresh(user)
 
