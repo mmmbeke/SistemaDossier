@@ -462,6 +462,9 @@ const messages = {
     "Collega il calendario per elencare le riunioni imminenti con la sessione Dossier (nessun token Microsoft nel browser).",
   "overview.calendar_disconnect": "Disconnetti",
   "overview.calendar_connected_no_email": "Account collegato (email non disponibile)",
+  "overview.calendar_email_show": "Mostra email",
+  "overview.calendar_email_hide": "Nascondi email",
+  "overview.calendar_network_retry": "Impossibile raggiungere il server. Aggiorna per riprovare.",
   "overview.calendar_disconnecting": "Disconnessione…",
   "overview.calendar_disconnect_server":
     "Il server non ha caricato la funzione di disconnessione. Riavvia il backend (Ctrl+C, poi python main.py).",

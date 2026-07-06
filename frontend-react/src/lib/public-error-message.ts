@@ -43,8 +43,12 @@ function fallbackKey(context: PublicErrorContext): TranslationKey {
   }
 }
 
+/** Mensajes benignos (red, sin sesión) que no merecen registro. */
+const BENIGN_MESSAGES = new Set(["NETWORK", "Not Found", ""]);
+
 /**
- * Registra el mensaje real en consola y devuelve un texto genérico traducido para la UI.
+ * Registra el mensaje real en consola (como warn, para no disparar el overlay de
+ * error de Next en desarrollo) y devuelve un texto genérico traducido para la UI.
  */
 export function toPublicErrorMessage(
   raw: string | null | undefined,
@@ -54,8 +58,10 @@ export function toPublicErrorMessage(
   const msg = raw?.trim() ?? "";
   if (!msg) return t(fallbackKey(context));
 
-  const logFn = context === "warning" ? console.warn : console.error;
-  logFn(`[SistemaDossier:${context}]`, msg);
+  if (!BENIGN_MESSAGES.has(msg)) {
+    // console.warn no dispara el overlay rojo de Next.js dev; sigue visible en la consola.
+    console.warn(`[SistemaDossier:${context}]`, msg);
+  }
 
   return t(fallbackKey(context));
 }

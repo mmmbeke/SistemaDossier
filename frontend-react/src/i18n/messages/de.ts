@@ -465,6 +465,9 @@ const messages = {
     "Kalender verbinden, um anstehende Meetings mit Ihrer Dossier-Sitzung anzuzeigen (kein Microsoft-Token im Browser).",
   "overview.calendar_disconnect": "Abmelden",
   "overview.calendar_connected_no_email": "Verbundenes Konto (E-Mail nicht verfügbar)",
+  "overview.calendar_email_show": "E-Mail anzeigen",
+  "overview.calendar_email_hide": "E-Mail ausblenden",
+  "overview.calendar_network_retry": "Server nicht erreichbar. Zum erneuten Versuch aktualisieren.",
   "overview.calendar_disconnecting": "Abmeldung…",
   "overview.calendar_disconnect_server":
     "Der Server hat die Trennfunktion nicht geladen. Backend neu starten (Strg+C, dann python main.py).",

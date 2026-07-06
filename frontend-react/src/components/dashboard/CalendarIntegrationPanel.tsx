@@ -51,6 +51,33 @@ const I18N: Record<
   },
 };
 
+function maskEmail(email: string): string {
+  const at = email.indexOf("@");
+  if (at <= 0) return "••••••••";
+  const local = email.slice(0, at);
+  const domain = email.slice(at);
+  if (local.length <= 1) return `•${domain}`;
+  const hidden = "•".repeat(Math.min(Math.max(local.length - 1, 4), 10));
+  return `${local[0]}${hidden}${domain}`;
+}
+
+function EyeIcon({ open }: { open: boolean }) {
+  if (open) {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden>
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden>
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  );
+}
+
 export default function CalendarIntegrationPanel({ provider, embedded = false }: Props) {
   const { t } = useTranslation();
   const keys = I18N[provider];
@@ -61,6 +88,7 @@ export default function CalendarIntegrationPanel({ provider, embedded = false }:
   const [err, setErr] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [emailVisible, setEmailVisible] = useState(false);
 
   const checkConnection = useCallback(async () => {
     if (!getStoredAccessToken()) {
@@ -78,6 +106,7 @@ export default function CalendarIntegrationPanel({ provider, embedded = false }:
       if (row) {
         setConnected(true);
         setAccountEmail(row.email?.trim() || null);
+        setEmailVisible(false);
       } else {
         setConnected(false);
         setAccountEmail(null);
@@ -87,8 +116,11 @@ export default function CalendarIntegrationPanel({ provider, embedded = false }:
     } catch (e) {
       setConnected(false);
       setAccountEmail(null);
-      if (e instanceof DossierApiError && e.status === 404) {
+      if (e instanceof DossierApiError && (e.status === 404 || e.status === 401)) {
         setErr(t(keys.noConnection));
+      } else if (e instanceof DossierApiError && e.status === 0) {
+        // Fallo de red / API caída: mensaje neutro de reintento, sin overlay de error.
+        setErr(t("overview.calendar_network_retry"));
       } else if (e instanceof DossierApiError) {
         setErr(translateApiErrorMessage(e, t) || t(keys.error));
       } else {
@@ -172,13 +204,29 @@ export default function CalendarIntegrationPanel({ provider, embedded = false }:
                 {t(keys.connected)}
               </span>
               {accountEmail ? (
-                <span
-                  className="truncate text-xs font-medium sm:text-sm"
-                  style={{ color: "var(--text-primary)" }}
-                  title={accountEmail}
-                >
-                  {accountEmail}
-                </span>
+                <div className="flex min-w-0 items-center gap-1">
+                  <span
+                    className="min-w-0 flex-1 truncate text-xs font-medium sm:text-sm"
+                    style={{ color: "var(--text-primary)" }}
+                    title={emailVisible ? accountEmail : undefined}
+                  >
+                    {emailVisible ? accountEmail : maskEmail(accountEmail)}
+                  </span>
+                  <button
+                    type="button"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition hover:bg-[var(--hover-overlay)]"
+                    style={{ color: "var(--text-muted)" }}
+                    aria-label={
+                      emailVisible
+                        ? t("overview.calendar_email_hide")
+                        : t("overview.calendar_email_show")
+                    }
+                    aria-pressed={emailVisible}
+                    onClick={() => setEmailVisible((v) => !v)}
+                  >
+                    <EyeIcon open={emailVisible} />
+                  </button>
+                </div>
               ) : (
                 <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                   {t("overview.calendar_connected_no_email")}

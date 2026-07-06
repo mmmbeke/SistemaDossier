@@ -528,6 +528,9 @@ const messages = {
     "Connect your calendar to list upcoming meetings using your Dossier session (no Microsoft token in the browser).",
   "overview.calendar_disconnect": "Sign out",
   "overview.calendar_connected_no_email": "Connected account (email not available)",
+  "overview.calendar_email_show": "Show email",
+  "overview.calendar_email_hide": "Hide email",
+  "overview.calendar_network_retry": "Could not reach the server. Refresh to try again.",
   "overview.calendar_disconnecting": "Signing out…",
   "overview.calendar_disconnect_server":
     "The server does not have the disconnect feature loaded. Restart the backend (Ctrl+C, then python main.py).",
