@@ -765,7 +765,7 @@ const messages = {
   "dossiers.viewer_readonly_hint":
     "Tienes acceso de solo lectura. No puedes generar, editar ni eliminar dossiers.",
   "dossiers.viewer_list_hint":
-    "Solo ves dossiers compartidos contigo o creados por ti. No puedes crear ni eliminar.",
+    "Solo ves dossiers compartidos contigo. No puedes crear ni eliminar.",
   "rbac.viewer_blocked_title": "Acceso de solo lectura",
   "rbac.viewer_blocked_hint":
     "Tu rol viewer no permite usar esta sección. Puedes consultar dossiers compartidos contigo.",

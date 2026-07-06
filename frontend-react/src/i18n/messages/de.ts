@@ -654,7 +654,7 @@ const messages = {
   "dossiers.viewer_readonly_hint":
     "Sie haben nur Lesezugriff. Sie können keine Dossiers erstellen, bearbeiten oder löschen.",
   "dossiers.viewer_list_hint":
-    "Sie sehen nur mit Ihnen geteilte oder eigene Dossiers. Erstellen und Löschen ist nicht möglich.",
+    "Sie sehen nur mit Ihnen geteilte Dossiers. Erstellen und Löschen ist nicht möglich.",
   "dossiers.deleting": "Löschen…",
   "dossiers.folder_one_dossier": "Dossier",
   "dossiers.folder_n_dossiers": "Dossiers",

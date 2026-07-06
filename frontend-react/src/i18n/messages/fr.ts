@@ -652,7 +652,7 @@ const messages = {
   "dossiers.viewer_readonly_hint":
     "Vous avez un accès en lecture seule. Vous ne pouvez pas générer, modifier ou supprimer des dossiers.",
   "dossiers.viewer_list_hint":
-    "Vous ne voyez que les dossiers partagés avec vous ou dont vous êtes propriétaire. Création et suppression impossibles.",
+    "Vous ne voyez que les dossiers partagés avec vous. Création et suppression impossibles.",
   "dossiers.deleting": "Suppression…",
   "dossiers.folder_one_dossier": "dossier",
   "dossiers.folder_n_dossiers": "dossiers",

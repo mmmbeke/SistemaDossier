@@ -762,7 +762,7 @@ const messages = {
   "dossiers.viewer_readonly_hint":
     "You have read-only access. You cannot generate, edit, or delete dossiers.",
   "dossiers.viewer_list_hint":
-    "You only see dossiers shared with you or owned by you. You cannot create or delete.",
+    "You only see dossiers shared with you. You cannot create or delete.",
   "rbac.viewer_blocked_title": "Read-only access",
   "rbac.viewer_blocked_hint":
     "Your viewer role cannot use this section. You can browse dossiers shared with you.",

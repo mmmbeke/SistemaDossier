@@ -648,7 +648,7 @@ const messages = {
   "dossiers.viewer_readonly_hint":
     "Hai accesso in sola lettura. Non puoi generare, modificare o eliminare dossier.",
   "dossiers.viewer_list_hint":
-    "Vedi solo dossier condivisi con te o di tua proprietà. Non puoi crearne o eliminarne.",
+    "Vedi solo dossier condivisi con te. Non puoi crearne o eliminarne.",
   "dossiers.deleting": "Eliminazione…",
   "dossiers.folder_one_dossier": "dossier",
   "dossiers.folder_n_dossiers": "dossier",

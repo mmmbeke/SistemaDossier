@@ -595,7 +595,7 @@ const messages = {
   "dossiers.share_empty": "Este dossiê não está partilhado com mais ninguém.",
   "dossiers.viewer_readonly_hint": "Tem acesso só de leitura. Não pode gerar, editar ou eliminar dossiês.",
   "dossiers.viewer_list_hint":
-    "Só vê dossiês partilhados consigo ou da sua propriedade. Não pode criar nem eliminar.",
+    "Só vê dossiês partilhados consigo. Não pode criar nem eliminar.",
   "dossiers.deleting": "A eliminar…",
   "dossiers.folder_one_dossier": "dossiê",
   "dossiers.folder_n_dossiers": "dossiês",
