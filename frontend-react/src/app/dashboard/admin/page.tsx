@@ -18,6 +18,7 @@ import {
 } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
+import { formatDossierStatusLabel } from "@/lib/dossier-list-utils";
 
 function fmtDate(iso: string | null, locale: string): string {
   if (!iso) return "—";
@@ -326,7 +327,7 @@ export default function AdminDashboardPage() {
               <thead style={{ backgroundColor: "var(--bg-surface-strong)" }}>
                 <tr>
                   <th className="px-3 py-2 font-medium">{t("admin.col_org")}</th>
-                  <th className="px-3 py-2 font-medium">{t("admin.col_slug")}</th>
+                  <th className="px-3 py-2 font-medium">{t("admin.col_org_url")}</th>
                   <th className="px-3 py-2 font-medium">{t("admin.col_plan")}</th>
                   <th className="px-3 py-2 font-medium">{t("admin.col_credits")}</th>
                   <th className="px-3 py-2 font-medium">{t("admin.col_limit")}</th>
@@ -382,7 +383,7 @@ export default function AdminDashboardPage() {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">{d.requested_by_email}</td>
                     <td className="px-3 py-2">{d.subject_name || d.subject_email || "—"}</td>
-                    <td className="px-3 py-2">{d.status}</td>
+                    <td className="px-3 py-2">{formatDossierStatusLabel(d.status, t)}</td>
                     <td className="px-3 py-2 tabular-nums">{d.credits_consumed}</td>
                   </tr>
                 ))}

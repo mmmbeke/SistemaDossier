@@ -19,7 +19,7 @@ import type {
   TranslationKey,
   UserPreferences,
 } from "@/i18n/types";
-import { DEFAULT_PREFERENCES } from "@/i18n/types";
+import { DEFAULT_PREFERENCES, normalizeAppLocale } from "@/i18n/types";
 import { applyTheme } from "@/lib/theme";
 import {
   authUserToPreferencesPatch,
@@ -55,6 +55,7 @@ function loadPreferences(): UserPreferences {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const merged = { ...DEFAULT_PREFERENCES, ...JSON.parse(raw) } as UserPreferences;
+      merged.locale = normalizeAppLocale(merged.locale);
       if (merged.timezoneFollowSystem === undefined) {
         merged.timezoneFollowSystem = false;
       }
@@ -124,7 +125,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const hydrateFromAuthUser = useCallback((me: AuthUser) => {
     if (serverHydratedRef.current) return;
     const serverPatch = authUserToPreferencesPatch(me);
-    const serverLocale = (me.locale || "es").trim();
+    const serverLocale = normalizeAppLocale(me.locale);
     const serverOut = (me.dossier_output_language || "match").trim();
     const serverTimezone = (me.timezone || "UTC").trim();
     const serverExpiry =
@@ -137,12 +138,17 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       (serverExpiry === "30" || serverExpiry === "never");
 
     setPreferences((prev) => {
+      const localLocale = normalizeAppLocale(prev.locale);
       const localDiffersFromServerDefaults =
-        prev.locale !== "es" || prev.outputLanguage !== "match";
+        localLocale !== "es" || prev.outputLanguage !== "match";
+      const keepLocalLocale =
+        localLocale !== "es" && serverLocale === "es";
       const next =
         serverIsDefault && localDiffersFromServerDefaults
-          ? prev
-          : { ...prev, ...serverPatch };
+          ? { ...prev, locale: localLocale }
+          : keepLocalLocale
+            ? { ...prev, ...serverPatch, locale: localLocale }
+            : { ...prev, ...serverPatch, locale: normalizeAppLocale(serverPatch.locale ?? prev.locale) };
       // Clave del servidor: si local ≠ servidor, el efecto de sync hará PATCH.
       lastPushedRef.current = JSON.stringify({
         locale: serverLocale,
@@ -206,7 +212,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       t,
       locale: preferences.locale,
       setTheme: (theme) => updatePreferences({ theme }),
-      setLocale: (locale) => updatePreferences({ locale }),
+      setLocale: (locale) => updatePreferences({ locale: normalizeAppLocale(locale) }),
       setTimezone: (timezone, followSystem) =>
         updatePreferences({
           timezone,

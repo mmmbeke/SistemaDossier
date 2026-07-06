@@ -18,11 +18,11 @@ import {
   type CalendarSavedDossierRef,
   type OutlookReunionApi,
 } from "@/lib/dossier-api";
+import { calendarUiLabels } from "@/i18n/calendar-ui-labels";
 import { formatMeetingTimeRange } from "@/lib/format";
 import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
-import type { TranslationKey } from "@/i18n/types";
 
 type MeetingRow = OutlookReunionApi & { provider: CalendarProvider };
 
@@ -68,8 +68,9 @@ export default function CalendarMeetingsList({
   showProviderConnections = false,
   top = 20,
 }: Props) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { preferences, effectiveTimezone } = usePreferences();
+  const ui = useMemo(() => calendarUiLabels(locale), [locale]);
   const { enqueueCalendarJob, isEventGenerating, getJobForEvent } = useDossierJobs();
 
   const [googleConnected, setGoogleConnected] = useState(false);
@@ -217,7 +218,7 @@ export default function CalendarMeetingsList({
 
   const anyConnected = googleConnected || outlookConnected;
   const token = typeof window !== "undefined" ? getStoredAccessToken() : null;
-  const allDayLabel = t("overview.calendar_all_day");
+  const allDayLabel = ui.allDay;
 
   const filteredMeetings = useMemo(() => {
     if (providerFilter === "all") return meetings;
@@ -241,11 +242,14 @@ export default function CalendarMeetingsList({
     return [...map.entries()];
   }, [filteredMeetings, timePrefs, allDayLabel]);
 
-  const filterButtons: { id: ProviderFilter; labelKey: TranslationKey }[] = [
-    { id: "all", labelKey: "overview.calendar_filter_all" },
-    { id: "microsoft", labelKey: "overview.calendar_filter_outlook" },
-    { id: "google", labelKey: "overview.calendar_filter_google" },
-  ];
+  const filterButtons = useMemo(
+    (): { id: ProviderFilter; label: string }[] => [
+      { id: "all", label: ui.filterAll },
+      { id: "microsoft", label: ui.filterOutlook },
+      { id: "google", label: ui.filterGoogle },
+    ],
+    [ui],
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -294,7 +298,7 @@ export default function CalendarMeetingsList({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div key={locale} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-1.5">
           {filterButtons.map((btn) => {
             const active = providerFilter === btn.id;
@@ -310,7 +314,7 @@ export default function CalendarMeetingsList({
                   color: active ? "var(--accent-from)" : "var(--text-muted)",
                 }}
               >
-                {t(btn.labelKey)}
+                {btn.label}
               </button>
             );
           })}
@@ -327,7 +331,7 @@ export default function CalendarMeetingsList({
             backgroundColor: "var(--bg-surface)",
           }}
         >
-          {load === "loading" ? t("overview.microsoft_loading") : t("overview.calendar_refresh")}
+          {load === "loading" ? ui.loading : ui.refresh}
         </button>
       </div>
 
@@ -348,7 +352,7 @@ export default function CalendarMeetingsList({
         </p>
       ) : load === "loading" ? (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          {t("overview.microsoft_loading")}
+          {ui.loading}
         </p>
       ) : load === "ready" && !anyConnected ? (
         <div
@@ -392,7 +396,7 @@ export default function CalendarMeetingsList({
       {filteredMeetings.length > 0 ? (
         <div className="flex flex-col gap-5">
           <h4 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-            {t("overview.calendar_meetings_heading")}
+            {ui.meetingsHeading}
             <span className="ml-2 font-normal" style={{ color: "var(--text-muted)" }}>
               ({filteredMeetings.length})
             </span>
@@ -468,7 +472,7 @@ export default function CalendarMeetingsList({
                                   backgroundColor: "var(--bg-surface-strong)",
                                 }}
                               >
-                                {t("overview.calendar_past_badge")}
+                                {ui.pastBadge}
                               </span>
                             ) : null}
                           </div>
@@ -524,7 +528,7 @@ export default function CalendarMeetingsList({
                             ) : null}
                             {m.ubicacion ? (
                               <p>
-                                <span className="font-semibold">{t("overview.calendar_location")}:</span>{" "}
+                                <span className="font-semibold">{ui.location}:</span>{" "}
                                 {m.ubicacion}
                               </p>
                             ) : null}
