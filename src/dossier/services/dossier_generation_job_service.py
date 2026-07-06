@@ -143,9 +143,11 @@ def enqueue_person_research_job(
 
     label = body.full_name.strip()[:512] or "Persona"
     charge = credit_charging_enabled()
-    credits = person_research_credit_cost()
+    is_refinement = body.replace_dossier_id is not None
+    credits = 0 if is_refinement else person_research_credit_cost()
     db.refresh(org)
-    assert_sufficient_credits(org, credits, charge=charge)
+    if not is_refinement:
+        assert_sufficient_credits(org, credits, charge=charge)
 
     job = DossierGenerationJob(
         id=uuid.uuid4(),

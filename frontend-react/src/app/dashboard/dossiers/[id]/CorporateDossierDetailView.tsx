@@ -26,6 +26,7 @@ import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import { formatLongDate } from "@/lib/format";
 import {
+  translateApiErrorMessage,
   translateBackendWarning,
   translateDossierStatusMessage,
 } from "@/lib/translate-backend-message";
@@ -205,7 +206,11 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
       setActiveJobId(jobId);
     } catch (e) {
       setRegenerating(false);
-      setRegenerateErr(e instanceof DossierApiError ? e.message : t("generate.error.api"));
+      setRegenerateErr(
+        e instanceof DossierApiError
+          ? translateApiErrorMessage(e, t)
+          : t("generate.error.api"),
+      );
     }
   }
 
@@ -218,7 +223,9 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
       setRegenerating(false);
     } catch (e) {
       setRegenerateErr(
-        e instanceof DossierApiError ? e.message : t("person_research.cancel_error"),
+        e instanceof DossierApiError
+          ? translateApiErrorMessage(e, t)
+          : t("person_research.cancel_error"),
       );
     }
   }
@@ -233,7 +240,11 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
       router.push("/dashboard/dossiers");
       router.refresh();
     } catch (e) {
-      setDeleteErr(e instanceof DossierApiError ? e.message : t("detail.delete_error"));
+      setDeleteErr(
+        e instanceof DossierApiError
+          ? translateApiErrorMessage(e, t)
+          : t("detail.delete_error"),
+      );
     } finally {
       setDeleting(false);
     }
@@ -336,47 +347,27 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
               {isPersonPipeline ? t("detail.person_refine_cta") : t("detail.refine_cta")}
             </Link>
           ) : null}
-          {canMutate && isPersonPipeline ? (
-            isRegenerating ? (
-              <div
-                className="w-full max-w-xs rounded-lg border px-4 py-3 text-sm lg:text-right"
-                style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}
+          {canMutate && isPersonPipeline && isRegenerating ? (
+            <div
+              className="w-full max-w-xs rounded-lg border px-4 py-3 text-sm lg:text-right"
+              style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}
+            >
+              <p className="font-medium" style={{ color: "var(--text-primary)" }}>
+                {t("person_research.generating_title", {
+                  name: activeJob?.meeting_label || dossier.subject_name || "",
+                })}
+              </p>
+              <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                {t("person_research.generating_background")}
+              </p>
+              <button
+                type="button"
+                className="mt-2 text-xs font-medium text-red-300 hover:text-red-200"
+                onClick={() => void handleCancelRegenerate()}
               >
-                <p className="font-medium" style={{ color: "var(--text-primary)" }}>
-                  {t("person_research.generating_title", {
-                    name: activeJob?.meeting_label || dossier.subject_name || "",
-                  })}
-                </p>
-                <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-                  {t("person_research.generating_background")}
-                </p>
-                <button
-                  type="button"
-                  className="mt-2 text-xs font-medium text-red-300 hover:text-red-200"
-                  onClick={() => void handleCancelRegenerate()}
-                >
-                  {t("person_research.cancel")}
-                </button>
-              </div>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  disabled={isRegenerating}
-                  onClick={() => void handleRegeneratePerson()}
-                  className="inline-flex items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
-                  style={{
-                    borderColor: "var(--border-default)",
-                    color: "var(--accent-from)",
-                  }}
-                >
-                  {t("person_research.regenerate")}
-                </button>
-                <p className="max-w-xs text-right text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  {t("person_research.regenerate_hint")}
-                </p>
-              </>
-            )
+                {t("person_research.cancel")}
+              </button>
+            </div>
           ) : null}
           {canDelete ? (
             <DeleteDossierIconButton
@@ -391,7 +382,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
           )}
           {regenerateErr && (
             <p className="max-w-xs text-right text-xs text-red-400" role="alert">
-              {translateDossierStatusMessage(regenerateErr, t) ?? regenerateErr}
+              {translateDossierStatusMessage(regenerateErr, t) ?? t("errors.generation_failed")}
             </p>
           )}
         </div>
@@ -462,9 +453,12 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             ) : null}
             {lushaDiagnostics.warnings.length > 0 ? (
               <ul className="ui-text-warning mt-2 list-disc pl-5">
-                {lushaDiagnostics.warnings.map((w, i) => (
-                  <li key={i}>{translateBackendWarning(w, t)}</li>
-                ))}
+                {lushaDiagnostics.warnings
+                  .map((w) => translateBackendWarning(w, t))
+                  .filter((line) => line.trim().length > 0)
+                  .map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
               </ul>
             ) : null}
           </div>
@@ -539,24 +533,6 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             >
               {isPersonPipeline ? t("detail.person_refine_cta") : t("detail.refine_cta")}
             </Link>
-            {isPersonPipeline && !isRegenerating ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void handleRegeneratePerson()}
-                  className="mt-3 inline-flex w-full items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90 disabled:opacity-50"
-                  style={{
-                    borderColor: "var(--border-default)",
-                    color: "var(--accent-from)",
-                  }}
-                >
-                  {t("person_research.regenerate")}
-                </button>
-                <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                  {t("person_research.regenerate_hint")}
-                </p>
-              </>
-            ) : null}
           </DashboardCard>
       </div>
 

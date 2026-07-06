@@ -13,7 +13,7 @@ import {
   getStoredAccessToken,
   patchCalendarAutomationSettings,
 } from "@/lib/dossier-api";
-import { normalizePlanTier } from "@/lib/mock-billing";
+import { normalizePlanTier } from "@/lib/plans";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import MutatorGuard from "@/components/auth/MutatorGuard";
 import type { TranslationKey } from "@/i18n/types";

@@ -20,7 +20,7 @@ import {
 import { getCalendarMeetingLabel, getCalendarMeetingSubject } from "@/lib/calendar-dossier-meta";
 import { countListEntries, formatDossierStatusLabel } from "@/lib/dossier-list-utils";
 import { canMutateDossiers } from "@/lib/org-role";
-import { normalizePlanTier, planAllowsCorporateDossier } from "@/lib/mock-billing";
+import { normalizePlanTier, planAllowsCorporateDossier } from "@/lib/plans";
 import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { Locale, TranslationKey } from "@/i18n/types";

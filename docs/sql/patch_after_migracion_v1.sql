@@ -14,6 +14,12 @@ CREATE INDEX IF NOT EXISTS idx_dossiers_folder
 ALTER TABLE users
     ADD COLUMN IF NOT EXISTS dossier_output_language VARCHAR(10) NOT NULL DEFAULT 'match';
 
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS dossier_retention_days INTEGER DEFAULT 30;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS is_platform_admin BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- OAuth calendario (si creaste calendar_integrations solo desde Migracion.md).
 ALTER TABLE calendar_integrations
     ADD COLUMN IF NOT EXISTS refresh_token_encrypted TEXT,

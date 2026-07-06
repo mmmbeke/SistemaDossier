@@ -35,6 +35,11 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Playwright / tests E2E (frontend-react)
+.playwright-browsers/
+playwright-report/
+test-results/
+
 # Frontend Next.js (frontend-react/)
 node_modules/
 .next/

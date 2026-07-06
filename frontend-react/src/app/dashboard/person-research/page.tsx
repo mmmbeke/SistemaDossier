@@ -174,11 +174,7 @@ function PersonResearchPageContent() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await startResearch(false);
-  }
-
-  async function handleRegenerate() {
-    await startResearch(true);
+    await startResearch(Boolean(replaceDossierId));
   }
 
   async function handleCancelGeneration() {
@@ -408,19 +404,12 @@ function PersonResearchPageContent() {
                 style={{ borderColor: "var(--border-default)" }}
               >
                 <PrimaryButton type="submit" loading={submitting} className="ui-new-dossier-btn w-full sm:w-auto">
-                  {PERSON_RESEARCH_CREDITS === 1
-                    ? t("generate.submit_one")
-                    : t("generate.submit", { credits: PERSON_RESEARCH_CREDITS })}
+                  {replaceDossierId
+                    ? t("person_research.submit_replace")
+                    : PERSON_RESEARCH_CREDITS === 1
+                      ? t("generate.submit_one")
+                      : t("generate.submit", { credits: PERSON_RESEARCH_CREDITS })}
                 </PrimaryButton>
-                <button
-                  type="button"
-                  disabled={submitting}
-                  title={t("person_research.regenerate_hint")}
-                  onClick={() => void handleRegenerate()}
-                  className="ui-person-outline-btn w-full px-4 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-                >
-                  {t("person_research.regenerate")}
-                </button>
               </div>
             )}
           </form>
@@ -438,7 +427,9 @@ function PersonResearchPageContent() {
                 </div>
                 <div className="flex justify-between gap-4">
                   <dt style={{ color: "var(--text-muted)" }}>{t("generate.credits_cost")}</dt>
-                  <dd style={{ color: "var(--accent-from)" }}>{PERSON_RESEARCH_CREDITS}</dd>
+                  <dd style={{ color: "var(--accent-from)" }}>
+                    {replaceDossierId ? 0 : PERSON_RESEARCH_CREDITS}
+                  </dd>
                 </div>
                 <div className="flex justify-between gap-4">
                   <dt style={{ color: "var(--text-muted)" }}>{t("generate.eta")}</dt>

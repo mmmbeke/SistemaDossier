@@ -162,7 +162,8 @@ def person_professional_research(
             ),
         }
 
-    assert_sufficient_credits(org, person_research_credit_cost())
+    if body.replace_dossier_id is None:
+        assert_sufficient_credits(org, person_research_credit_cost())
 
     try:
         return run_person_research_and_persist(db, user=user, org=org, body=body)

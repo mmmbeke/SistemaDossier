@@ -16,6 +16,7 @@ import {
   notifyAuthMeChanged,
   setAuthMeCache,
 } from "@/hooks/useAuthMe";
+import { translateApiErrorMessage } from "@/lib/translate-backend-message";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 function orgLabel(
@@ -43,10 +44,14 @@ export default function OrgSwitcher() {
     try {
       const res = await fetchMyOrganizations();
       setOrgs(res.items);
-    } catch {
+      setError(null);
+    } catch (e) {
       setOrgs([]);
+      if (e instanceof DossierApiError) {
+        setError(translateApiErrorMessage(e, t) || t("org_switcher.error"));
+      }
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -83,6 +88,7 @@ export default function OrgSwitcher() {
           full_name: data.user.full_name,
           company_name: data.user.company_name,
           workspace_kind: data.user.workspace_kind,
+          organization_plan: data.user.organization_plan,
           is_platform_admin: !!data.user.is_platform_admin,
         },
         getAuthTokenStorageMode()
@@ -93,7 +99,11 @@ export default function OrgSwitcher() {
       router.push("/dashboard");
       router.refresh();
     } catch (e) {
-      setError(e instanceof DossierApiError ? e.message : t("org_switcher.error"));
+      setError(
+        e instanceof DossierApiError
+          ? translateApiErrorMessage(e, t) || t("org_switcher.error")
+          : t("org_switcher.error"),
+      );
     } finally {
       setBusy(false);
     }
