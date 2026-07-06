@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import TopBar from "@/components/dashboard/TopBar";
-import DepthSelector from "@/components/dossier/DepthSelector";
 import FormField from "@/components/FormField";
 import PrimaryButton from "@/components/PrimaryButton";
 import {
@@ -23,8 +22,8 @@ import {
   normalizePlanTier,
   planSummaryLabel,
   type PlanTier,
-} from "@/lib/mock-billing";
-import { DEPTH_OPTIONS, type DossierDepth } from "@/lib/mock-generation";
+} from "@/lib/plans";
+import { DEPTH_OPTIONS, type DossierDepth } from "@/lib/dossier-depth";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
 import { translateApiErrorMessage, translateDossierStatusMessage } from "@/lib/translate-backend-message";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
@@ -594,29 +593,6 @@ export default function CorporateDossierGenerateView({
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isGenerating}
                 />
-
-                <div
-                  className="flex flex-col gap-3 rounded-xl border px-4 py-3.5 sm:px-5 sm:py-4"
-                  style={{
-                    borderColor: "var(--border-default)",
-                    backgroundColor: "var(--bg-surface-strong)",
-                  }}
-                >
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-base font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>
-                      {t("generate.depth_label")}
-                    </span>
-                    <p className="text-xs leading-relaxed sm:text-[13px]" style={{ color: "var(--text-muted)" }}>
-                      {t("generate.depth_hint")}
-                    </p>
-                  </div>
-                  <DepthSelector
-                    value={depth}
-                    onChange={setDepth}
-                    allowedDepths={allowedDepths}
-                    disabled={isGenerating}
-                  />
-                </div>
 
                 {error && <p className="text-sm text-red-400">{error}</p>}
 

@@ -1,4 +1,4 @@
-import type { DossierDepth } from "@/lib/mock-generation";
+import type { DossierDepth } from "@/lib/dossier-depth";
 import type { TranslationKey } from "@/i18n/types";
 
 export type PlanTier = "free" | "pro" | "enterprise";
@@ -36,19 +36,23 @@ type TranslateFn = (
   params?: Record<string, string | number>,
 ) => string;
 
-export function planSummaryLabel(
-  t: TranslateFn,
-  plan: PlanTier,
-  creditsBalance?: number,
-  monthlyLimit?: number,
-): string {
-  const name = t(
+export function planTierLabel(t: TranslateFn, plan: PlanTier): string {
+  return t(
     plan === "free"
       ? "billing.plan_free_name"
       : plan === "pro"
         ? "billing.plan_pro_name"
         : "billing.plan_enterprise_name",
   );
+}
+
+export function planSummaryLabel(
+  t: TranslateFn,
+  plan: PlanTier,
+  creditsBalance?: number,
+  monthlyLimit?: number,
+): string {
+  const name = planTierLabel(t, plan);
   const cap =
     plan === "enterprise" || (monthlyLimit ?? 0) >= 999_999
       ? t("billing.unlimited")

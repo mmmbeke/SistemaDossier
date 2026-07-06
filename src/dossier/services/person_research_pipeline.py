@@ -67,6 +67,7 @@ def run_person_research_and_persist(
     skip_cache = bool(body.force_refresh)
     charge = credit_charging_enabled()
     person_cost = person_research_credit_cost()
+    is_refinement = body.replace_dossier_id is not None
     db.refresh(org)
 
     cache_hit = False
@@ -82,7 +83,8 @@ def run_person_research_and_persist(
     research_error: str | None = None
 
     if not cache_hit:
-        assert_sufficient_credits(org, person_cost, charge=charge)
+        if not is_refinement:
+            assert_sufficient_credits(org, person_cost, charge=charge)
 
         def _compute() -> None:
             nonlocal cache_hit, cached_payload, result, elapsed_ms, research_error

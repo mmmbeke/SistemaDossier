@@ -6,43 +6,49 @@ Objetivo: **código Python bajo `src/dossier/`**, raíz solo con configuración,
 SistemaDossier/
 ├── main.py                 # Arranque: carga .env y uvicorn (importa dossier.api.app)
 ├── requirements.txt
-├── .env                    # Local (no git)
-├── .env.example
+├── .env                    # Local (no git) — plantilla: .env.example
 ├── README.md
 │
 ├── src/dossier/            # Paquete principal
-│   ├── api/
-│   │   ├── app.py          # FastAPI: CORS, lifespan, rutas Microsoft, calendario, BD
-│   │   ├── auth_routes.py  # Auth app: register/login/me (tablas migradas + JWT)
-│   │   └── dossier_routes.py  # Dossiers PostgreSQL: listado, detalle, borrado, corporativo
-│   ├── services/
-│   │   ├── graph_calendar.py   # Microsoft Graph (Outlook)
-│   │   └── openai_dossier.py   # Dossiers con OpenAI
-│   ├── db/                 # SQLAlchemy: `Migracion.md` (DDL), modelos alineados al schema
-│   ├── schemas/            # Pydantic (p. ej. cuerpos de auth)
-│   ├── security/           # Hash bcrypt + JWT para cuentas del dashboard
-│   ├── gemini/             # Análisis de documentos con Gemini
+│   ├── api/                # FastAPI: auth, dossiers, calendario, admin, integraciones
+│   ├── services/           # Lógica de negocio (calendario, dossiers, personas, orgs)
+│   ├── graphs/             # LangGraph corporativo (UK/US → síntesis)
+│   ├── db/                 # SQLAlchemy + Migracion.md (DDL)
+│   ├── schemas/            # Pydantic
+│   ├── security/           # JWT, bcrypt, RBAC
+│   ├── billing/            # Planes, créditos, entitlements
+│   ├── cache/              # Redis (dossiers corporativos/persona)
+│   ├── gemini/             # Capa LLM / análisis de documentos
+│   ├── llm/                # Cliente DeepSeek y utilidades
 │   ├── companies_house/    # CLI UK
 │   ├── sec_edgar/          # CLI USA (SEC)
 │   └── config.py           # Rutas del proyecto, .env, carpeta data/
 │
-├── scripts/                # CLIs (Companies House, SEC)
+├── scripts/                # CLIs (companies_house.py, sec_edgar.py) y utilidades de migración
 ├── data/                   # Salidas JSON / análisis (gitignored parcialmente)
-├── docs/                   # Documentación markdown (auth-app, postgresql, …)
-├── frontend-react/         # Dashboard Next.js (login/registro → API FastAPI)
-├── Frontend/               # Interfaz estática (HTML/JS/CSS)
-│
-├── Company_house_API/      # Puntero de compatibilidad → scripts + src
-└── Sec_Edgar_Api/
+├── docs/                   # Guías de despliegue, SQL, auth, calendario
+├── frontend-react/         # Dashboard Next.js
+└── tests/                  # Pruebas pytest (desarrollo)
 ```
 
 ## Cómo se importa
 
 - Desde la raíz: `python main.py` añade `src/` a `sys.path`.
-- Desde terminal alternativa: `set PYTHONPATH=src` y `uvicorn dossier.api.app:app --reload`.
+- Alternativa: `$env:PYTHONPATH="src"` y `uvicorn dossier.api.app:app --reload`.
 
-## Qué no debería estar en la raíz
+## Despliegue
 
-Módulos de negocio sueltos (`orchestrator.py`, `calendar_service.py`) se movieron a `src/dossier/services/`.
+| Pieza | Documentación |
+|-------|----------------|
+| API (Render) | [render-deploy.md](render-deploy.md) |
+| Frontend (Vercel) | [vercel-frontend.md](vercel-frontend.md) |
+| PostgreSQL | [postgresql.md](postgresql.md) |
+| Auth dashboard | [auth-app.md](auth-app.md) |
+| Calendario OAuth | [calendario-oauth-operaciones.md](calendario-oauth-operaciones.md) |
 
-El shim `gemini_analyze.py` en la raíz solo reexporta `dossier.gemini` por compatibilidad con imports antiguos.
+## Esquema de base de datos
+
+1. Ejecutar `docs/sql/schema_project_dossier.sql` (equivalente a `src/dossier/db/Migracion.md`).
+2. Aplicar parches incrementales: `docs/sql/patch_after_migracion_v1.sql`.
+
+Al arrancar, `schema_patches.py` aplica parches menores automáticamente si faltan columnas.

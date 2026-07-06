@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useAuthMe } from "@/hooks/useAuthMe";
-import { normalizePlanTier, planAllowsCorporateDossier } from "@/lib/mock-billing";
+import { normalizePlanTier, planAllowsCorporateDossier } from "@/lib/plans";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 type Props = {
