@@ -95,10 +95,11 @@ function notificationOrigin(trigger_source: string | null | undefined): "manual"
 function entryToNotification(entry: DossierListEntry): DossierNotification | null {
   if (isDossierFolderEntry(entry)) {
     if (!entry.created_at) return null;
+    const title = entry.calendar_meeting || entry.title || "Reunión";
     return {
       id: `folder:${entry.id}`,
       kind: "folder",
-      title: entry.title || entry.calendar_meeting || "Reunión",
+      title,
       status: entry.status,
       createdAt: entry.created_at,
       href: `/dashboard/dossiers/folder/${entry.id}`,
@@ -110,7 +111,7 @@ function entryToNotification(entry: DossierListEntry): DossierNotification | nul
   return {
     id: `dossier:${entry.id}`,
     kind: "dossier",
-    title: entry.subject_name || entry.calendar_meeting || "Dossier",
+    title: entry.calendar_meeting || entry.subject_name || "Dossier",
     status: entry.status,
     createdAt: entry.created_at,
     href: `/dashboard/dossiers/${entry.id}`,
@@ -124,13 +125,8 @@ function maxCreatedAt(list: DossierNotification[]): string {
 }
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState<DossierNotification[]>([]);
-  const baselineRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    setNotifications(loadStored());
-    baselineRef.current = loadBaseline();
-  }, []);
+  const [notifications, setNotifications] = useState<DossierNotification[]>(() => loadStored());
+  const baselineRef = useRef<string | null>(loadBaseline());
 
   const poll = useCallback(async () => {
     if (!getStoredAccessToken()) return;
@@ -155,12 +151,22 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     const baseline = baselineRef.current;
     setNotifications((prev) => {
+      const freshById = new Map(fresh.map((n) => [n.id, n]));
       const known = new Set(prev.map((n) => n.id));
+      const refreshed = prev.map((n) => {
+        const next = freshById.get(n.id);
+        return next ? { ...n, ...next, read: n.read } : n;
+      });
       const toAdd = fresh
         .filter((n) => !known.has(n.id) && n.createdAt > baseline)
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-      if (toAdd.length === 0) return prev;
-      const merged = [...toAdd, ...prev].slice(0, MAX_NOTIFICATIONS);
+      const merged = [...toAdd, ...refreshed].slice(0, MAX_NOTIFICATIONS);
+      if (
+        toAdd.length === 0 &&
+        refreshed.every((n, idx) => n === prev[idx])
+      ) {
+        return prev;
+      }
       saveStored(merged);
       return merged;
     });

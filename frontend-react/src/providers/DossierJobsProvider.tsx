@@ -37,6 +37,7 @@ import {
   translateDossierStatusMessage,
 } from "@/lib/translate-backend-message";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
+import { formatCalendarMeetingInstant } from "@/lib/format";
 import type { TranslationKey } from "@/i18n/types";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 
@@ -133,6 +134,16 @@ function calendarJobSavedNothing(job: TrackedJob): boolean {
   }
   const saved = (job.result as CalendarGenerarDossierItem).saved_dossiers;
   return !saved?.corporate && !saved?.person;
+}
+
+function calendarMeetingLabelFromReunion(
+  reunion: OutlookReunionApi | undefined,
+  preferences: ReturnType<typeof usePreferences>["preferences"],
+): string | null {
+  const tema = reunion?.tema?.trim();
+  if (!tema) return null;
+  const when = formatCalendarMeetingInstant(reunion?.inicio, preferences);
+  return when ? `${tema} · ${when}` : tema;
 }
 
 function personJobSavedNothing(job: TrackedJob): boolean {
@@ -314,7 +325,11 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
         job_type: "calendar_manual",
         calendar_provider: provider === "google" ? "google" : "microsoft",
         external_event_id: options.eventId,
-        meeting_label: res.meeting_label ?? options.reunion?.tema ?? null,
+        meeting_label:
+          calendarMeetingLabelFromReunion(options.reunion, preferences) ??
+          res.meeting_label ??
+          options.reunion?.tema ??
+          null,
         credits_estimated: res.credits_estimated ?? 0,
         credits_consumed: 0,
       };
@@ -325,7 +340,7 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
       });
       return res.job_id;
     },
-    [mergeJob, preferences, syncActiveIds],
+    [preferences, syncActiveIds],
   );
 
   const enqueuePersonResearchJob = useCallback(
