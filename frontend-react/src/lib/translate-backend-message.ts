@@ -26,6 +26,9 @@ const EXACT_STATUS: Record<string, TranslationKey> = {
 const EXACT_API_MESSAGE: Record<string, TranslationKey> = {
   "Ya existe una cuenta con este email. Prueba a iniciar sesión.":
     "backend.error_email_exists",
+  "Ya existe una cuenta con este email.":
+    "backend.error_email_in_use",
+  "Contraseña incorrecta.": "backend.error_wrong_password",
   "La invitación ya no es válida.": "backend.error_invite_invalid",
   "Debes registrarte con el correo al que se envió la invitación.":
     "backend.error_invite_email_mismatch",
@@ -41,6 +44,14 @@ const PREFIX_API: { prefix: string; key: TranslationKey }[] = [
   { prefix: "Los dossiers de empresa requieren plan", key: "billing.corporate_requires_pro" },
   { prefix: "La automatización de calendario requiere plan", key: "billing.automation_requires_pro" },
   { prefix: "Tu plan ", key: "backend.error_plan_depth" },
+  {
+    prefix: "Eres el único administrador de una organización",
+    key: "backend.error_account_sole_admin",
+  },
+  {
+    prefix: "No puedes eliminar una cuenta con rol de administrador de plataforma",
+    key: "backend.error_account_platform_admin",
+  },
 ];
 
 function translateKnownStatus(raw: string, t: TranslateFn): string {

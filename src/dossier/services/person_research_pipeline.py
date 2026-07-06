@@ -30,6 +30,9 @@ from dossier.services.output_language import effective_output_language, normaliz
 from dossier.services.person_dossier_dedup import (
     person_research_fingerprint,
     person_research_response_from_redis_cache,
+    person_research_cache_payload_from_result,
+    profiles_count_from_research_result,
+    should_cache_person_research_result,
 )
 from dossier.services.calendar_event_dossiers import _person_failure_message
 from dossier.services.person_research_service import run_person_research
@@ -107,12 +110,16 @@ def run_person_research_and_persist(
             result = nr
             elapsed_ms = int((time.perf_counter() - t_run) * 1000)
             md_new = (result.get("gemini_analysis_markdown") or "").strip()
-            if md_new and not md_new.lstrip().startswith("# Error"):
+            if should_cache_person_research_result(
+                result,
+                gemini_only=body.research_source.value == "gemini_web",
+            ):
                 set_person_cached_payload(
                     fp,
                     {
                         "markdown": md_new,
                         "gemini_google_search_used": result.get("gemini_google_search_used"),
+                        **person_research_cache_payload_from_result(result),
                     },
                 )
             cache_hit = False
@@ -127,8 +134,7 @@ def run_person_research_and_persist(
         result = person_research_response_from_redis_cache(
             body,
             organization_context_block=org_ctx,
-            markdown=str(cached_payload.get("markdown") or ""),
-            gemini_google_search_used=cached_payload.get("gemini_google_search_used"),
+            cached_payload=cached_payload,
         )
         elapsed_ms = 0
 
@@ -163,7 +169,7 @@ def run_person_research_and_persist(
     if isinstance(fa, dict) and fa.get("research_source"):
         person_research_source = str(fa["research_source"])
     lusha_diag = {
-        "profiles_count": len(result.get("profiles") or []),
+        "profiles_count": profiles_count_from_research_result(result),
         "profile_urls": result.get("profile_urls") or [],
         "warnings": result.get("warnings") or [],
         "gemini_google_search_used": result.get("gemini_google_search_used"),

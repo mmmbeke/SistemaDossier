@@ -76,9 +76,12 @@ def fetch_pdl_profiles(
                 "http_status": e.status,
                 "provider": "pdl",
             })
-            if e.status in (401, 402):
+            if e.status == 401:
                 warnings.append(pdl_error_message(e))
                 return profiles, attempts, warnings
+            if e.status == 402:
+                # Cuota de person/enrich agotada: seguir con otras estrategias y person/search.
+                continue
             continue
 
         person = pdl_person_from_enrich(data) if data else None
@@ -111,13 +114,25 @@ def fetch_pdl_profiles(
             break
 
     if len(profiles) < req.max_profiles:
-        sql = build_pdl_search_sql(req, limit=max_collect)
-        if sql:
+        # SQL con todos los filtros y, si no hay resultados, solo por nombre (empresa/país
+        # a veces no coinciden literalmente con cómo PDL almacena los datos).
+        sqls: list[tuple[str, str]] = []
+        full_sql = build_pdl_search_sql(req, limit=max_collect)
+        if full_sql:
+            sqls.append(("person/search (SQL)", full_sql))
+        name_only_req = req.model_copy(update={"company": None, "country": None, "city": None})
+        name_sql = build_pdl_search_sql(name_only_req, limit=max_collect)
+        if name_sql and name_sql != full_sql:
+            sqls.append(("person/search (solo nombre)", name_sql))
+
+        for label, sql in sqls:
+            if len(profiles) >= req.max_profiles:
+                break
             try:
                 search_data = client.person_search(sql=sql, size=max_collect)
                 found = pdl_people_from_search(search_data, max_items=max_collect)
                 attempts.append({
-                    "strategy": "person/search (SQL)",
+                    "strategy": label,
                     "params": {"sql": sql},
                     "response": {"count": len(found), "total": search_data.get("total")},
                     "provider": "pdl",
@@ -133,14 +148,18 @@ def fetch_pdl_profiles(
                         break
             except PdlApiError as e:
                 attempts.append({
-                    "strategy": "person/search (SQL)",
+                    "strategy": label,
                     "params": {"sql": sql},
                     "error": str(e),
                     "http_status": e.status,
                     "provider": "pdl",
                 })
-                if e.status in (401, 402):
+                if e.status == 401:
                     warnings.append(pdl_error_message(e))
+                elif e.status == 402:
+                    warnings.append(pdl_error_message(e))
+                elif e.status == 404:
+                    continue
 
     profiles = profiles[: req.max_profiles]
 
