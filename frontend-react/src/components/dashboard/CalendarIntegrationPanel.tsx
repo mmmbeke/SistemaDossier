@@ -6,14 +6,14 @@ import PrimaryButton from "@/components/PrimaryButton";
 import {
   disconnectCalendarIntegration,
   DossierApiError,
-  fetchGoogleCalendarEventos,
+  fetchCalendarAutomationStatus,
   fetchGoogleIntegrationStartAsJson,
   fetchMicrosoftIntegrationStartAsJson,
-  fetchOutlookCalendarEventos,
   getStoredAccessToken,
   type CalendarProvider,
 } from "@/lib/dossier-api";
 import UiAlert from "@/components/ui/UiAlert";
+import { translateApiErrorMessage } from "@/lib/translate-backend-message";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
 
@@ -57,6 +57,7 @@ export default function CalendarIntegrationPanel({ provider, embedded = false }:
 
   const [load, setLoad] = useState<"idle" | "loading" | "ready">("idle");
   const [connected, setConnected] = useState(false);
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -65,23 +66,31 @@ export default function CalendarIntegrationPanel({ provider, embedded = false }:
     if (!getStoredAccessToken()) {
       setErr(null);
       setConnected(false);
+      setAccountEmail(null);
       setLoad("idle");
       return;
     }
     setLoad("loading");
     setErr(null);
     try {
-      const fetchEvents =
-        provider === "google" ? fetchGoogleCalendarEventos : fetchOutlookCalendarEventos;
-      await fetchEvents({ top: 1, incluir_pasadas: false });
-      setConnected(true);
+      const status = await fetchCalendarAutomationStatus();
+      const row = status.integrations?.find((i) => i.provider === provider);
+      if (row) {
+        setConnected(true);
+        setAccountEmail(row.email?.trim() || null);
+      } else {
+        setConnected(false);
+        setAccountEmail(null);
+        setErr(t(keys.noConnection));
+      }
       setLoad("ready");
     } catch (e) {
       setConnected(false);
+      setAccountEmail(null);
       if (e instanceof DossierApiError && e.status === 404) {
         setErr(t(keys.noConnection));
       } else if (e instanceof DossierApiError) {
-        setErr(e.message || t(keys.error));
+        setErr(translateApiErrorMessage(e, t) || t(keys.error));
       } else {
         setErr(t(keys.error));
       }
@@ -117,6 +126,7 @@ export default function CalendarIntegrationPanel({ provider, embedded = false }:
     try {
       await disconnectCalendarIntegration(provider);
       setConnected(false);
+      setAccountEmail(null);
       setLoad("ready");
       setErr(t(keys.noConnection));
     } catch (e) {
@@ -143,21 +153,38 @@ export default function CalendarIntegrationPanel({ provider, embedded = false }:
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         {connected ? (
           <>
-            <span
-              className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold sm:text-sm ${
-                embedded ? "w-full sm:flex-1" : "w-full sm:w-auto sm:min-w-[200px]"
+            <div
+              className={`flex min-w-0 flex-col gap-1 rounded-lg border px-3 py-2.5 ${
+                embedded ? "w-full sm:flex-1" : "w-full sm:min-w-[200px]"
               }`}
               style={{
                 borderColor: providerAccentBorder,
-                color: providerAccent,
                 backgroundColor: "var(--bg-surface)",
               }}
             >
-              <span aria-hidden className="text-base leading-none">
-                ✓
+              <span
+                className="inline-flex items-center gap-2 text-xs font-semibold sm:text-sm"
+                style={{ color: providerAccent }}
+              >
+                <span aria-hidden className="text-base leading-none">
+                  ✓
+                </span>
+                {t(keys.connected)}
               </span>
-              {t(keys.connected)}
-            </span>
+              {accountEmail ? (
+                <span
+                  className="truncate text-xs font-medium sm:text-sm"
+                  style={{ color: "var(--text-primary)" }}
+                  title={accountEmail}
+                >
+                  {accountEmail}
+                </span>
+              ) : (
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {t("overview.calendar_connected_no_email")}
+                </span>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => void onDisconnect()}
@@ -182,7 +209,7 @@ export default function CalendarIntegrationPanel({ provider, embedded = false }:
         )}
       </div>
 
-      {err ? (
+      {err && !connected ? (
         <UiAlert variant="warning" role="alert">
           {err}
         </UiAlert>

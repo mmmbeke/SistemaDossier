@@ -420,6 +420,7 @@ const messages = {
   "overview.microsoft_subtitle":
     "Ligue o calendário para listar reuniões próximas com a sua sessão Dossier (sem token Microsoft no navegador).",
   "overview.calendar_disconnect": "Terminar sessão",
+  "overview.calendar_connected_no_email": "Conta ligada (email não disponível)",
   "overview.calendar_disconnecting": "A terminar sessão…",
   "overview.calendar_disconnect_server":
     "O servidor não tem a função de desconexão carregada. Reinicie o backend (Ctrl+C e depois python main.py).",
