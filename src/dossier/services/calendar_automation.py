@@ -16,6 +16,7 @@ from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from dossier.db.models import CalendarEvent, CalendarIntegration, Dossier, Organization, User
+from dossier.services.org_membership_service import active_organization_id_for_user
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.services.calendar_event_dossiers import (
     generate_dossiers_from_calendar_event,
@@ -145,13 +146,27 @@ def _reunion_for_processing(
     db: Session,
     event: CalendarEvent,
 ) -> dict[str, Any] | None:
-    """Usa snapshot guardado en sync; si falta, pide el evento al proveedor."""
+    """Combina snapshot con datos frescos del proveedor (paridad con generación manual)."""
+    from dossier.services.graph_calendar import merge_reunion_payload
+
+    base: dict[str, Any] = {}
     snap = event.event_snapshot
     if isinstance(snap, dict):
-        coerced = coerce_reunion_payload(snap)
-        if coerced:
-            return coerced
-    return _fetch_reunion(integration, db, event.external_event_id)
+        base = dict(snap)
+
+    fresh = _fetch_reunion(integration, db, event.external_event_id)
+    if fresh:
+        merged = merge_reunion_payload(base, fresh)
+        if merged:
+            out = dict(merged)
+            user = db.get(User, event.user_id)
+            out["_output_language"] = (
+                base.get("_output_language")
+                or (resolve_dossier_output_language_for_user(user) if user else "es")
+            )
+            return out
+
+    return coerce_reunion_payload(base)
 
 
 def reschedule_user_calendar_events(
@@ -199,6 +214,25 @@ def _skipped_by_calendar_filter(skip_reason: str | None) -> bool:
     return any(marker in skip_reason for marker in _FILTER_SKIP_MARKERS)
 
 
+def _resolve_calendar_org_id(
+    db: Session,
+    user_id: UUID,
+    integration: CalendarIntegration,
+) -> UUID:
+    """
+    Org donde deben guardarse dossiers automáticos: la activa del usuario (JWT),
+    no necesariamente la org fijada al conectar el calendario.
+    """
+    active = active_organization_id_for_user(
+        db, user_id, fallback=integration.organization_id
+    )
+    org_id = active or integration.organization_id
+    if integration.organization_id != org_id:
+        integration.organization_id = org_id
+        db.add(integration)
+    return org_id
+
+
 def sync_calendar_events_for_integration(db: Session, integration: CalendarIntegration) -> int:
     """Importa/actualiza eventos futuros en ``calendar_events``. Devuelve cu?ntos se tocaron."""
     if not integration.is_enabled or integration.revoked_at is not None:
@@ -219,7 +253,8 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
     now = datetime.now(timezone.utc)
     touched = 0
     user = db.get(User, integration.user_id)
-    org = db.get(Organization, integration.organization_id)
+    org_id = _resolve_calendar_org_id(db, integration.user_id, integration)
+    org = db.get(Organization, org_id)
     automation_ok = org is not None and plan_allows_automation(org.plan)
 
     for reunion in reuniones:
@@ -258,7 +293,7 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
             if row is None:
                 row = CalendarEvent(
                     calendar_integration_id=integration.id,
-                    organization_id=integration.organization_id,
+                    organization_id=org_id,
                     user_id=integration.user_id,
                     external_event_id=ext_id,
                     processing_status="skipped",
@@ -295,13 +330,14 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
         if row is None:
             row = CalendarEvent(
                 calendar_integration_id=integration.id,
-                organization_id=integration.organization_id,
+                organization_id=org_id,
                 user_id=integration.user_id,
                 external_event_id=ext_id,
                 processing_status="scheduled",
             )
             db.add(row)
 
+        row.organization_id = org_id
         row.title = (reunion.get("tema") or "")[:500]
         row.starts_at = starts
         row.ends_at = ends
@@ -459,7 +495,10 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
             continue
 
         user = db.get(User, event.user_id)
-        org = db.get(Organization, event.organization_id)
+        org_id = _resolve_calendar_org_id(db, event.user_id, integration)
+        if event.organization_id != org_id:
+            event.organization_id = org_id
+        org = db.get(Organization, org_id)
         if org is None or not plan_allows_automation(org.plan):
             event.processing_status = "skipped"
             event.skip_reason = "Plan Free: la automatización requiere Pro o Enterprise."
@@ -475,7 +514,6 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
             db.commit()
             continue
 
-        org = db.get(Organization, event.organization_id)
         org_ctx = format_dossier_context_for_prompt(org) if org else ""
         out_lang = (
             resolve_dossier_output_language_for_user(user) if user else "es"
@@ -486,7 +524,7 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
             result = generate_dossiers_from_calendar_event(
                 reunion,
                 organization_context_block=org_ctx or None,
-                organization_id=event.organization_id,
+                organization_id=org_id,
                 organization_plan=org.plan if org else None,
                 output_language=out_lang,
             )
@@ -494,7 +532,7 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
             persist_calendar_dossiers(
                 db,
                 user_id=event.user_id,
-                org_id=event.organization_id,
+                org_id=org_id,
                 result=result,
                 calendar_provider=integration.provider,
                 generation_duration_ms=elapsed_ms,

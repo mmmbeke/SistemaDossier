@@ -31,8 +31,15 @@ def folder_title_from_dossier(d: Dossier) -> str | None:
     return None
 
 
-def serialize_dossier_list_item(d: Dossier) -> dict[str, Any]:
+def serialize_dossier_list_item(
+    d: Dossier,
+    *,
+    tz_name: str | None = None,
+) -> dict[str, Any]:
     data = d.dossier_data if isinstance(d.dossier_data, dict) else None
+    output_language = None
+    if data and isinstance(data.get("output_language"), str):
+        output_language = data.get("output_language")
     return {
         "type": "dossier",
         "id": str(d.id),
@@ -48,9 +55,11 @@ def serialize_dossier_list_item(d: Dossier) -> dict[str, Any]:
         "trigger_source": d.trigger_source,
         "module_kind": dossier_module_kind(d),
         "dossier_folder_id": str(d.dossier_folder_id) if d.dossier_folder_id else None,
+        "output_language": output_language,
         "calendar_meeting": calendar_meeting_summary_from_dossier_data(
             data,
             trigger_source=d.trigger_source,
+            tz_name=tz_name,
         ),
     }
 
@@ -65,7 +74,11 @@ def _folder_status(members: list[Dossier]) -> str:
     return members[0].status
 
 
-def serialize_folder(members: list[Dossier]) -> dict[str, Any]:
+def serialize_folder(
+    members: list[Dossier],
+    *,
+    tz_name: str | None = None,
+) -> dict[str, Any]:
     ordered = sorted(
         members,
         key=lambda m: (0 if dossier_module_kind(m) == "corporate" else 1, m.created_at or ""),
@@ -87,12 +100,17 @@ def serialize_folder(members: list[Dossier]) -> dict[str, Any]:
         "calendar_meeting": calendar_meeting_summary_from_dossier_data(
             data,
             trigger_source=head.trigger_source,
+            tz_name=tz_name,
         ),
-        "dossiers": [serialize_dossier_list_item(m) for m in ordered],
+        "dossiers": [serialize_dossier_list_item(m, tz_name=tz_name) for m in ordered],
     }
 
 
-def build_dossier_list_entries(rows: list[Dossier]) -> list[dict[str, Any]]:
+def build_dossier_list_entries(
+    rows: list[Dossier],
+    *,
+    tz_name: str | None = None,
+) -> list[dict[str, Any]]:
     """Agrupa dossiers con el mismo ``dossier_folder_id`` en entradas tipo carpeta."""
     by_folder: dict[str, list[Dossier]] = {}
     for row in rows:
@@ -107,7 +125,7 @@ def build_dossier_list_entries(rows: list[Dossier]) -> list[dict[str, Any]]:
             if fid in emitted:
                 continue
             emitted.add(fid)
-            items.append(serialize_folder(by_folder[fid]))
+            items.append(serialize_folder(by_folder[fid], tz_name=tz_name))
         else:
-            items.append(serialize_dossier_list_item(row))
+            items.append(serialize_dossier_list_item(row, tz_name=tz_name))
     return items

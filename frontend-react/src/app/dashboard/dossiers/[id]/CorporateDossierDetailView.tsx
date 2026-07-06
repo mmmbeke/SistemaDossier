@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
+import DossierOutputLanguageBadge from "@/components/dossier/DossierOutputLanguageBadge";
 import DeleteDossierIconButton from "@/components/dossier/DeleteDossierIconButton";
 import ShareDossierPanel from "@/components/dossier/ShareDossierPanel";
 import {
@@ -310,6 +311,9 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
                 {t("detail.cache_badge")}
               </span>
             ) : null}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <DossierOutputLanguageBadge dossier_data={dossier.dossier_data} />
           </div>
           <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
             {stripHtmlToPlainLine(dossier.subject_name) || t("detail.api_no_subject")}

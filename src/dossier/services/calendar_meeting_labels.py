@@ -99,6 +99,15 @@ MEETING_WITH_SUBJECT_PHRASES: tuple[str, ...] = (
     "termin mit",
 )
 
+# Todas las etiquetas estructuradas (para cortar valores en la misma línea).
+ALL_STRUCTURED_FIELD_LABELS: tuple[str, ...] = (
+    *COMPANY_LABELS,
+    *PERSON_LABELS,
+    *JOB_LABELS,
+    *COUNTRY_LABELS,
+    *EMAIL_LABELS,
+)
+
 
 def _alt(*terms: str) -> str:
     unique: list[str] = []
@@ -112,32 +121,51 @@ def _alt(*terms: str) -> str:
     return "|".join(unique)
 
 
+def _field_value_boundary() -> str:
+    """
+    Fin del valor de un campo: salto de línea u otra etiqueta conocida.
+
+    Outlook/Google a veces dejan «Azienda: X Contatto: Y» en una sola línea;
+    sin esto la empresa captura también el contacto.
+    """
+    labels = _alt(*ALL_STRUCTURED_FIELD_LABELS)
+    return rf"(?=\s*(?:\n|(?:{labels})\s*(?:\d+\s*)?[:.]|\Z))"
+
+
 def labeled_field_pattern(labels: tuple[str, ...]) -> re.Pattern[str]:
-    return re.compile(rf"(?i)(?:{_alt(*labels)})\s*:\s*(.+?)(?:\n|$)")
+    return re.compile(
+        rf"(?i)(?:{_alt(*labels)})\s*:\s*(.+?){_field_value_boundary()}"
+    )
 
 
 def numbered_field_pattern(labels: tuple[str, ...]) -> re.Pattern[str]:
-    return re.compile(rf"(?i)(?:{_alt(*labels)})\s*(\d+)\s*:\s*(.+?)(?:\n|$)")
+    return re.compile(
+        rf"(?i)(?:{_alt(*labels)})\s*(\d+)\s*:\s*(.+?){_field_value_boundary()}"
+    )
 
 
 def country_field_pattern() -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*COUNTRY_LABELS)})(?:\s*\([^)]*\))?\s*:\s*(.+?)(?:\n|$)"
+        rf"(?i)(?:{_alt(*COUNTRY_LABELS)})(?:\s*\([^)]*\))?\s*:\s*(.+?){_field_value_boundary()}"
     )
 
 
 def numbered_country_field_pattern() -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*COUNTRY_LABELS)})(?:\s*\([^)]*\))?\s*(\d+)\s*:\s*(.+?)(?:\n|$)"
+        rf"(?i)(?:{_alt(*COUNTRY_LABELS)})(?:\s*\([^)]*\))?\s*(\d+)\s*:\s*(.+?){_field_value_boundary()}"
     )
 
 
 def email_field_pattern() -> re.Pattern[str]:
-    return re.compile(rf"(?i)(?:{_alt(*EMAIL_LABELS)})\s*[:.]\s*(.+?)(?:\n|$)")
+    return re.compile(
+        rf"(?i)(?:{_alt(*EMAIL_LABELS)})\s*[:.]\s*(.+?){_field_value_boundary()}"
+    )
 
 
 def numbered_email_field_pattern() -> re.Pattern[str]:
-    return re.compile(rf"(?i)(?:{_alt(*EMAIL_LABELS)})\s*(\d+)\s*[:.]\s*(.+?)(?:\n|$)")
+    return re.compile(
+        rf"(?i)(?:{_alt(*EMAIL_LABELS)})\s*(\d+)\s*[:.]\s*(.+?){_field_value_boundary()}"
+    )
 
 
 def country_inline_in_job_pattern() -> re.Pattern[str]:

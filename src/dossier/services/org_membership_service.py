@@ -7,10 +7,61 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from dossier.db.models import OrgMembership, User
+from dossier.db.models import OrgMembership, Organization, User
 from dossier.security.rbac import normalize_org_role
 
 ASSIGNABLE_ORG_ROLES: frozenset[str] = frozenset({"admin", "user", "viewer"})
+
+
+def active_organization_id_for_user(
+    db: Session,
+    user_id: UUID,
+    *,
+    fallback: UUID | None = None,
+) -> UUID | None:
+    """
+    Organización activa del usuario (``is_primary_org``), la misma que usa el JWT tras
+    cambiar de org en la app. Si no hay primaria, devuelve ``fallback``.
+    """
+    row = db.execute(
+        select(Organization.id)
+        .join(OrgMembership, OrgMembership.organization_id == Organization.id)
+        .where(
+            OrgMembership.user_id == user_id,
+            OrgMembership.is_primary_org.is_(True),
+        )
+        .limit(1)
+    ).scalar_one_or_none()
+    if row is not None:
+        return row
+    first = db.execute(
+        select(Organization.id)
+        .join(OrgMembership, OrgMembership.organization_id == Organization.id)
+        .where(OrgMembership.user_id == user_id)
+        .order_by(OrgMembership.joined_at.asc())
+        .limit(1)
+    ).scalar_one_or_none()
+    return first if first is not None else fallback
+
+
+def sync_calendar_integrations_org(
+    db: Session,
+    *,
+    user_id: UUID,
+    organization_id: UUID,
+) -> int:
+    """Alinea ``calendar_integrations.organization_id`` con la org activa del usuario."""
+    from dossier.db.models import CalendarIntegration
+
+    rows = db.execute(
+        select(CalendarIntegration).where(CalendarIntegration.user_id == user_id)
+    ).scalars().all()
+    touched = 0
+    for row in rows:
+        if row.organization_id != organization_id:
+            row.organization_id = organization_id
+            touched += 1
+    return touched
 
 
 def _count_org_admins(db: Session, organization_id: UUID) -> int:

@@ -322,6 +322,7 @@ const messages = {
   "detail.api_no_subject": "Sin nombre",
   "detail.api_dates": "Creado {created} · Actualizado {updated}",
   "detail.cache_badge": "Redis · prueba",
+  "detail.output_language_badge": "Informe en {language}",
   "detail.api_report_title": "Informe generado por IA",
   "detail.api_no_body": "No hay cuerpo de informe guardado para este dossier.",
   "detail.api_meta_title": "Metadatos de generación",
@@ -530,6 +531,10 @@ const messages = {
   "overview.microsoft_subtitle":
     "Conectá tu calendario para ver reuniones próximas con tu sesión de Dossier (sin pegar token de Microsoft en el navegador).",
   "overview.calendar_disconnect": "Cerrar sesión",
+  "overview.calendar_connected_no_email": "Cuenta conectada (correo no disponible)",
+  "overview.calendar_email_show": "Mostrar correo",
+  "overview.calendar_email_hide": "Ocultar correo",
+  "overview.calendar_network_retry": "No se pudo conectar con el servidor. Actualiza para reintentar.",
   "overview.calendar_disconnecting": "Cerrando sesión…",
   "overview.calendar_disconnect_server":
     "El servidor no tiene cargada la función de desconexión. Reiniciá el backend (Ctrl+C y luego python main.py).",
