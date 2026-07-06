@@ -256,11 +256,11 @@ const messages = {
   "admin.col_plan": "Plan",
   "admin.col_credits": "Credits",
   "admin.col_limit": "Monthly limit",
-  "admin.col_dossiers_user": "Dossiers (user)",
-  "admin.col_slug": "Slug",
+  "admin.col_dossiers_user": "User dossiers",
+  "admin.col_org_url": "Organisation URL",
   "admin.col_members": "Members",
-  "admin.col_dossiers_org": "Dossiers (org)",
-  "admin.col_subject": "Subject",
+  "admin.col_dossiers_org": "Organisation dossiers",
+  "admin.col_subject": "Researched name",
   "admin.col_status": "Status",
   "admin.col_credits_used": "Credits used",
   "admin.col_date": "Date",
@@ -270,7 +270,7 @@ const messages = {
   "admin.summary_users": "{count} users",
   "admin.summary_orgs": "{count} organisations",
   "admin.summary_dossiers": "{count} dossiers",
-  "admin.platform_role": "Platform admin",
+  "admin.platform_role": "Platform administrator",
   "admin.platform_yes": "Yes",
   "admin.platform_no": "No",
   "workspace.personal": "Personal account",
@@ -370,7 +370,7 @@ const messages = {
   "dossiers.viewer_readonly_hint":
     "You have read-only access. You cannot generate, edit, or delete dossiers.",
   "dossiers.viewer_list_hint":
-    "You only see dossiers shared with you or owned by you. You cannot create or delete.",
+    "You only see dossiers shared with you. You cannot create or delete.",
   "rbac.viewer_blocked_title": "Read-only access",
   "rbac.viewer_blocked_hint":
     "Your viewer role cannot use this section. You can browse dossiers shared with you.",

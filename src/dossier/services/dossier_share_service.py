@@ -1,13 +1,15 @@
 """Compartir dossiers con miembros de la misma organización."""
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from dossier.db.models import Dossier, DossierShare, OrgMembership, User
+from dossier.db.models import Dossier, DossierShare, OrgMembership, Organization, User
+from dossier.org_workspace import read_workspace_kind
 from dossier.security.rbac import normalize_org_role
 
 
@@ -16,8 +18,11 @@ def user_can_share_dossier(
     dossier: Dossier,
     user_id: UUID,
     role: str | None,
+    workspace_kind: Literal["personal", "work"] = "work",
 ) -> bool:
-    """Dueño del dossier o admin de la org pueden compartir."""
+    """Dueño del dossier o admin de la org pueden compartir (solo cuentas empresa)."""
+    if workspace_kind == "personal":
+        return False
     norm = normalize_org_role(role)
     if norm == "admin":
         return True
@@ -147,7 +152,14 @@ def dossier_permissions_payload(
     from dossier.services.dossier_visibility import user_can_delete_dossier
 
     is_owner = dossier.requested_by_user_id == user_id
-    can_share = user_can_share_dossier(dossier=dossier, user_id=user_id, role=role)
+    org = db.get(Organization, organization_id)
+    workspace_kind = read_workspace_kind(org) if org else "work"
+    can_share = user_can_share_dossier(
+        dossier=dossier,
+        user_id=user_id,
+        role=role,
+        workspace_kind=workspace_kind,
+    )
     can_delete = user_can_delete_dossier(
         db,
         dossier=dossier,

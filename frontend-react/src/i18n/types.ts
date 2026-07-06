@@ -63,3 +63,18 @@ export const SUPPORTED_LOCALES: Locale[] = [
   "fr",
   "de",
 ];
+
+/** Normaliza códigos de idioma del navegador, backend o localStorage al locale de la app. */
+export function normalizeAppLocale(raw: string | null | undefined): Locale {
+  const v = (raw || "es").trim().toLowerCase().replace("_", "-");
+  if ((SUPPORTED_LOCALES as readonly string[]).includes(v)) {
+    return v as Locale;
+  }
+  if (v.startsWith("de")) return "de";
+  if (v.startsWith("pt")) return "pt";
+  if (v.startsWith("fr")) return "fr";
+  if (v.startsWith("it")) return "it";
+  if (v.startsWith("es")) return "es";
+  if (v.startsWith("en")) return v.includes("gb") ? "en-gb" : "en";
+  return "es";
+}

@@ -1,6 +1,6 @@
 import type { AuthUser } from "@/lib/dossier-api";
-import type { Locale, OutputLanguage, UserPreferences } from "@/i18n/types";
-import { SUPPORTED_LOCALES } from "@/i18n/types";
+import type { OutputLanguage, UserPreferences } from "@/i18n/types";
+import { normalizeAppLocale } from "@/i18n/types";
 import { getEffectiveTimezone } from "@/lib/timezones";
 
 const OUTPUT_LANGUAGE_PREFS: OutputLanguage[] = [
@@ -15,10 +15,6 @@ const OUTPUT_LANGUAGE_PREFS: OutputLanguage[] = [
 ];
 
 const RETENTION_DAYS = new Set(["7", "14", "30", "90"]);
-
-function isLocale(value: string): value is Locale {
-  return (SUPPORTED_LOCALES as readonly string[]).includes(value);
-}
 
 function isOutputLanguagePref(value: string): value is OutputLanguage {
   return (OUTPUT_LANGUAGE_PREFS as readonly string[]).includes(value);
@@ -35,8 +31,8 @@ function retentionDaysToExpiry(days: number | null | undefined): string | undefi
 /** Campos de preferencias que vienen del backend (`GET /auth/me`). */
 export function authUserToPreferencesPatch(me: AuthUser): Partial<UserPreferences> {
   const patch: Partial<UserPreferences> = {};
-  const loc = (me.locale || "").trim();
-  if (loc && isLocale(loc)) {
+  const loc = normalizeAppLocale(me.locale);
+  if (loc) {
     patch.locale = loc;
   }
   const tz = (me.timezone || "").trim();
@@ -70,7 +66,7 @@ export function preferencesToAuthPatch(
   const dossier_retention_days =
     raw === "never" ? null : RETENTION_DAYS.has(raw) ? Number(raw) : 30;
   return {
-    locale: prefs.locale,
+    locale: normalizeAppLocale(prefs.locale),
     timezone: getEffectiveTimezone(prefs.timezone, prefs.timezoneFollowSystem ?? false),
     dossier_output_language: prefs.outputLanguage,
     dossier_retention_days,
