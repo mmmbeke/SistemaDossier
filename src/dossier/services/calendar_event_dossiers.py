@@ -853,6 +853,29 @@ def _markdown_is_persistable(md: str | None) -> bool:
     return True
 
 
+def _is_technical_warning(text: str) -> bool:
+    """Avisos de configuración/infra que no deben mostrarse al usuario final."""
+    t = text.strip().lower()
+    if not t:
+        return True
+    markers = (
+        ".env",
+        "api_key",
+        "deepseek",
+        "gemini",
+        "pdl_api",
+        "people data labs",
+        "dashboard →",
+        "dashboard ->",
+        "postgresql",
+        "migracion",
+        "jwt_secret",
+        "sin perfiles de pdl",
+        "no se pudo ejecutar el análisis con ia",
+    )
+    return any(m in t for m in markers)
+
+
 def _person_failure_message(
     *,
     person_payload: dict[str, Any] | None,
@@ -870,8 +893,9 @@ def _person_failure_message(
     warnings = (person_payload or {}).get("warnings") if isinstance(person_payload, dict) else []
     if isinstance(warnings, list) and warnings:
         parts = [str(w).strip() for w in warnings if w and str(w).strip()]
-        if parts:
-            return "; ".join(parts)[:500]
+        user_parts = [p for p in parts if not _is_technical_warning(p)]
+        if user_parts:
+            return "; ".join(user_parts)[:500]
 
     persona_errors = [e for e in (errors or []) if "Persona" in str(e)]
     if persona_errors:

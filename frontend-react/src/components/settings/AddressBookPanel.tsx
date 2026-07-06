@@ -4,7 +4,7 @@ import { useState } from "react";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
-import type { ContactGroup } from "@/lib/mock-addressbook";
+import type { ContactGroup } from "@/lib/addressbook-types";
 
 const GROUP_NAME_KEYS: Record<string, TranslationKey> = {
   vip: "group.vip",

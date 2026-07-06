@@ -11,7 +11,7 @@ import {
   patchOrganizationPlan,
   type AuthUser,
 } from "@/lib/dossier-api";
-import { PLANS, type PlanTier } from "@/lib/mock-billing";
+import { PLANS, type PlanTier } from "@/lib/plans";
 
 const PLAN_NAME_KEYS: Record<PlanTier, TranslationKey> = {
   free: "billing.plan_free_name",

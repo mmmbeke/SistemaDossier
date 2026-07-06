@@ -215,7 +215,8 @@ const messages = {
   "person_research.regenerate": "Nueva búsqueda",
   "person_research.regenerate_hint": "Ignora caché y vuelve a buscar",
   "person_research.replace_hint":
-    "Estás refinando un dossier existente: al generar de nuevo se actualizará en la misma carpeta de reunión.",
+    "Estás refinando un dossier existente: al generar de nuevo se actualizará en la misma carpeta de reunión, sin gastar créditos y con una búsqueda nueva (ignora caché).",
+  "person_research.submit_replace": "Generar dossier",
   "person_research.error_auth": "Debes iniciar sesión.",
   "person_research.error_name": "Indica al menos el nombre completo de la persona.",
   "person_research.warn_title": "Avisos",
@@ -356,7 +357,7 @@ const messages = {
     "No se encontró información adicional sobre esta persona. Añade más información o revisa que el nombre completo sea correcto para mayor exactitud.",
   "detail.warn_pdl_contact_in_match":
     "El email y teléfono se incluyen en el match cuando existen; no hay paso «reveal» aparte.",
-  "detail.warn_pdl_auth": "Error de autenticación del proveedor de datos: revisa PDL_API_KEY en `.env`.",
+  "detail.warn_pdl_auth": "Error de autenticación del proveedor de datos. Contacta al administrador.",
   "detail.warn_pdl_credits": "Créditos agotados o pago requerido en tu cuenta del proveedor de datos.",
   "detail.show_raw_json": "Ver JSON en bruto",
   "detail.hide_raw_json": "Ocultar JSON en bruto",
@@ -397,6 +398,9 @@ const messages = {
   "backend.error_locale_unsupported": "Locale no soportado.",
   "backend.error_plan_depth":
     "Tu plan no permite esta profundidad de dossier. Actualiza a Pro o Enterprise.",
+  "errors.server_generic": "Error en el servidor. Inténtalo de nuevo más tarde.",
+  "errors.generation_failed": "No se pudo generar el informe. Inténtalo de nuevo más tarde.",
+  "errors.service_unavailable": "Un servicio de datos no está disponible temporalmente.",
   "common.clear": "Limpiar",
   "common.loading": "Cargando…",
   "common.at_company": "en",
@@ -484,6 +488,7 @@ const messages = {
   "admin.platform_yes": "Sí",
   "admin.platform_no": "No",
   "workspace.personal": "Cuenta personal",
+  "workspace.personal_plan": "Cuenta personal · {plan}",
   "org_switcher.label": "Organización",
   "org_switcher.error": "No se pudo cambiar de organización.",
   "user.plan": "Plan Pro",
@@ -525,6 +530,10 @@ const messages = {
   "overview.microsoft_subtitle":
     "Conectá tu calendario para ver reuniones próximas con tu sesión de Dossier (sin pegar token de Microsoft en el navegador).",
   "overview.calendar_disconnect": "Cerrar sesión",
+  "overview.calendar_connected_no_email": "Cuenta conectada (correo no disponible)",
+  "overview.calendar_email_show": "Mostrar correo",
+  "overview.calendar_email_hide": "Ocultar correo",
+  "overview.calendar_network_retry": "No se pudo conectar con el servidor. Actualiza para reintentar.",
   "overview.calendar_disconnecting": "Cerrando sesión…",
   "overview.calendar_disconnect_server":
     "El servidor no tiene cargada la función de desconexión. Reiniciá el backend (Ctrl+C y luego python main.py).",

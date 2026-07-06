@@ -635,16 +635,16 @@ function DossierJobToasts({
                   {isFail &&
                     (job.error_message
                       ? translateDossierStatusMessage(job.error_message, t) ??
-                        job.error_message
+                        t("errors.generation_failed")
                       : t("dossier_jobs.failed"))}
                   {isCancelled && t("dossier_jobs.cancelled")}
                 </p>
-                {calendarWarning ? (
+                {calendarWarning && translateBackendWarning(calendarWarning, t) ? (
                   <p className="mt-1.5 text-sm ui-text-warning line-clamp-3 leading-relaxed">
                     {translateBackendWarning(calendarWarning, t)}
                   </p>
                 ) : null}
-                {personWarning ? (
+                {personWarning && translateBackendWarning(personWarning, t) ? (
                   <p className="mt-1.5 text-sm ui-text-warning line-clamp-3 leading-relaxed">
                     {translateBackendWarning(personWarning, t)}
                   </p>

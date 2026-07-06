@@ -182,6 +182,7 @@ export type DossierUserPreview = {
   full_name: string;
   company_name?: string;
   workspace_kind?: "personal" | "work";
+  organization_plan?: string;
   is_platform_admin?: boolean;
 };
 
@@ -204,6 +205,8 @@ export function readDossierUserPreview(): DossierUserPreview | null {
         o.workspace_kind === "personal" || o.workspace_kind === "work"
           ? o.workspace_kind
           : undefined,
+      organization_plan:
+        typeof o.organization_plan === "string" ? o.organization_plan : undefined,
       is_platform_admin: typeof o.is_platform_admin === "boolean" ? o.is_platform_admin : undefined,
     };
   } catch {

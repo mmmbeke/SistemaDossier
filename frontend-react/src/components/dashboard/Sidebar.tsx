@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import BrandLogo from "@/components/BrandLogo";
-import OrgSwitcher from "@/components/dashboard/OrgSwitcher";
 import {
   clearAuthSession,
   fetchAuthMe,
@@ -15,8 +14,9 @@ import {
 } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import { useAuthMe, AUTH_ME_CHANGED_EVENT } from "@/hooks/useAuthMe";
-import { normalizePlanTier, planAllowsCorporateDossier } from "@/lib/mock-billing";
+import { normalizePlanTier, planAllowsCorporateDossier, planTierLabel } from "@/lib/plans";
 import type { TranslationKey } from "@/i18n/types";
+import type { TranslateFn } from "@/i18n";
 
 const mutatorOnlyHrefs = new Set([
   "/dashboard/automation",
@@ -128,6 +128,22 @@ function initialsFromProfile(fullName: string, email: string): string {
 
 type FooterProfile = { initials: string; name: string; detail: string };
 
+function buildFooterDetail(
+  t: TranslateFn,
+  profile: {
+    workspace_kind?: "personal" | "work";
+    company_name?: string;
+    email: string;
+    organization_plan?: string;
+  },
+): string {
+  if (profile.workspace_kind === "personal") {
+    const plan = normalizePlanTier(profile.organization_plan);
+    return t("workspace.personal_plan", { plan: planTierLabel(t, plan) });
+  }
+  return profile.company_name?.trim() || profile.email;
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -155,16 +171,14 @@ export default function Sidebar() {
               full_name: me.full_name,
               company_name: me.company_name,
               workspace_kind: me.workspace_kind,
+              organization_plan: me.organization_plan,
               is_platform_admin: !!me.is_platform_admin,
             },
             getAuthTokenStorageMode()
           );
           const initials = initialsFromProfile(me.full_name, me.email);
           const name = me.full_name.trim() || me.email;
-          const detail =
-            me.workspace_kind === "personal"
-              ? t("workspace.personal")
-              : me.company_name?.trim() || me.email;
+          const detail = buildFooterDetail(t, me);
           setFooter({ initials, name, detail });
         } catch {
           if (cancelled) return;
@@ -174,10 +188,12 @@ export default function Sidebar() {
             setIsPlatformAdmin(!!preview.is_platform_admin);
             const initials = initialsFromProfile(preview.full_name, preview.email);
             const name = preview.full_name.trim() || preview.email;
-            const detail =
-              preview.workspace_kind === "personal"
-                ? t("workspace.personal")
-                : preview.company_name?.trim() || preview.email;
+            const detail = buildFooterDetail(t, {
+              workspace_kind: preview.workspace_kind,
+              company_name: preview.company_name,
+              email: preview.email,
+              organization_plan: preview.organization_plan,
+            });
             setFooter({ initials, name, detail });
           } else {
             setFooter({
@@ -247,8 +263,6 @@ export default function Sidebar() {
           <BrandLogo size="md" />
         </Link>
       </div>
-
-      <OrgSwitcher />
 
       <nav className="flex-1 px-3 py-4">
         <ul className="flex flex-col gap-1">

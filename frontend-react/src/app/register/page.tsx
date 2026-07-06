@@ -323,6 +323,7 @@ function RegisterPageContent() {
           full_name: data.user.full_name,
           company_name: data.user.company_name,
           workspace_kind: data.user.workspace_kind,
+          organization_plan: data.user.organization_plan,
           is_platform_admin: !!data.user.is_platform_admin,
         },
         "local"

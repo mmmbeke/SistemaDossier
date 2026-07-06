@@ -1,10 +1,15 @@
 /**
  * Traduce textos emitidos por el backend (español fijo) al locale de la UI.
- * Preferir códigos estructurados en la API; esto cubre mensajes legados.
+ * Los mensajes técnicos o no mapeados se registran en consola y no se muestran al cliente.
  */
 import type { TranslateFn } from "@/i18n";
 import type { TranslationKey } from "@/i18n/types";
 import type { DossierApiError } from "@/lib/dossier-api";
+import {
+  finalizeBackendUserMessage,
+  isTechnicalBackendMessage,
+  toPublicErrorMessage,
+} from "@/lib/public-error-message";
 import { translatePdlWarning } from "@/lib/translate-pdl-warning";
 
 import { translateApiError } from "@/lib/translate-api-error";
@@ -38,26 +43,43 @@ const PREFIX_API: { prefix: string; key: TranslationKey }[] = [
   { prefix: "Tu plan ", key: "backend.error_plan_depth" },
 ];
 
+function translateKnownStatus(raw: string, t: TranslateFn): string {
+  const msg = raw.trim();
+  const exact = EXACT_STATUS[msg];
+  if (exact) return t(exact);
+  const pdl = translatePdlWarning(msg, t);
+  if (pdl !== msg) return pdl;
+  return msg;
+}
+
 export function translateDossierStatusMessage(
   raw: string | null | undefined,
   t: TranslateFn,
 ): string | null {
   if (!raw?.trim()) return null;
   const msg = raw.trim();
-  const exact = EXACT_STATUS[msg];
-  if (exact) return t(exact);
-  return translateBackendWarning(msg, t);
+  const translated = translateKnownStatus(msg, t);
+  return finalizeBackendUserMessage(msg, translated, t, "status");
 }
 
 /** Avisos PDL/DeepSeek y otros warnings del pipeline de persona. */
 export function translateBackendWarning(warning: string, t: TranslateFn): string {
   const w = warning.trim();
   if (!w) return w;
+
   const pdl = translatePdlWarning(w, t);
   if (pdl !== w) return pdl;
+
   const exact = EXACT_STATUS[w];
   if (exact) return t(exact);
-  return w;
+
+  if (isTechnicalBackendMessage(w)) {
+    console.error("[SistemaDossier:warning]", w);
+    return "";
+  }
+
+  console.warn("[SistemaDossier:warning:unmapped]", w);
+  return "";
 }
 
 export function translateApiErrorMessage(
@@ -74,12 +96,15 @@ export function translateApiErrorMessage(
 
 function translateLegacyApiMessage(message: string, t: TranslateFn): string {
   const msg = message.trim();
-  if (!msg) return msg;
+  if (!msg) return t("errors.server_generic");
+
   const exact = EXACT_API_MESSAGE[msg];
   if (exact) return t(exact);
+
   for (const { prefix, key } of PREFIX_API) {
     if (msg.startsWith(prefix)) return t(key);
   }
+
   const creditsMatch = msg.match(
     /^Créditos insuficientes: se requieren (\d+) y la organización tiene (\d+)\.$/,
   );
@@ -89,7 +114,8 @@ function translateLegacyApiMessage(message: string, t: TranslateFn): string {
       balance: creditsMatch[2],
     });
   }
-  return msg;
+
+  return toPublicErrorMessage(msg, t, "api");
 }
 
 export { translateApiError };

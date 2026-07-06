@@ -1,6 +1,7 @@
 import type { TranslateFn } from "@/i18n";
 import type { TranslationKey } from "@/i18n/types";
 import type { DossierApiError } from "@/lib/dossier-api";
+import { toPublicErrorMessage } from "@/lib/public-error-message";
 
 type ApiErrorDetail = { code?: string; domain?: string };
 
@@ -45,5 +46,5 @@ export function translateApiError(err: DossierApiError, t: TranslateFn): string 
     return t("settings.members.error_invite_wrong_domain", { domain: domainMatch[1] });
   }
 
-  return err.message;
+  return toPublicErrorMessage(err.message, t, "api");
 }
