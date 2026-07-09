@@ -485,6 +485,13 @@ const messages = {
   "admin.platform_role": "Platform administrator",
   "admin.platform_yes": "Yes",
   "admin.platform_no": "No",
+  "admin.col_actions": "Actions",
+  "admin.delete_user": "Delete account",
+  "admin.deleting_user": "Deleting…",
+  "admin.delete_confirm":
+    "Permanently delete the account {email}? This removes their dossiers and personal workspace. This cannot be undone.",
+  "backend.error_admin_delete_self":
+    "You cannot delete your own account from the administration panel.",
   "workspace.personal": "Personal account",
   "workspace.personal_plan": "Personal account · {plan}",
   "org_switcher.label": "Organization",

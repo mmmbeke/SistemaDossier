@@ -733,6 +733,34 @@ export async function patchAdminUserRoles(
   return patchJsonWithAuth<AdminUserRow>(`/admin/users/${encodeURIComponent(userId)}`, body);
 }
 
+/** Elimina una cuenta de usuario (`DELETE /admin/users/{id}`, solo admin de plataforma). */
+export async function deleteAdminUser(userId: string): Promise<void> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/admin/users/${encodeURIComponent(userId)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  if (res.status === 204) return;
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+  throw new DossierApiError(res.status, msg, parsed);
+}
+
 export type OrganizationPlanPatchBody = {
   plan: "free" | "pro" | "enterprise";
 };

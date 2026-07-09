@@ -76,6 +76,22 @@ def _count_org_admins(db: Session, organization_id: UUID) -> int:
     return int(count or 0)
 
 
+def delete_organization_if_empty(db: Session, organization_id: UUID) -> bool:
+    """Elimina la organización si ya no queda ningún miembro."""
+    members = db.execute(
+        select(func.count())
+        .select_from(OrgMembership)
+        .where(OrgMembership.organization_id == organization_id)
+    ).scalar_one()
+    if int(members or 0) > 0:
+        return False
+    org = db.get(Organization, organization_id)
+    if org is None:
+        return False
+    db.delete(org)
+    return True
+
+
 def list_org_members_for_management(
     db: Session,
     *,
@@ -193,3 +209,4 @@ def remove_org_member(
 
     db.delete(membership)
     db.flush()
+    delete_organization_if_empty(db, organization_id)
