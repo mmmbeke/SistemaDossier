@@ -488,6 +488,13 @@ const messages = {
   "admin.platform_role": "Administrador de plataforma",
   "admin.platform_yes": "Sí",
   "admin.platform_no": "No",
+  "admin.col_actions": "Acciones",
+  "admin.delete_user": "Eliminar cuenta",
+  "admin.deleting_user": "Eliminando…",
+  "admin.delete_confirm":
+    "¿Eliminar permanentemente la cuenta {email}? Se borrarán sus dossiers y espacio personal. No se puede deshacer.",
+  "backend.error_admin_delete_self":
+    "No puedes eliminar tu propia cuenta desde el panel de administración.",
   "workspace.personal": "Cuenta personal",
   "workspace.personal_plan": "Cuenta personal · {plan}",
   "org_switcher.label": "Organización",

@@ -29,6 +29,8 @@ const EXACT_API_MESSAGE: Record<string, TranslationKey> = {
   "Ya existe una cuenta con este email.":
     "backend.error_email_in_use",
   "Contraseña incorrecta.": "backend.error_wrong_password",
+  "No puedes eliminar tu propia cuenta desde el panel de administración.":
+    "backend.error_admin_delete_self",
   "La invitación ya no es válida.": "backend.error_invite_invalid",
   "Debes registrarte con el correo al que se envió la invitación.":
     "backend.error_invite_email_mismatch",

@@ -4,21 +4,22 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.orm import Session
 
 from dossier.db.models import (
+    Contact,
     Dossier,
     DossierGenerationJob,
     DossierShare,
     OrgInvite,
     OrgMembership,
-    Organization,
     User,
 )
 from dossier.security import hash_password, verify_password
 from dossier.security.rbac import normalize_org_role
 from dossier.services.dossier_deletion_service import delete_dossier_record, finalize_dossier_deletions
+from dossier.services.org_membership_service import delete_organization_if_empty
 
 
 def _require_password(user: User, password: str) -> None:
@@ -93,8 +94,14 @@ def _count_org_admins(db: Session, organization_id: UUID) -> int:
     )
 
 
-def _assert_can_delete_account(db: Session, user: User) -> list[OrgMembership]:
-    if user.is_platform_admin:
+def _assert_can_delete_account(
+    db: Session,
+    user: User,
+    *,
+    skip_platform_admin_check: bool = False,
+    skip_sole_admin_check: bool = False,
+) -> list[OrgMembership]:
+    if not skip_platform_admin_check and user.is_platform_admin:
         raise HTTPException(
             status_code=400,
             detail=(
@@ -106,6 +113,8 @@ def _assert_can_delete_account(db: Session, user: User) -> list[OrgMembership]:
     memberships = db.execute(
         select(OrgMembership).where(OrgMembership.user_id == user.id)
     ).scalars().all()
+    if skip_sole_admin_check:
+        return memberships
     for membership in memberships:
         members = _count_org_members(db, membership.organization_id)
         if members <= 1:
@@ -121,10 +130,65 @@ def _assert_can_delete_account(db: Session, user: User) -> list[OrgMembership]:
     return memberships
 
 
-def delete_user_account(db: Session, *, user: User, current_password: str) -> None:
-    _require_password(user, current_password)
-    memberships = _assert_can_delete_account(db, user)
+def _pick_replacement_member(
+    db: Session, organization_id: UUID, exclude_user_id: UUID
+) -> UUID | None:
+    return db.execute(
+        select(OrgMembership.user_id)
+        .where(
+            OrgMembership.organization_id == organization_id,
+            OrgMembership.user_id != exclude_user_id,
+        )
+        .limit(1)
+    ).scalar_one_or_none()
 
+
+def _detach_user_references(db: Session, user: User) -> None:
+    """Quita referencias al usuario en filas que no se borran con él (FK sin CASCADE)."""
+    db.execute(
+        update(OrgMembership)
+        .where(OrgMembership.invited_by_user_id == user.id)
+        .values(invited_by_user_id=None)
+    )
+
+    contacts = db.execute(
+        select(Contact).where(Contact.created_by_user_id == user.id)
+    ).scalars().all()
+    for contact in contacts:
+        replacement = _pick_replacement_member(db, contact.organization_id, user.id)
+        if replacement is not None:
+            contact.created_by_user_id = replacement
+            db.add(contact)
+        else:
+            db.delete(contact)
+
+    ledger_rows = db.execute(
+        text("SELECT id, organization_id FROM credit_ledger WHERE user_id = :uid"),
+        {"uid": user.id},
+    ).fetchall()
+    for row in ledger_rows:
+        replacement = _pick_replacement_member(db, row.organization_id, user.id)
+        if replacement is not None:
+            db.execute(
+                text("UPDATE credit_ledger SET user_id = :rid WHERE id = :lid"),
+                {"rid": replacement, "lid": row.id},
+            )
+        else:
+            db.execute(
+                text("DELETE FROM credit_ledger WHERE id = :lid"),
+                {"lid": row.id},
+            )
+
+    db.execute(
+        text(
+            "UPDATE dossier_alerts SET acknowledged_by_user_id = NULL "
+            "WHERE acknowledged_by_user_id = :uid"
+        ),
+        {"uid": user.id},
+    )
+
+
+def _purge_user_account(db: Session, user: User, memberships: list[OrgMembership]) -> None:
     dossiers = db.execute(
         select(Dossier).where(Dossier.requested_by_user_id == user.id)
     ).scalars().all()
@@ -142,20 +206,39 @@ def delete_user_account(db: Session, *, user: User, current_password: str) -> No
         delete(OrgInvite).where(OrgInvite.invited_by_user_id == user.id)
     )
 
-    orgs_to_delete: list[UUID] = []
+    affected_org_ids = {membership.organization_id for membership in memberships}
+    _detach_user_references(db, user)
+
     for membership in memberships:
-        if _count_org_members(db, membership.organization_id) <= 1:
-            orgs_to_delete.append(membership.organization_id)
-        else:
-            db.delete(membership)
+        db.delete(membership)
 
     db.flush()
-    finalize_dossier_deletions(db, calendar_event_ids)
 
-    for org_id in orgs_to_delete:
-        org = db.get(Organization, org_id)
-        if org is not None:
-            db.delete(org)
+    for org_id in affected_org_ids:
+        delete_organization_if_empty(db, org_id)
+
+    finalize_dossier_deletions(db, calendar_event_ids)
 
     db.delete(user)
     db.commit()
+
+
+def delete_user_account(db: Session, *, user: User, current_password: str) -> None:
+    _require_password(user, current_password)
+    memberships = _assert_can_delete_account(db, user)
+    _purge_user_account(db, user, memberships)
+
+
+def admin_delete_user_account(db: Session, *, actor: User, target: User) -> None:
+    if actor.id == target.id:
+        raise HTTPException(
+            status_code=400,
+            detail="No puedes eliminar tu propia cuenta desde el panel de administración.",
+        )
+    memberships = _assert_can_delete_account(
+        db,
+        target,
+        skip_platform_admin_check=True,
+        skip_sole_admin_check=True,
+    )
+    _purge_user_account(db, target, memberships)
