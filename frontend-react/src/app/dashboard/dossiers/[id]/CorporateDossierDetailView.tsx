@@ -10,10 +10,12 @@ import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import DossierOutputLanguageBadge from "@/components/dossier/DossierOutputLanguageBadge";
 import DeleteDossierIconButton from "@/components/dossier/DeleteDossierIconButton";
 import ShareDossierPanel from "@/components/dossier/ShareDossierPanel";
+import { useAuthMe } from "@/hooks/useAuthMe";
 import {
   DossierApiError,
   deleteDossierFromApi,
   getStoredAccessToken,
+  readDossierUserPreview,
   type DossierDetailResponse,
   type PersonResearchApiResponse,
 } from "@/lib/dossier-api";
@@ -104,6 +106,7 @@ function refineHrefForDossier(
 
 export default function CorporateDossierDetailView({ dossier }: Props) {
   const { t, preferences } = useTranslation();
+  const { user } = useAuthMe();
   const router = useRouter();
   const { enqueuePersonResearchJob, cancelJob, getActivePersonJob, jobs } = useDossierJobs();
   const [deleting, setDeleting] = useState(false);
@@ -117,7 +120,10 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
   const perms = dossier.permissions;
   const canMutate = perms?.can_mutate ?? true;
   const canDelete = perms?.can_delete ?? true;
-  const canShare = perms?.can_share ?? false;
+  const workspaceKind =
+    user?.workspace_kind ?? readDossierUserPreview()?.workspace_kind;
+  const canShare =
+    (perms?.can_share ?? false) && workspaceKind === "work";
   const [shares, setShares] = useState(dossier.shares ?? []);
 
   const activeJob =

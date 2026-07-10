@@ -412,12 +412,18 @@ def get_dossier_shares(
         organization_id=org.id,
         role=role,
     )
+    from dossier.org_workspace import read_workspace_kind
     from dossier.services.dossier_share_service import (
         list_dossier_shares,
         user_can_share_dossier,
     )
 
-    if not user_can_share_dossier(dossier=d, user_id=user.id, role=role):
+    if not user_can_share_dossier(
+        dossier=d,
+        user_id=user.id,
+        role=role,
+        workspace_kind=read_workspace_kind(org),
+    ):
         raise HTTPException(status_code=403, detail="No tienes permiso para ver las comparticiones.")
     return {"dossier_id": str(d.id), "items": list_dossier_shares(db, dossier_id=d.id)}
 
@@ -430,6 +436,7 @@ def create_dossier_share(
     db: Session = Depends(get_db_if_configured),
 ):
     """Comparte un dossier con otro miembro de la organización."""
+    from dossier.org_workspace import read_workspace_kind
     from dossier.services.dossier_share_service import (
         list_dossier_shares,
         share_dossier_with_user,
@@ -444,7 +451,12 @@ def create_dossier_share(
         organization_id=org.id,
         role=role,
     )
-    if not user_can_share_dossier(dossier=d, user_id=user.id, role=role):
+    if not user_can_share_dossier(
+        dossier=d,
+        user_id=user.id,
+        role=role,
+        workspace_kind=read_workspace_kind(org),
+    ):
         raise HTTPException(status_code=403, detail="No tienes permiso para compartir este dossier.")
 
     share_dossier_with_user(
@@ -468,6 +480,7 @@ def delete_dossier_share(
     db: Session = Depends(get_db_if_configured),
 ):
     """Dejar de compartir un dossier con un usuario."""
+    from dossier.org_workspace import read_workspace_kind
     from dossier.services.dossier_share_service import (
         unshare_dossier_with_user,
         user_can_share_dossier,
@@ -481,7 +494,12 @@ def delete_dossier_share(
         organization_id=org.id,
         role=role,
     )
-    if not user_can_share_dossier(dossier=d, user_id=user.id, role=role):
+    if not user_can_share_dossier(
+        dossier=d,
+        user_id=user.id,
+        role=role,
+        workspace_kind=read_workspace_kind(org),
+    ):
         raise HTTPException(status_code=403, detail="No tienes permiso para modificar las comparticiones.")
 
     if not unshare_dossier_with_user(

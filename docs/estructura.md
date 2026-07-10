@@ -18,8 +18,8 @@ SistemaDossier/
 │   ├── security/           # JWT, bcrypt, RBAC
 │   ├── billing/            # Planes, créditos, entitlements
 │   ├── cache/              # Redis (dossiers corporativos/persona)
-│   ├── gemini/             # Capa LLM / análisis de documentos
-│   ├── llm/                # Cliente DeepSeek y utilidades
+│   ├── gemini/             # Shim de compatibilidad → llm/ (DeepSeek)
+│   ├── llm/                # Cliente DeepSeek y utilidades de informes
 │   ├── companies_house/    # CLI UK
 │   ├── sec_edgar/          # CLI USA (SEC)
 │   └── config.py           # Rutas del proyecto, .env, carpeta data/

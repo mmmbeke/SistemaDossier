@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import TopBar from "@/components/dashboard/TopBar";
 import {
   DossierApiError,
+  deleteAdminUser,
   fetchAdminDossiers,
   fetchAdminOrganizations,
   fetchAdminOverview,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 import type { TranslationKey } from "@/i18n/types";
+import { formatDossierStatusLabel } from "@/lib/dossier-list-utils";
 
 function fmtDate(iso: string | null, locale: string): string {
   if (!iso) return "—";
@@ -110,6 +112,7 @@ export default function AdminDashboardPage() {
   const [dossiers, setDossiers] = useState<AdminDossierRow[]>([]);
   const [meId, setMeId] = useState<string | null>(null);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [openSection, setOpenSection] = useState<Record<SectionKey, boolean>>({
     users: false,
     orgs: false,
@@ -161,6 +164,26 @@ export default function AdminDashboardPage() {
       cancelled = true;
     };
   }, [router, t]);
+
+  async function handleDeleteUser(user: AdminUserRow) {
+    if (meId !== null && user.id === meId) return;
+    if (!window.confirm(t("admin.delete_confirm", { email: user.email }))) {
+      return;
+    }
+    setDeletingUserId(user.id);
+    setError(null);
+    try {
+      await deleteAdminUser(user.id);
+      setUsers((prev) => prev.filter((x) => x.id !== user.id));
+      setOverview((prev) =>
+        prev ? { ...prev, users_total: Math.max(0, prev.users_total - 1) } : prev,
+      );
+    } catch (e) {
+      setError(e instanceof DossierApiError ? e.message : t("admin.load_error"));
+    } finally {
+      setDeletingUserId(null);
+    }
+  }
 
   async function applyUserRoles(userId: string, body: { is_platform_admin: boolean }) {
     setSavingUserId(userId);
@@ -251,6 +274,12 @@ export default function AdminDashboardPage() {
             <table className="min-w-full text-left text-sm">
               <thead style={{ backgroundColor: "var(--bg-surface-strong)" }}>
                 <tr>
+                  <th
+                    className="sticky left-0 z-10 px-3 py-2 font-medium"
+                    style={{ backgroundColor: "var(--bg-surface-strong)" }}
+                  >
+                    {t("admin.col_actions")}
+                  </th>
                   <th className="px-3 py-2 font-medium">{t("admin.col_email")}</th>
                   <th className="px-3 py-2 font-medium">{t("admin.col_name")}</th>
                   <th className="px-3 py-2 font-medium">{t("admin.col_active")}</th>
@@ -265,7 +294,7 @@ export default function AdminDashboardPage() {
               </thead>
               <tbody>
                 {users.map((u) => {
-                  const busy = savingUserId === u.id;
+                  const busy = savingUserId === u.id || deletingUserId === u.id;
                   const isSelf = meId !== null && u.id === meId;
                   return (
                     <tr
@@ -276,6 +305,27 @@ export default function AdminDashboardPage() {
                         opacity: busy ? 0.65 : 1,
                       }}
                     >
+                      <td
+                        className="sticky left-0 z-10 px-3 py-2 whitespace-nowrap"
+                        style={{ backgroundColor: "var(--bg-surface)" }}
+                      >
+                        {isSelf ? (
+                          <span className="text-xs" style={{ color: "var(--text-subtle)" }}>
+                            —
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void handleDeleteUser(u)}
+                            className="rounded border border-red-500/40 px-2 py-1 text-xs font-medium text-red-300 transition hover:bg-red-500/10 disabled:opacity-50"
+                          >
+                            {deletingUserId === u.id
+                              ? t("admin.deleting_user")
+                              : t("admin.delete_user")}
+                          </button>
+                        )}
+                      </td>
                       <td className="px-3 py-2 whitespace-nowrap">{u.email}</td>
                       <td className="px-3 py-2">{u.full_name || "—"}</td>
                       <td className="px-3 py-2">{u.is_active ? "✓" : "—"}</td>
@@ -326,7 +376,7 @@ export default function AdminDashboardPage() {
               <thead style={{ backgroundColor: "var(--bg-surface-strong)" }}>
                 <tr>
                   <th className="px-3 py-2 font-medium">{t("admin.col_org")}</th>
-                  <th className="px-3 py-2 font-medium">{t("admin.col_slug")}</th>
+                  <th className="px-3 py-2 font-medium">{t("admin.col_org_url")}</th>
                   <th className="px-3 py-2 font-medium">{t("admin.col_plan")}</th>
                   <th className="px-3 py-2 font-medium">{t("admin.col_credits")}</th>
                   <th className="px-3 py-2 font-medium">{t("admin.col_limit")}</th>
@@ -382,7 +432,7 @@ export default function AdminDashboardPage() {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">{d.requested_by_email}</td>
                     <td className="px-3 py-2">{d.subject_name || d.subject_email || "—"}</td>
-                    <td className="px-3 py-2">{d.status}</td>
+                    <td className="px-3 py-2">{formatDossierStatusLabel(d.status, t)}</td>
                     <td className="px-3 py-2 tabular-nums">{d.credits_consumed}</td>
                   </tr>
                 ))}

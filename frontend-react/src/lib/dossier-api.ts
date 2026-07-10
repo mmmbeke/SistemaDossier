@@ -493,6 +493,93 @@ export async function patchAuthUserPreferences(
   return parsed as AuthUser;
 }
 
+export type ChangePasswordPayload = {
+  current_password: string;
+  new_password: string;
+};
+
+export type ChangeEmailPayload = {
+  new_email: string;
+  current_password: string;
+};
+
+export type DeleteAccountPayload = {
+  current_password: string;
+  confirm: "DELETE";
+};
+
+export async function patchMyPassword(payload: ChangePasswordPayload): Promise<void> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/auth/me/password`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    let parsed: unknown = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      parsed = { detail: text.slice(0, 500) };
+    }
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+}
+
+export async function patchMyEmail(payload: ChangeEmailPayload): Promise<AuthSuccessResponse> {
+  const data = await patchJsonWithAuth<AuthSuccessResponse>("/auth/me/email", payload);
+  assertAuthSuccessResponse(data);
+  return data;
+}
+
+export async function deleteMyAccount(payload: DeleteAccountPayload): Promise<void> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/auth/me`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    let parsed: unknown = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      parsed = { detail: text.slice(0, 500) };
+    }
+    const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+    throw new DossierApiError(res.status, msg, parsed);
+  }
+}
+
 export type AdminOverview = {
   users_total: number;
   organizations_total: number;
@@ -644,6 +731,34 @@ export async function patchAdminUserRoles(
   body: AdminUserRolesPatchBody
 ): Promise<AdminUserRow> {
   return patchJsonWithAuth<AdminUserRow>(`/admin/users/${encodeURIComponent(userId)}`, body);
+}
+
+/** Elimina una cuenta de usuario (`DELETE /admin/users/{id}`, solo admin de plataforma). */
+export async function deleteAdminUser(userId: string): Promise<void> {
+  const token = getStoredAccessToken();
+  if (!token) {
+    throw new DossierApiError(401, "No hay sesión. Inicia sesión de nuevo.");
+  }
+  const url = `${getApiBaseUrl()}/admin/users/${encodeURIComponent(userId)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+  } catch {
+    throwFetchFailed();
+  }
+  if (res.status === 204) return;
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { detail: text.slice(0, 500) };
+  }
+  const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
+  throw new DossierApiError(res.status, msg, parsed);
 }
 
 export type OrganizationPlanPatchBody = {

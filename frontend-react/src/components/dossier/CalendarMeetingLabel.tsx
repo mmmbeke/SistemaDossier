@@ -2,7 +2,7 @@
 
 import {
   getCalendarMeetingLabel,
-  getCalendarProviderLabel,
+  getCalendarProviderLabelKey,
   readCalendarBlockFromData,
 } from "@/lib/calendar-dossier-meta";
 import { useTranslation } from "@/providers/PreferencesProvider";
@@ -28,13 +28,14 @@ export default function CalendarMeetingLabel({
   if (!label) return null;
 
   const cal = readCalendarBlockFromData(dossier_data);
-  const provider = getCalendarProviderLabel(cal?.provider);
+  const providerKey = getCalendarProviderLabelKey(cal?.provider);
+  const providerLabel = providerKey ? t(providerKey) : null;
 
   return (
     <p
       className={compact ? "text-xs leading-snug" : "text-sm leading-snug"}
       style={{ color: "var(--text-muted)" }}
-      title={provider ? `${t("dossiers.calendar_meeting_from")} ${provider}` : undefined}
+      title={providerLabel ? `${t("dossiers.calendar_meeting_from")} ${providerLabel}` : undefined}
     >
       <span aria-hidden className="mr-1">
         📅

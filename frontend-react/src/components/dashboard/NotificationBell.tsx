@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useNotifications, type DossierNotification } from "@/providers/NotificationsProvider";
 import { useTranslation } from "@/providers/PreferencesProvider";
+import { formatCalendarMeetingInstant } from "@/lib/format";
 
 function BellIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -37,8 +38,11 @@ function NotificationRow({
   n: DossierNotification;
   onClick: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, preferences } = useTranslation();
   const tone = statusTone(n.status);
+  const createdLabel = n.createdAt
+    ? formatCalendarMeetingInstant(n.createdAt, preferences)
+    : "";
 
   return (
     <Link
@@ -88,7 +92,7 @@ function NotificationRow({
           style={{ color: "var(--text-muted)" }}
         >
           {t(`notifications.status_${tone.key}`)}
-          {n.createdAt ? ` · ${n.createdAt.slice(0, 16).replace("T", " ")}` : ""}
+          {createdLabel ? ` · ${createdLabel}` : ""}
         </span>
       </span>
       <svg

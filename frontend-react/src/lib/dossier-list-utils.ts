@@ -71,9 +71,9 @@ export function formatDossierStatusLabel(
   status: string,
   t: (key: TranslationKey) => string
 ): string {
-  if (status === "complete") return t("dossiers.status_complete");
+  if (status === "complete" || status === "completed") return t("dossiers.status_complete");
   if (status === "failed") return t("dossiers.status_failed");
-  if (status === "pending") return t("dossiers.status_pending");
+  if (status === "pending" || status === "processing") return t("dossiers.status_pending");
   return status.replace(/_/g, " ");
 }
 

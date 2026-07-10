@@ -1,4 +1,4 @@
-"""Extracción de hechos estructurados desde respuestas Lusha v3."""
+"""Extracción de hechos estructurados desde perfiles de enriquecimiento (PDL)."""
 from __future__ import annotations
 
 from typing import Any

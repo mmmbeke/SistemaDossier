@@ -1,4 +1,4 @@
-import type { DateFormat, Locale, UserPreferences } from "@/i18n/types";
+import type { Locale, UserPreferences } from "@/i18n/types";
 
 const LOCALE_MAP: Record<Locale, string> = {
   en: "en-US",

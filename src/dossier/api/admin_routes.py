@@ -26,6 +26,7 @@ from dossier.schemas.admin import (
     AdminUserListResponse,
     AdminUserRolesPatch,
 )
+from dossier.services.account_service import admin_delete_user_account
 
 router = APIRouter(prefix="/admin", tags=["Administración plataforma"])
 
@@ -113,6 +114,21 @@ def admin_patch_user_roles(
     db.commit()
     db.refresh(target)
     return _build_admin_user_item(db, target)
+
+
+@router.delete("/users/{user_id}", status_code=204)
+def admin_delete_user(
+    user_id: UUID,
+    admin: AdminUserDep,
+    db: Session = Depends(get_db_if_configured),
+) -> None:
+    target = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
+    if target is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuario no encontrado para el id indicado.",
+        )
+    admin_delete_user_account(db, actor=admin, target=target)
 
 
 @router.get("/overview", response_model=AdminOverviewResponse)

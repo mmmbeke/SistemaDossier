@@ -1,5 +1,5 @@
 /** Metadatos de reunión guardados en `dossier_data.calendar`. */
-import type { UserPreferences } from "@/i18n/types";
+import type { TranslationKey, UserPreferences } from "@/i18n/types";
 import { formatCalendarMeetingInstant } from "@/lib/format";
 
 export type CalendarDossierMeta = {
@@ -109,10 +109,20 @@ export function isCalendarDossier(dossier: {
   return readCalendarBlock(dossier.dossier_data) !== null;
 }
 
-export function getCalendarProviderLabel(provider: string | undefined): string | null {
+export function getCalendarProviderLabelKey(
+  provider: string | undefined,
+): TranslationKey | null {
   const p = (provider || "").trim().toLowerCase();
-  if (p === "google") return "Google Calendar";
-  if (p === "microsoft" || p === "outlook") return "Outlook";
+  if (p === "google") return "overview.google_title";
+  if (p === "microsoft" || p === "outlook") return "overview.microsoft_title";
+  return null;
+}
+
+/** @deprecated Usa `getCalendarProviderLabelKey` con el traductor `t()`. */
+export function getCalendarProviderLabel(provider: string | undefined): string | null {
+  const key = getCalendarProviderLabelKey(provider);
+  if (key === "overview.google_title") return "Google Calendar";
+  if (key === "overview.microsoft_title") return "Outlook";
   return provider?.trim() || null;
 }
 

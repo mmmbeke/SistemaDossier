@@ -34,5 +34,4 @@ if __name__ == "__main__":
     print()
     print("  Ctrl+C para detener el servidor.")
     print()
-    # chao
     uvicorn.run(app, host="127.0.0.1", port=8000)

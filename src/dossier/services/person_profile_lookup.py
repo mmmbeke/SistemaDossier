@@ -1,4 +1,4 @@
-"""Heurísticas de nombre y extracción de perfiles desde JSON de proveedores (Lusha, etc.)."""
+"""Heurísticas de nombre y extracción de perfiles desde JSON de proveedores (PDL, etc.)."""
 from __future__ import annotations
 
 import re
@@ -67,62 +67,3 @@ def extract_profile_urls(payload: Any, *, max_urls: int = 8) -> list[str]:
 
     walk(payload)
     return found[:max_urls]
-
-
-def _contact_id(contact: dict[str, Any]) -> str | None:
-    for key in ("id", "contactId", "personId"):
-        val = contact.get(key)
-        if val is not None and str(val).strip():
-            return str(val).strip()
-    return None
-
-
-def extract_lusha_contacts(payload: Any, *, max_items: int = 8) -> list[dict[str, Any]]:
-    """
-    Normaliza respuestas de /v3/contacts/search o /v3/contacts/enrich a lista de contactos.
-    Tolera variaciones de forma del JSON de Lusha v3.
-    """
-    if payload is None:
-        return []
-
-    out: list[dict[str, Any]] = []
-    seen_ids: set[str] = set()
-
-    def add_contact(obj: Any) -> None:
-        if len(out) >= max_items:
-            return
-        if not isinstance(obj, dict):
-            return
-        cid = _contact_id(obj)
-        if cid and cid in seen_ids:
-            return
-        has_name = any(obj.get(k) for k in ("firstName", "lastName", "fullName", "name"))
-        has_company = any(obj.get(k) for k in ("companyName", "company", "currentCompanyName"))
-        has_title = any(obj.get(k) for k in ("jobTitle", "title", "currentTitle"))
-        has_linkedin = bool(extract_profile_urls(obj, max_urls=1))
-        if not (has_name or has_company or has_title or has_linkedin or cid):
-            return
-        if cid:
-            seen_ids.add(cid)
-        out.append(obj)
-
-    def walk(obj: Any) -> None:
-        if len(out) >= max_items:
-            return
-        if isinstance(obj, dict):
-            social = obj.get("socialLinks") or obj.get("social_links")
-            if isinstance(social, dict):
-                for key in ("linkedin", "linkedIn", "linked_in"):
-                    val = social.get(key)
-                    if isinstance(val, str):
-                        maybe_add(val)
-            if _contact_id(obj) or obj.get("firstName") or obj.get("fullName"):
-                add_contact(obj)
-            for val in obj.values():
-                walk(val)
-        elif isinstance(obj, list):
-            for item in obj:
-                walk(item)
-
-    walk(payload)
-    return out[:max_items]
